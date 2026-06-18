@@ -108,3 +108,7 @@ Docker-runtime steps are validated against a real host):
   users/RBAC foundation, reverse-proxy hardening
 
 See [PLANNING.md](PLANNING.md) for the architecture and the deferred follow-ups.
+
+## License
+
+[MIT](LICENSE) © 2026 Jacob Neudorf. Not affiliated with Studio Wildcard, Overwolf, or CurseForge.

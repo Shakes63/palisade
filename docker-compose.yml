@@ -44,8 +44,16 @@ services:
       PUID: ${PUID:-99}
       PGID: ${PGID:-100}
       TZ: ${TZ:-UTC}
+      # Run game containers on the host network (removes Docker NAT → more reliable
+      # ASA/EOS public listing). When on, the manager reaches RCON via
+      # host.docker.internal (see extra_hosts below). Default off = ark-net bridge.
+      GAME_HOST_NETWORK: ${GAME_HOST_NETWORK:-false}
     volumes:
       - ${HOST_DATA_DIR:-./data}:/data
+    # Lets the manager reach game-container RCON via host.docker.internal when
+    # GAME_HOST_NETWORK is on; harmless when it's off.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "3000:3000" # web UI
       - "8787:8787" # API (optional to expose; web can proxy)
