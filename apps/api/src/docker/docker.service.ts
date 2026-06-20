@@ -167,6 +167,16 @@ export class DockerService {
     })) as unknown as NodeJS.ReadableStream;
 
     const out = new PassThrough();
+    // A container exiting resets its log socket (ECONNRESET). Without an 'error'
+    // listener on BOTH the raw docker stream and the demux output, Node throws an
+    // unhandled 'error' event and crashes the entire manager process — which is
+    // exactly what happened mid-stop (the container died while this stream was
+    // still attached). Swallow it: losing trailing lines from a dying container
+    // is fine; crashing the manager is not.
+    const onStreamErr = (e: Error) =>
+      this.logger.debug(`log stream for ${id} ended: ${e.message}`);
+    stream.on("error", onStreamErr);
+    out.on("error", onStreamErr);
     container.modem.demuxStream(stream, out, out);
     let buffer = "";
     out.on("data", (chunk: Buffer) => {
@@ -204,6 +214,10 @@ export class DockerService {
         stderr: true,
       })) as unknown as NodeJS.ReadableStream;
       const out = new PassThrough();
+      const onStreamErr = (e: Error) =>
+        this.logger.debug(`attach stream ended: ${e.message}`); // never crash on reset
+      stream.on("error", onStreamErr);
+      out.on("error", onStreamErr);
       container.modem.demuxStream(stream, out, out);
       out.on("data", (chunk: Buffer) => {
         const text = chunk.toString("utf8");

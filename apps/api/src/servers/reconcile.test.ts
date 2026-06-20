@@ -113,6 +113,16 @@ describe("reconcile()", () => {
     expect(attached).toHaveLength(0); // NOT re-adopted
   });
 
+  it("settles a Stopping server whose container exited to Stopped (not Crashed)", async () => {
+    const { svc, forced, removed } = makeService(
+      [{ id: "s1", name: "A", state: ServerState.Stopping, containerId: "c1" }],
+      [{ id: "c1", serverId: "s1", running: false, status: "Exited (143) 1m ago" }],
+    );
+    await svc.reconcile();
+    expect(forced).toEqual([{ id: "s1", to: ServerState.Stopped, reason: expect.any(String) }]);
+    expect(removed).toContain("c1"); // stale container cleaned up
+  });
+
   it("marks a Running server Crashed when its container exited while we were down", async () => {
     const { svc, forced, removed } = makeService(
       [{ id: "s1", name: "A", state: ServerState.Running, containerId: "c1" }],

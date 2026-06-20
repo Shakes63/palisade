@@ -128,8 +128,7 @@ export class ServersService implements OnApplicationBootstrap {
         await this.adoptRunning(server.id, c.id, dbState);
         adopted++;
       } else {
-        // Exited or gone: drop the stale container + link, and leave the DB in a
-        // resting state (Crashed if it died on us, Stopped if simply absent).
+        // Exited or gone: drop the stale container + link, then settle the DB.
         if (c) await this.docker.remove(c.id).catch(() => undefined);
         if (server.containerId) {
           await this.prisma.server
@@ -137,10 +136,18 @@ export class ServersService implements OnApplicationBootstrap {
             .catch(() => undefined);
         }
         if (dbState !== ServerState.Stopped && dbState !== ServerState.Crashed) {
+          // A Stopping server whose container is now gone IS the stop we wanted —
+          // resolve to Stopped even if we died before finishing cleanup. Only an
+          // unexpected exit (was Running/Starting) counts as a Crash.
+          const stopped = dbState === ServerState.Stopping || !c;
           await this.sm.force(
             server.id,
-            c ? ServerState.Crashed : ServerState.Stopped,
-            c ? "container exited while manager was down" : "no container on restart",
+            stopped ? ServerState.Stopped : ServerState.Crashed,
+            dbState === ServerState.Stopping
+              ? "stop completed (container exited)"
+              : c
+                ? "container exited while manager was down"
+                : "no container on restart",
           );
           reset++;
         }
