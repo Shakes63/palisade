@@ -18,6 +18,9 @@ interface NumOpts {
   advanced?: boolean;
   help?: string;
   emitAs?: string;
+  /** Show the value ×displayScale (with `unit`), e.g. difficulty → wild level. */
+  displayScale?: number;
+  unit?: string;
   /** Slider endpoint labels; default "less"/"more". */
   lo?: string;
   hi?: string;
@@ -27,6 +30,8 @@ interface BoolOpts {
   advanced?: boolean;
   help?: string;
   emitAs?: string;
+  /** Override the UI grouping (used by flag(); defaults to "Launch flags"). */
+  category?: string;
 }
 
 const num =
@@ -42,6 +47,8 @@ const num =
     min: o.min ?? 0,
     max: o.max ?? 100,
     step: o.step ?? (type === "float" ? 0.1 : 1),
+    displayScale: o.displayScale,
+    unit: o.unit,
     minLabel: o.lo ?? "less",
     maxLabel: o.hi ?? "more",
     advanced: o.advanced,
@@ -96,7 +103,7 @@ export function flag(key: string, label: string, emitAs: string, o: BoolOpts = {
   return {
     key,
     label,
-    category: "Launch flags",
+    category: o.category ?? "Launch flags",
     target: SettingTarget.CommandLineFlag,
     type: "bool",
     default: o.def ?? false,
@@ -172,6 +179,22 @@ function statGrid(key: string, label: string): SettingDef {
 
 /** The big shared catalog used by both ASA and ASE. */
 export const COMMON_SETTINGS: SettingDef[] = [
+  // ── Server ───────────────────────────────────────────────────────────────────
+  // Join password. Delivered to the game container via the SERVER_PASSWORD env var
+  // (noEmit), not the INI — so POK/hermsi own it and there's no duplicate INI key.
+  // Stored and shown in plain text on purpose (single-user manager; easy to read).
+  {
+    key: "ServerPassword",
+    label: "Server join password",
+    category: "Server",
+    target: SettingTarget.GameUserSettings,
+    section: SERVER,
+    type: "string",
+    default: "",
+    noEmit: true,
+    help: "Players must enter this to join. Leave blank for an open server. Stored and shown in plain text — change it any time and restart the server to apply.",
+  },
+
   // ── Rules ──────────────────────────────────────────────────────────────────
   gusBool("ServerPVE", "PvE mode", "Rules", { help: "Disable player-vs-player combat." }),
   gusBool("ServerHardcore", "Hardcore", "Rules", { help: "Players revert to level 1 on death." }),
@@ -200,7 +223,17 @@ export const COMMON_SETTINGS: SettingDef[] = [
 
   // ── Difficulty ─────────────────────────────────────────────────────────────
   gusFloat("DifficultyOffset", "Difficulty offset", "Difficulty", { min: 0, max: 1, step: 0.01 }),
-  gusFloat("OverrideOfficialDifficulty", "Max wild level (difficulty)", "Difficulty", { def: 5, min: 1, max: 20, step: 0.5, help: "5.0 ≈ max wild level 150." }),
+  gusFloat("OverrideOfficialDifficulty", "Max wild creature level", "Difficulty", {
+    def: 5,
+    min: 1,
+    max: 20,
+    step: 0.5,
+    displayScale: 30,
+    unit: "level",
+    lo: "easier",
+    hi: "harder",
+    help: "Highest level wild creatures can spawn at (they range from 1 up to this). 150 = official 'Hard'/single-player max, 30 = easiest. Internally this is the difficulty value ×30.",
+  }),
 
   // ── Rates ──────────────────────────────────────────────────────────────────
   gusFloat("XPMultiplier", "XP multiplier", "Rates", { max: 1000 }),
@@ -617,7 +650,7 @@ export const COMMON_SETTINGS: SettingDef[] = [
   gameBool("bShowCreativeMode", "Creative mode toggle", "Rules", { advanced: true, help: "Add a pause-menu button to toggle creative mode." }),
   gameBool("bDisablePhotoMode", "Disable photo mode", "Rules", { advanced: true, help: "Turn off photo mode." }),
   gameInt("PhotoModeRangeLimit", "Photo mode range", "Rules", { def: 3000, advanced: true, max: 100000, help: "Max distance the photo-mode camera can travel from the player." }),
-  gameBool("bAutoUnlockAllEngrams", "Auto-unlock all engrams", "Engrams", { advanced: true, help: "Unlock every engram automatically (ignores engram overrides)." }),
+  gameBool("bAutoUnlockAllEngrams", "Auto-learn all engrams at their level", "Engrams", { advanced: true, help: "Players automatically learn every engram the moment they reach its required level — no engram points to spend, nothing to pick. Takes priority over the per-engram overrides above." }),
   gameBool("bOnlyAllowSpecifiedEngrams", "Whitelist engrams only", "Engrams", { advanced: true, help: "Hide every engram not explicitly allowed by an engram override." }),
   gusBool("ClampItemStats", "Clamp item stats", "Items", { advanced: true, help: "Enable the item stat clamps (cap looted/crafted gear stats)." }),
   gusBool("ClampResourceHarvestDamage", "Clamp harvest damage", "Rates", { advanced: true, help: "Limit harvest damage to a node's remaining health (less waste with high-damage tools)." }),

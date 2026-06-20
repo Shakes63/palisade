@@ -160,6 +160,12 @@ export interface SettingDef {
   min?: number;
   max?: number;
   step?: number;
+  /** Multiply the stored value by this for display (and divide back on input),
+   *  so the UI can show a derived figure — e.g. OverrideOfficialDifficulty is
+   *  stored 1–20 but shown ×30 as the max wild creature level (30–600). */
+  displayScale?: number;
+  /** Short unit suffix shown after a numeric input (e.g. "level"). */
+  unit?: string;
   /** Directional endpoint labels shown under a slider (e.g. "less" / "more"). */
   minLabel?: string;
   maxLabel?: string;
@@ -173,6 +179,9 @@ export interface SettingDef {
   games?: Game[];
   /** Advanced settings are collapsed by default in the UI. */
   advanced?: boolean;
+  /** UI/config-only: never written to any INI or command line. Used for values
+   *  the manager delivers another way (e.g. ServerPassword → SERVER_PASSWORD env). */
+  noEmit?: boolean;
 }
 
 export interface SettingsCatalog {

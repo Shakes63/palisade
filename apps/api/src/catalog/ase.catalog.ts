@@ -12,7 +12,7 @@ const aseExtras: SettingDef[] = [];
 
 const flags: SettingDef[] = [
   flag("DisableBattlEye", "Disable BattlEye anti-cheat", "NoBattlEye"),
-  flag("ForceAllowCaveFlyers", "Allow flyers in caves", "ForceAllowCaveFlyers", { advanced: true }),
+  flag("ForceAllowCaveFlyers", "Allow flyers in caves", "ForceAllowCaveFlyers", { advanced: true, category: "Tamed creatures" }),
 ];
 
 export const ASE_CATALOG: SettingsCatalog = {

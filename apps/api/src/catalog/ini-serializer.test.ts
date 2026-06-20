@@ -14,6 +14,14 @@ describe("ini serializer", () => {
     expect(ini).toContain("XPMultiplier=2.5");
   });
 
+  it("never writes a noEmit setting (ServerPassword) into the INI", () => {
+    const ini = serializeGameUserSettings(ASA_CATALOG, {
+      values: { ServerPassword: "hunter2", ServerPVE: true },
+    });
+    expect(ini).not.toContain("ServerPassword"); // delivered via the env var instead
+    expect(ini).toContain("ServerPVE=True"); // sanity: normal settings still emit
+  });
+
   it("routes breeding settings into Game.ini under the game mode section", () => {
     const config: ServerConfigValues = { values: { MatingIntervalMultiplier: 0.5 } };
     const ini = serializeGameIni(ASA_CATALOG, config);

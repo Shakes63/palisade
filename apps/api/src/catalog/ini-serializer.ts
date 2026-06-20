@@ -174,6 +174,7 @@ function buildSections(
 ): Sectioned {
   const out: Sectioned = {};
   for (const def of catalog.settings) {
+    if (def.noEmit) continue; // delivered another way (e.g. ServerPassword → env var)
     if (def.target !== target || !def.section) continue;
     const lines = linesFor(def, values[def.key]);
     if (lines.length) (out[def.section] ??= []).push(...lines);

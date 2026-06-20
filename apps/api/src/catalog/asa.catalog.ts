@@ -13,7 +13,7 @@ const asaExtras: SettingDef[] = [
   gusBool("UseAstraeosTraversalBuff", "Astraeos biome teleport", "Astraeos", { def: true, advanced: true, help: "Hold-to-teleport biome travel on Astraeos." }),
   gusStr("ValgueroMemorialEntries", "Memorial names", "Valguero", { advanced: true, help: "Names shown on the Valguero Memorial, semicolon-separated with no spaces (e.g. Name1;Name2;Name3)." }),
   gusBool("AllowCryoFridgeOnSaddle", "Allow cryofridge on saddle", "Cryopods", { advanced: true }),
-  gusBool("AllowFlyingStaminaRecovery", "Flyer stamina recovery", "Players", { advanced: true }),
+  gusBool("AllowFlyingStaminaRecovery", "Flyer stamina recovery", "Tamed creatures", { advanced: true }),
   gusBool("AllowMultipleAttachedC4", "Allow multiple attached C4", "PvP", { advanced: true }),
   gameFloat("StructurePickupTimeAfterPlacement", "Structure pickup window (s)", "Pickup & power", { def: 30, max: 600, step: 5, advanced: true }),
   gameFloat("StructurePickupHoldDuration", "Structure pickup hold (s)", "Pickup & power", { def: 0.5, max: 10, step: 0.1, advanced: true }),
@@ -66,7 +66,7 @@ const flags: SettingDef[] = [
     help: "Adds -NoBattlEye. Disables anti-cheat.",
   }),
   flag("ForceRespawnDinos", "Force respawn dinos on boot", "ForceRespawnDinos", { advanced: true }),
-  flag("ForceAllowCaveFlyers", "Allow flyers in caves", "ForceAllowCaveFlyers", { advanced: true }),
+  flag("ForceAllowCaveFlyers", "Allow flyers in caves", "ForceAllowCaveFlyers", { advanced: true, category: "Tamed creatures" }),
 ];
 
 export const ASA_CATALOG: SettingsCatalog = {

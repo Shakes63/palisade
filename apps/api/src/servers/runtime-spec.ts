@@ -53,6 +53,17 @@ function serverLabels(input: RuntimeSpecInput, baseUrl: string): Record<string, 
   };
 }
 
+/**
+ * The server join password. Primary source is the plain-text catalog setting
+ * (config.values.ServerPassword) so it's visible/editable in the UI; falls back
+ * to the legacy encrypted value (input.serverPassword) for older servers.
+ */
+function serverPassword(input: RuntimeSpecInput): string {
+  const v = input.config.values?.["ServerPassword"];
+  if (typeof v === "string" && v.trim()) return v;
+  return input.serverPassword ?? "";
+}
+
 /** Pull the MOTD widget value out of the config (POK manages it via env vars). */
 function readMotd(config: ServerConfigValues): MotdValue | null {
   const v = config.values?.["MessageOfTheDay"] as Partial<MotdValue> | undefined;
@@ -78,7 +89,7 @@ function buildPokSpec(input: RuntimeSpecInput): Docker.ContainerCreateOptions {
     `MAP_NAME=${input.map}`, // POK passes through any *_WP value
     `SESSION_NAME=${input.sessionName}`,
     `SERVER_ADMIN_PASSWORD=${input.adminPassword}`,
-    `SERVER_PASSWORD=${input.serverPassword ?? ""}`,
+    `SERVER_PASSWORD=${serverPassword(input)}`,
     `ASA_PORT=${ports.game}`,
     `RCON_PORT=${ports.rcon}`,
     `RCON_ENABLED=TRUE`, // required for the in-app RCON console
@@ -171,7 +182,7 @@ function buildAseSpec(input: RuntimeSpecInput): Docker.ContainerCreateOptions {
     `SESSION_NAME=${input.sessionName}`,
     `SERVER_MAP=${input.map}`,
     `ADMIN_PASSWORD=${input.adminPassword}`,
-    `SERVER_PASSWORD=${input.serverPassword ?? ""}`,
+    `SERVER_PASSWORD=${serverPassword(input)}`,
     `MAX_PLAYERS=${input.maxPlayers}`,
     `GAME_MOD_IDS=${(input.modIds ?? []).join(",")}`,
     `GAME_CLIENT_PORT=${ports.game}`,

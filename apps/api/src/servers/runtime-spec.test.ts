@@ -55,6 +55,15 @@ describe("buildContainerSpec (POK / ASA)", () => {
     expect(env).toContain("MAP_NAME=TheIsland_WP");
   });
 
+  it("sources SERVER_PASSWORD from the plain-text catalog value, else the legacy field", async () => {
+    // the visible/editable config value wins...
+    expect(envOf(await buildAsa({ values: { ServerPassword: "hunter2" } }))).toContain(
+      "SERVER_PASSWORD=hunter2",
+    );
+    // ...and falls back to the legacy encrypted field ("pw") when it's unset
+    expect(envOf(await buildAsa({ values: {} }))).toContain("SERVER_PASSWORD=pw");
+  });
+
   it("mounts a shared cluster dir + sets -ClusterDirOverride when clustered", async () => {
     const spec = await buildAsa({ values: {} }, { clusterId: "cluster-a" });
     const env = envOf(spec);
