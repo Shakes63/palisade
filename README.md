@@ -10,18 +10,20 @@ See [PLANNING.md](PLANNING.md) for the full architecture and roadmap.
 ## Architecture at a glance
 
 ```
-ark-manager (this app) ──tcp──> docker socket-proxy ──> Docker daemon
-   Next.js UI + NestJS API                              │ spawns
-   SQLite · config engine · RCON · scheduler            ▼
-                                              one container per ARK server
+ark-manager (this app) ──/var/run/docker.sock──> Docker daemon
+   Next.js UI + NestJS API                       │ spawns
+   SQLite · config engine · RCON · scheduler     ▼
+                                       one container per ARK server
 ```
 
 - The manager is a **lean control plane** — it contains no game runtime. Each ARK
   server runs in its **own container** spawned from a base image.
 - Game files install **once per game** into a shared volume via an **ephemeral
   SteamCMD installer container**.
-- Docker is reached only through a **least-privilege socket-proxy**, never the raw
-  socket. Secrets (API keys, server passwords) are **encrypted at rest**.
+- Docker is controlled via the host's **Docker socket** mounted into the manager.
+  For least-privilege access you can instead front it with a
+  [docker-socket-proxy](https://github.com/Tecnativa/docker-socket-proxy) and point
+  `DOCKER_HOST` at it. Secrets (API keys, admin password) are **encrypted at rest**.
 
 ## Monorepo layout
 
@@ -57,11 +59,11 @@ pnpm --filter @ark/api test
 
 ## Deployment (Unraid)
 
-1. Add the `tecnativa/docker-socket-proxy` container on the `ark-net` network
-   (or use `docker-compose.yml`, which wires both up).
-2. Install the manager via the [Unraid template](unraid/ark-manager.xml); set
-   `HOST_DATA_DIR`, `SECRETS_KEY`, and `JWT_SECRET`.
-3. Open the Web UI and complete the first-run wizard.
+1. Install the manager via the [Unraid template](unraid/ark-manager.xml) (or
+   `docker-compose.yml`); mount `/var/run/docker.sock` and set `HOST_DATA_DIR`,
+   `SECRETS_KEY`, and `JWT_SECRET`. For least-privilege Docker access, front the
+   socket with a `tecnativa/docker-socket-proxy` and set `DOCKER_HOST` to it.
+2. Open the Web UI and complete the first-run wizard.
 
 > Game-server images (`docker/asa-server`, `docker/ase-server`) are built FROM a
 > proven community base (GE-Proton + SteamCMD). The exact base tag and Proton
@@ -90,7 +92,8 @@ The app is LAN-first but proxy-friendly. To expose it safely:
   to the API.
 - Set `PUBLIC_BASE_URL` to the external origin.
 - Keep `SECRETS_KEY` / `JWT_SECRET` strong and private; secrets are encrypted at
-  rest, and Docker is reached only through the socket-proxy.
+  rest. The manager controls Docker via the host socket — if you expose it beyond
+  your LAN, consider fronting Docker with a least-privilege socket-proxy.
 
 ## Status
 

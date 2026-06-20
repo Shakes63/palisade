@@ -23,7 +23,7 @@ provides a live RCON console, and runs scheduled tasks.
 | Scheduler | Redis-free (`node-cron` + in-process queue) by default; BullMQ+Redis only if needed |
 | Base game-server image | **Base on a proven community image** (e.g. mschnitzer ASA) for the GE-Proton/SteamCMD layer; custom entrypoint for our manager contract |
 | Install execution | **Ephemeral installer container** per install/update (spawn from base image → SteamCMD into shared volume → exits, streaming progress) |
-| Security posture (v1) | **Harden now** — Docker **socket-proxy** (least-privilege) instead of raw socket + **encrypted secrets** at rest in SQLite |
+| Security posture (v1) | **Encrypted secrets** at rest in SQLite. Docker via the host socket by default (single-user LAN tool); an optional **socket-proxy** (least-privilege) can front it via `DOCKER_HOST` for hardened/exposed deployments |
 | Existing servers | **All greenfield** for v1; "adopt existing instance" import deferred to a later phase |
 
 ---
@@ -249,8 +249,10 @@ audit even in single-admin mode).
 
 ## Security posture (v1)
 
-- **Docker socket-proxy** (least-privilege allowlist) rather than mounting the raw socket —
-  the manager has host-root via Docker, so this is cheap insurance.
+- **Docker access:** the manager mounts the host socket directly by default. Since it
+  must create containers (≈ host-root regardless), a socket-proxy is defense-in-depth,
+  not a hard boundary — so it's **optional** (front Docker with one and set `DOCKER_HOST`
+  to `tcp://socket-proxy:2375` for hardened/internet-exposed deployments).
 - **Encrypted secrets at rest** (see above).
 - **Reverse-proxy friendly:** configurable base URL + correct forwarded headers so it can move
   from LAN-only to behind Nginx Proxy Manager/Traefik + TLS without rework.

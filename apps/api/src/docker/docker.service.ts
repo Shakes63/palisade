@@ -9,8 +9,10 @@ export interface RunResult {
 }
 
 /**
- * Thin wrapper over dockerode. Connects through the least-privilege socket-proxy
- * (DOCKER_HOST=tcp://...), never the raw unix socket (PLANNING.md → Security).
+ * Thin wrapper over dockerode. Connects to Docker via DOCKER_HOST: the host's
+ * unix socket by default (unix:///var/run/docker.sock, mounted into the
+ * container), or a tcp socket-proxy (tcp://...) for least-privilege setups
+ * (PLANNING.md → Security).
  */
 @Injectable()
 export class DockerService {

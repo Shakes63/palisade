@@ -1,5 +1,9 @@
-# Reference deployment: the manager + a least-privilege Docker socket-proxy.
-# The manager controls Docker ONLY through the proxy (never the raw socket).
+# Reference deployment: a single manager container that controls Docker through
+# the host's Docker socket, mounted directly (DOCKER_HOST=unix:///var/run/docker.sock).
+#
+# If you prefer least-privilege Docker access, put a tecnativa/docker-socket-proxy
+# in front instead: give it the socket, set the manager's DOCKER_HOST to
+# tcp://socket-proxy:2375, and drop the socket bind mount below.
 #
 # On Unraid, set HOST_DATA_DIR to the real appdata path so bind mounts for the
 # spawned game containers resolve correctly on the host, e.g.
@@ -7,29 +11,12 @@
 name: ark-manager
 
 services:
-  # Least-privilege Docker API gateway (PLANNING.md → Security posture).
-  socket-proxy:
-    image: tecnativa/docker-socket-proxy:latest
-    container_name: ark-socket-proxy
-    environment:
-      CONTAINERS: 1 # create/start/stop/remove/logs/attach/wait game containers
-      IMAGES: 1 # pull base/game images
-      NETWORKS: 1 # attach containers to ark-net
-      POST: 1 # enable write operations within the allowed sections
-      PING: 1
-      INFO: 1
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    networks: [ark-net]
-    restart: unless-stopped
-
   manager:
     image: arkmanager/manager:latest
     build:
       context: .
       dockerfile: Dockerfile
     container_name: ark-manager
-    depends_on: [socket-proxy]
     environment:
       NODE_ENV: production
       API_PORT: 8787
@@ -38,7 +25,7 @@ services:
       DATA_DIR: /data
       DATABASE_URL: file:/data/db.sqlite
       HOST_DATA_DIR: ${HOST_DATA_DIR:-/mnt/user/appdata/ark-manager}
-      DOCKER_HOST: tcp://socket-proxy:2375
+      DOCKER_HOST: unix:///var/run/docker.sock
       SECRETS_KEY: ${SECRETS_KEY:?set a 64-hex-char SECRETS_KEY}
       JWT_SECRET: ${JWT_SECRET:?set a JWT_SECRET}
       PUID: ${PUID:-99}
@@ -50,6 +37,9 @@ services:
       GAME_HOST_NETWORK: ${GAME_HOST_NETWORK:-false}
     volumes:
       - ${HOST_DATA_DIR:-./data}:/data
+      # Direct Docker control. The manager runs as root in-container, so it can use
+      # the root:docker-owned host socket without a group-add.
+      - /var/run/docker.sock:/var/run/docker.sock
     # Lets the manager reach game-container RCON via host.docker.internal when
     # GAME_HOST_NETWORK is on; harmless when it's off.
     extra_hosts:

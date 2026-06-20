@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
 <!-- Unraid template for the ARK Server Manager.
-     Companion container required: a Docker socket-proxy (tecnativa/docker-socket-proxy)
-     reachable at tcp://socket-proxy:2375 on the 'ark-net' network. The manager
-     never mounts the raw Docker socket itself.
+     Controls Docker via the host socket mounted at /var/run/docker.sock. For
+     least-privilege access instead, front Docker with a tecnativa/docker-socket-proxy
+     on 'ark-net', set DOCKER_HOST to tcp://socket-proxy:2375, and drop the socket mount.
 
      IMPORTANT: use a path on the cache disk itself (/mnt/cache/appdata/...), NOT
      the /mnt/user FUSE mount — the manager reflink-clones the ~13 GB game files
@@ -17,8 +17,8 @@
   <Overview>
     Web control panel for ARK: Survival Ascended (POK) and Survival Evolved
     (hermsi) dedicated servers. Manages every setting, mods, clusters, live RCON,
-    and scheduled tasks, and spawns one container per game server. Requires a
-    companion docker-socket-proxy on the 'ark-net' network.
+    and scheduled tasks, and spawns one container per game server. Controls Docker
+    through the host socket mounted at /var/run/docker.sock.
   </Overview>
   <Category>GameServers: Tools:</Category>
   <WebUI>http://[IP]:[PORT:3000]/</WebUI>
@@ -32,7 +32,9 @@
 
   <Config Name="HOST_DATA_DIR" Target="HOST_DATA_DIR" Default="/mnt/cache/appdata/ark-manager" Type="Variable" Display="always" Required="true"
     Description="Host path of the app data dir — the daemon resolves it for the game-server bind mounts. Must match the App data path above.">/mnt/cache/appdata/ark-manager</Config>
-  <Config Name="DOCKER_HOST" Target="DOCKER_HOST" Default="tcp://socket-proxy:2375" Type="Variable" Display="advanced" Required="true">tcp://socket-proxy:2375</Config>
+  <Config Name="Docker socket" Target="/var/run/docker.sock" Default="/var/run/docker.sock" Mode="rw" Type="Path" Display="advanced" Required="true"
+    Description="The manager controls Docker through this socket. Drop it and use a socket-proxy + DOCKER_HOST instead for least-privilege access.">/var/run/docker.sock</Config>
+  <Config Name="DOCKER_HOST" Target="DOCKER_HOST" Default="unix:///var/run/docker.sock" Type="Variable" Display="advanced" Required="true">unix:///var/run/docker.sock</Config>
   <Config Name="PUBLIC_BASE_URL" Target="PUBLIC_BASE_URL" Default="" Type="Variable" Display="always" Required="false"
     Description="How you reach the manager, e.g. http://192.168.1.10:3000 — used for links and each game container's Unraid WebUI button.">
   </Config>

@@ -24,8 +24,9 @@ const schema = z.object({
     .regex(/^[0-9a-fA-F]{64}$/, "SECRETS_KEY must be 64 hex chars (32 bytes)"),
   JWT_SECRET: z.string().min(16, "JWT_SECRET must be at least 16 chars"),
 
-  // Docker control via the socket-proxy (tcp), not the raw unix socket.
-  DOCKER_HOST: z.string().default("tcp://socket-proxy:2375"),
+  // Docker control. Defaults to the host's unix socket (mounted in); set a
+  // tcp://socket-proxy:2375 here instead for least-privilege Docker access.
+  DOCKER_HOST: z.string().default("unix:///var/run/docker.sock"),
 
   PUID: z.coerce.number().int().nonnegative().default(99),
   PGID: z.coerce.number().int().nonnegative().default(100),
