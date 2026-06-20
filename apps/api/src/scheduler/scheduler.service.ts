@@ -7,7 +7,7 @@ import { ServersService } from "../servers/servers.service";
 import { RconService } from "../rcon/rcon.service";
 import { InstallerService } from "../installer/installer.service";
 import { BackupsService } from "../backups/backups.service";
-import { loadEnv } from "../config/env";
+import { ManagerSettingsService } from "../manager-settings/manager-settings.service";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -23,12 +23,26 @@ export class SchedulerService implements OnModuleInit {
     private readonly rcon: RconService,
     private readonly installer: InstallerService,
     private readonly backups: BackupsService,
+    private readonly settings: ManagerSettingsService,
   ) {}
 
   async onModuleInit(): Promise<void> {
+    await this.registerAll();
+  }
+
+  /** (Re)register all enabled schedules using the in-app timezone. Called on boot
+   *  and whenever the timezone setting changes. */
+  async registerAll(): Promise<void> {
+    for (const id of [...this.tasks.keys()]) this.unregister(id);
+    const tz = await this.settings.getTimezone();
     const enabled = await this.prisma.schedule.findMany({ where: { enabled: true } });
-    for (const s of enabled) this.register(s.id, s.cron, loadEnv().TZ);
-    this.logger.log(`Registered ${enabled.length} schedule(s)`);
+    for (const s of enabled) this.register(s.id, s.cron, tz);
+    this.logger.log(`Registered ${enabled.length} schedule(s) (tz ${tz})`);
+  }
+
+  /** Register one schedule using the currently-configured timezone. */
+  async registerWithTimezone(scheduleId: string, expr: string): Promise<void> {
+    this.register(scheduleId, expr, await this.settings.getTimezone());
   }
 
   register(scheduleId: string, expr: string, timezone: string): void {

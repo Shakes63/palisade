@@ -14,6 +14,9 @@ export const SettingKeys = {
 
 const SECRET_KEYS = new Set<string>([SettingKeys.CurseForgeApiKey, SettingKeys.SteamWebApiKey]);
 
+/** Fallback timezone when the user hasn't picked one yet (matches the web default). */
+export const DEFAULT_TIMEZONE = "America/Chicago";
+
 /**
  * Manager-level key/value settings (paths, timezone, API keys). Secret values are
  * transparently encrypted/decrypted via CryptoService.
@@ -29,6 +32,12 @@ export class ManagerSettingsService {
     const row = await this.prisma.managerSetting.findUnique({ where: { key } });
     if (!row) return null;
     return row.isSecret ? this.crypto.decrypt(row.value) : row.value;
+  }
+
+  /** The configured IANA timezone (the in-app picker) — the single source of
+   *  truth for scheduled-task timing and game-container clocks. */
+  async getTimezone(): Promise<string> {
+    return (await this.get(SettingKeys.Timezone)) || DEFAULT_TIMEZONE;
   }
 
   async set(key: string, value: string): Promise<void> {

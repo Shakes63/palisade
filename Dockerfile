@@ -28,6 +28,12 @@ RUN pnpm --filter @ark/api build \
 # --- runtime ---
 FROM base AS runtime
 ENV NODE_ENV=production
+# Fixed for this image: the data dir + DB live at the /data mount, and the
+# container clock is UTC (the in-app timezone setting drives scheduling + game
+# containers). These don't need to be set in the Unraid template / compose.
+ENV DATA_DIR=/data \
+    DATABASE_URL=file:/data/db.sqlite \
+    TZ=UTC
 COPY --from=build /app ./
 EXPOSE 3000 8787
 # gosu + tini would be added here for PUID/PGID drop + signal handling.

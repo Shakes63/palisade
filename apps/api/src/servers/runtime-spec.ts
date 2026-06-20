@@ -29,6 +29,8 @@ export interface RuntimeSpecInput {
   catalog: SettingsCatalog;
   ramLimitMb?: number | null;
   cpuLimit?: number | null;
+  /** IANA timezone for the game container clock; falls back to the manager's TZ. */
+  timezone?: string | null;
 }
 
 /** Build the Docker create spec for a game-server container. */
@@ -83,7 +85,7 @@ function buildPokSpec(input: RuntimeSpecInput): Docker.ContainerCreateOptions {
 
   const pokEnv = [
     `INSTANCE_NAME=${containerName(input.serverId)}`,
-    `TZ=${env.TZ}`,
+    `TZ=${input.timezone || env.TZ}`,
     `PUID=${env.PUID}`,
     `PGID=${env.PGID}`,
     `MAP_NAME=${input.map}`, // POK passes through any *_WP value
@@ -178,7 +180,7 @@ function buildAseSpec(input: RuntimeSpecInput): Docker.ContainerCreateOptions {
   const { ports } = input;
 
   const aseEnv = [
-    `TZ=${env.TZ}`,
+    `TZ=${input.timezone || env.TZ}`,
     `SESSION_NAME=${input.sessionName}`,
     `SERVER_MAP=${input.map}`,
     `ADMIN_PASSWORD=${input.adminPassword}`,

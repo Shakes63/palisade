@@ -28,6 +28,7 @@ import { CatalogService } from "../catalog/catalog.service";
 import { InstallerService } from "../installer/installer.service";
 import { RconService } from "../rcon/rcon.service";
 import { StateMachineService } from "./state-machine.service";
+import { ManagerSettingsService } from "../manager-settings/manager-settings.service";
 import { buildContainerSpec } from "./runtime-spec";
 import { derivePorts, nextBasePort } from "../catalog/ports";
 import { LocalPaths } from "../common/paths";
@@ -73,6 +74,7 @@ export class ServersService implements OnApplicationBootstrap {
     private readonly installer: InstallerService,
     private readonly rcon: RconService,
     private readonly sm: StateMachineService,
+    private readonly settings: ManagerSettingsService,
   ) {}
 
   // ── Startup reconciliation ──────────────────────────────────────────────────
@@ -413,6 +415,7 @@ export class ServersService implements OnApplicationBootstrap {
         catalog: this.catalog.getCatalog(server.game as Game),
         ramLimitMb: server.ramLimitMb,
         cpuLimit: server.cpuLimit,
+        timezone: await this.settings.getTimezone(),
       });
 
       // Remove any stale container with the same name, then create+start.

@@ -6,7 +6,11 @@
 
      IMPORTANT: use a path on the cache disk itself (/mnt/cache/appdata/...), NOT
      the /mnt/user FUSE mount — the manager reflink-clones the ~13 GB game files
-     between servers, which only works on a single real filesystem (btrfs/XFS). -->
+     between servers, which only works on a single real filesystem (btrfs/XFS).
+
+     The data dir, database path and container timezone are baked into the image
+     (TZ is UTC; the in-app timezone picker drives scheduling + game clocks), so
+     they are not configured here. -->
 <Container version="2">
   <Name>ARK-Server-Manager</Name>
   <Repository>ghcr.io/shakes63/ark-server-manager:latest</Repository>
@@ -23,28 +27,20 @@
   <Category>GameServers: Tools:</Category>
   <WebUI>http://[IP]:[PORT:3000]/</WebUI>
   <Icon>https://cdn.cloudflare.steamstatic.com/steam/apps/2399830/header.jpg</Icon>
+  <ExtraParams>--add-host host.docker.internal:host-gateway</ExtraParams>
 
-  <Config Name="Web UI" Target="3000" Default="3000" Mode="tcp" Type="Port" Display="always" Required="true">3000</Config>
-  <Config Name="API" Target="8787" Default="8787" Mode="tcp" Type="Port" Display="advanced" Required="false">8787</Config>
+  <Config Name="Web UI" Target="3000" Default="8970" Mode="tcp" Type="Port" Display="always" Required="true" Description="Port for the web control panel. Open http://your-server-ip:this-port in a browser (the WebUI button uses it too). It maps to the app's internal port 3000 - only change this host number if it is already in use.">8970</Config>
 
-  <Config Name="App data" Target="/data" Default="/mnt/cache/appdata/ark-manager" Mode="rw" Type="Path" Display="always" Required="true"
-    Description="Use /mnt/cache (the disk), not /mnt/user (FUSE), so reflink game-file caching works.">/mnt/cache/appdata/ark-manager</Config>
+  <Config Name="App data" Target="/data" Default="/mnt/cache/appdata/ark-manager" Mode="rw" Type="Path" Display="always" Required="true" Description="Where the manager keeps everything: its database, your settings, and every game server's installed files and saves. Use a path on /mnt/cache (a real disk), not /mnt/user (the FUSE share), so the large game-file cache can reflink-clone between servers.">/mnt/cache/appdata/ark-manager</Config>
+  <Config Name="Docker socket" Target="/var/run/docker.sock" Default="/var/run/docker.sock" Mode="rw" Type="Path" Display="advanced" Required="true" Description="Lets the manager create, start, stop and monitor the game-server containers - it controls Docker through this socket. Leave as-is.">/var/run/docker.sock</Config>
 
-  <Config Name="HOST_DATA_DIR" Target="HOST_DATA_DIR" Default="/mnt/cache/appdata/ark-manager" Type="Variable" Display="always" Required="true"
-    Description="Host path of the app data dir — the daemon resolves it for the game-server bind mounts. Must match the App data path above.">/mnt/cache/appdata/ark-manager</Config>
-  <Config Name="Docker socket" Target="/var/run/docker.sock" Default="/var/run/docker.sock" Mode="rw" Type="Path" Display="advanced" Required="true"
-    Description="The manager controls Docker through this socket. Drop it and use a socket-proxy + DOCKER_HOST instead for least-privilege access.">/var/run/docker.sock</Config>
-  <Config Name="DOCKER_HOST" Target="DOCKER_HOST" Default="unix:///var/run/docker.sock" Type="Variable" Display="advanced" Required="true">unix:///var/run/docker.sock</Config>
-  <Config Name="PUBLIC_BASE_URL" Target="PUBLIC_BASE_URL" Default="" Type="Variable" Display="always" Required="false"
-    Description="How you reach the manager, e.g. http://192.168.1.10:3000 — used for links and each game container's Unraid WebUI button.">
-  </Config>
-  <Config Name="SECRETS_KEY" Target="SECRETS_KEY" Default="" Type="Variable" Display="always" Required="true" Mask="true"
-    Description="64 hex chars (32 bytes). Generate: openssl rand -hex 32">
-  </Config>
-  <Config Name="JWT_SECRET" Target="JWT_SECRET" Default="" Type="Variable" Display="always" Required="true" Mask="true"
-    Description="Random secret for session tokens. Generate: openssl rand -hex 24">
-  </Config>
-  <Config Name="PUID" Target="PUID" Default="99" Type="Variable" Display="advanced" Required="false">99</Config>
-  <Config Name="PGID" Target="PGID" Default="100" Type="Variable" Display="advanced" Required="false">100</Config>
-  <Config Name="TZ" Target="TZ" Default="UTC" Type="Variable" Display="advanced" Required="false">UTC</Config>
+  <Config Name="PUBLIC_BASE_URL" Target="PUBLIC_BASE_URL" Default="" Type="Variable" Display="always" Required="false" Description="The address you actually reach the manager at, e.g. http://10.10.10.10:8970. Used for links and for each game server's WebUI button on the Unraid Docker page."/>
+  <Config Name="SECRETS_KEY" Target="SECRETS_KEY" Default="" Type="Variable" Display="always" Required="true" Mask="true" Description="32-byte key (64 hex characters) that encrypts saved passwords in the database. IMPORTANT: keep this value stable - if it changes, previously saved admin and server passwords can no longer be decrypted. Generate: openssl rand -hex 32"/>
+  <Config Name="JWT_SECRET" Target="JWT_SECRET" Default="" Type="Variable" Display="always" Required="true" Mask="true" Description="Secret that signs your login session tokens. Keep it private. Changing it just logs everyone out - no data loss. Generate: openssl rand -hex 24"/>
+  <Config Name="GAME_HOST_NETWORK" Target="GAME_HOST_NETWORK" Default="true" Type="Variable" Display="always" Required="false" Description="Run game servers directly on the host network instead of a Docker bridge. true (recommended) gives more reliable ASA/EOS public server listing; false puts them on the ark-net bridge.">true</Config>
+
+  <Config Name="DOCKER_HOST" Target="DOCKER_HOST" Default="unix:///var/run/docker.sock" Type="Variable" Display="advanced" Required="false" Description="How the manager connects to Docker. unix:///var/run/docker.sock uses the socket mounted above. Only change this if you front Docker with a least-privilege socket-proxy, in which case use tcp://socket-proxy:2375.">unix:///var/run/docker.sock</Config>
+  <Config Name="HOST_DATA_DIR" Target="HOST_DATA_DIR" Default="/mnt/cache/appdata/ark-manager" Type="Variable" Display="advanced" Required="true" Description="The host-side path of App data. The manager needs it to bind-mount data into the game-server containers it spawns, so it MUST match the App data path above.">/mnt/cache/appdata/ark-manager</Config>
+  <Config Name="PUID" Target="PUID" Default="99" Type="Variable" Display="advanced" Required="false" Description="User ID the manager owns its files as. Unraid's default is 99 (the nobody user). Leave as-is unless you specifically need another.">99</Config>
+  <Config Name="PGID" Target="PGID" Default="100" Type="Variable" Display="advanced" Required="false" Description="Group ID for file ownership. Unraid's default is 100 (the users group). Leave as-is.">100</Config>
 </Container>

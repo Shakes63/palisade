@@ -2,7 +2,6 @@ import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from "@nestj
 import { IsBoolean, IsIn, IsInt, IsOptional, IsString, Min } from "class-validator";
 import { PrismaService } from "../prisma/prisma.service";
 import { SchedulerService } from "./scheduler.service";
-import { loadEnv } from "../config/env";
 
 class ScheduleBody {
   @IsString() serverId!: string;
@@ -40,7 +39,7 @@ export class SchedulesController {
         enabled: body.enabled ?? true,
       },
     });
-    if (created.enabled) this.scheduler.register(created.id, created.cron, loadEnv().TZ);
+    if (created.enabled) await this.scheduler.registerWithTimezone(created.id, created.cron);
     return created;
   }
 
@@ -48,7 +47,7 @@ export class SchedulesController {
   async update(@Param("id") id: string, @Body() body: Partial<ScheduleBody>) {
     const updated = await this.prisma.schedule.update({ where: { id }, data: body });
     this.scheduler.unregister(id);
-    if (updated.enabled) this.scheduler.register(id, updated.cron, loadEnv().TZ);
+    if (updated.enabled) await this.scheduler.registerWithTimezone(id, updated.cron);
     return updated;
   }
 

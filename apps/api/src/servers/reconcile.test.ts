@@ -50,6 +50,7 @@ function makeService(rows: Row[], containers: Array<{ id: string; serverId: stri
     {} as never,
     {} as never,
     sm as never,
+    {} as never,
   );
   // attachMonitors is private; spy via prototype to record adoption without real IO.
   vi.spyOn(svc as unknown as { attachMonitors: (a: string, b: string) => Promise<void> }, "attachMonitors").mockImplementation(
