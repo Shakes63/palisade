@@ -40,7 +40,10 @@ export class RconService {
     const host = loadEnv().GAME_HOST_NETWORK
       ? "host.docker.internal"
       : containerName(serverId, server.name);
-    const rcon = await Rcon.connect({ host, port: server.rconPort, password });
+    // 2s (the lib default) is too tight over the container network; 10s keeps
+    // interactive commands snappy without spurious timeouts. Big world saves use
+    // a dedicated longer-timeout connection (see saveAndWait).
+    const rcon = await Rcon.connect({ host, port: server.rconPort, password, timeout: 10_000 });
     rcon.on("error", () => this.pool.delete(serverId));
     rcon.on("end", () => this.pool.delete(serverId));
     this.pool.set(serverId, rcon);
@@ -78,6 +81,40 @@ export class RconService {
 
   saveWorld(serverId: string): Promise<string> {
     return this.exec(serverId, "SaveWorld");
+  }
+
+  /**
+   * Save the world and wait for the save to actually finish before returning.
+   * ARK's SaveWorld RCON only replies once the save is written to disk, so we use
+   * a dedicated connection with a long timeout — the pooled connection's short
+   * timeout would cut a large save off and the caller would proceed mid-save.
+   */
+  async saveAndWait(serverId: string, timeoutMs = 120_000): Promise<void> {
+    const server = await this.prisma.server.findUnique({ where: { id: serverId } });
+    if (!server?.adminPasswordEnc)
+      throw new BadRequestException("Server has no admin password set");
+    const password = this.crypto.decrypt(server.adminPasswordEnc);
+    const host = loadEnv().GAME_HOST_NETWORK
+      ? "host.docker.internal"
+      : containerName(serverId, server.name);
+    const rcon = await Rcon.connect({ host, port: server.rconPort, password, timeout: timeoutMs });
+    try {
+      const response = await rcon.send("SaveWorld"); // resolves once the save completes
+      this.realtime.broadcast({
+        topic: RealtimeTopic.RconOutput,
+        serverId,
+        payload: { command: "SaveWorld", response },
+        at: new Date().toISOString(),
+      });
+      await this.events.emit({
+        type: EventType.RconCommand,
+        message: "Saved world before stopping",
+        serverId,
+        data: { command: "SaveWorld" },
+      });
+    } finally {
+      await rcon.end().catch(() => undefined);
+    }
   }
 
   doExit(serverId: string): Promise<string> {

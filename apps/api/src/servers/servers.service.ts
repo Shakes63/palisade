@@ -453,8 +453,12 @@ export class ServersService implements OnApplicationBootstrap {
     }
 
     await this.sm.transition(id, ServerState.Stopping);
-    // Graceful: save the world, then ask the server to exit, before SIGTERM.
-    await this.rcon.saveWorld(id).catch(() => undefined);
+    // Graceful: save the world and WAIT for the save to finish, then ask the
+    // server to exit, before SIGTERM. A failed/stuck save is logged but doesn't
+    // block the stop (the exit + SIGTERM grace still let the server save again).
+    await this.rcon
+      .saveAndWait(id)
+      .catch((e) => this.logger.warn(`Save before stopping ${id} failed: ${(e as Error).message}`));
     await this.rcon.doExit(id).catch(() => undefined);
     await this.rcon.disconnect(id);
 
