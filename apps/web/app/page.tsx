@@ -13,6 +13,8 @@ import {
 import { apiGet, apiPost } from "@/lib/api";
 import { useRealtime } from "@/lib/socket";
 import { StateBadge } from "@/components/state-badge";
+import { ConnectCommand } from "@/components/connect-command";
+import { UnofficialListHelp } from "@/components/unofficial-list-help";
 
 interface ClusterLite {
   id: string;
@@ -143,6 +145,8 @@ export default function DashboardPage() {
                 <Settings2 className="h-4 w-4" /> Manage
               </Link>
             </div>
+            <ConnectCommand gamePort={s.ports.game} />
+            <UnofficialListHelp serverName={s.name} mapName={mapLabel(s.map)} />
           </div>
         ))}
       </div>

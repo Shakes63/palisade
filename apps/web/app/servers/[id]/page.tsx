@@ -6,6 +6,8 @@ import { mapLabel, ServerState, type ServerSummary, type ServerConfigValues } fr
 import { apiGet, apiPost } from "@/lib/api";
 import { useRealtime } from "@/lib/socket";
 import { StateBadge } from "@/components/state-badge";
+import { ConnectCommand } from "@/components/connect-command";
+import { UnofficialListHelp } from "@/components/unofficial-list-help";
 import { SettingsForm } from "@/components/settings-form";
 import { CopyMenu } from "@/components/copy-menu";
 import { RconConsole } from "@/components/rcon-console";
@@ -172,6 +174,13 @@ function Overview({ server }: { server: ServerSummary }) {
           </div>
         ))}
       </dl>
+      <ConnectCommand gamePort={server.ports.game} className="mt-4 max-w-sm" />
+      <UnofficialListHelp
+        serverName={server.name}
+        mapName={mapLabel(server.map)}
+        defaultOpen
+        className="mt-3 max-w-sm"
+      />
     </div>
   );
 }
