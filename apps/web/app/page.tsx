@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Plus, Play, Square, Download, Settings2, Boxes, Loader2 } from "lucide-react";
+import { Plus, Play, Square, Download, Settings2, Boxes, Loader2, RotateCw } from "lucide-react";
 import {
   Game,
   ServerState,
@@ -25,7 +25,7 @@ export default function DashboardPage() {
   const [servers, setServers] = useState<ServerSummary[]>([]);
   const [clusters, setClusters] = useState<ClusterLite[]>([]);
   const [creating, setCreating] = useState(false);
-  const [pending, setPending] = useState<Record<string, "install" | "start" | "stop">>({});
+  const [pending, setPending] = useState<Record<string, "install" | "start" | "stop" | "restart">>({});
 
   const refresh = useCallback(() => {
     apiGet<ServerSummary[]>("/servers").then(setServers).catch(() => undefined);
@@ -39,7 +39,7 @@ export default function DashboardPage() {
     if (msg.topic === "server.state" || msg.topic === "event") refresh();
   });
 
-  const act = async (id: string, action: "install" | "start" | "stop") => {
+  const act = async (id: string, action: "install" | "start" | "stop" | "restart") => {
     setPending((p) => ({ ...p, [id]: action }));
     try {
       await apiPost(`/servers/${id}/${action}`);
@@ -111,21 +111,40 @@ export default function DashboardPage() {
                   </>
                 )}
               </button>
-              <button
-                className="btn-primary"
-                disabled={!!pending[s.id] || !(s.state === ServerState.Stopped || s.state === ServerState.Crashed)}
-                onClick={() => act(s.id, "start")}
-              >
-                {pending[s.id] === "start" || s.state === ServerState.Starting ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" /> Starting…
-                  </>
-                ) : (
-                  <>
-                    <Play className="h-4 w-4" /> Start
-                  </>
-                )}
-              </button>
+              {s.state === ServerState.Running && s.configDirty ? (
+                <button
+                  className="btn-primary"
+                  disabled={!!pending[s.id]}
+                  onClick={() => act(s.id, "restart")}
+                  title="Settings changed since this server started — restart to apply them"
+                >
+                  {pending[s.id] === "restart" ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" /> Restarting…
+                    </>
+                  ) : (
+                    <>
+                      <RotateCw className="h-4 w-4" /> Restart
+                    </>
+                  )}
+                </button>
+              ) : (
+                <button
+                  className="btn-primary"
+                  disabled={!!pending[s.id] || !(s.state === ServerState.Stopped || s.state === ServerState.Crashed)}
+                  onClick={() => act(s.id, "start")}
+                >
+                  {pending[s.id] === "start" || s.state === ServerState.Starting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" /> Starting…
+                    </>
+                  ) : (
+                    <>
+                      <Play className="h-4 w-4" /> Start
+                    </>
+                  )}
+                </button>
+              )}
               <button
                 className="btn-secondary"
                 disabled={!!pending[s.id] || !(s.state === ServerState.Running || s.state === ServerState.Starting)}

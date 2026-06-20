@@ -266,6 +266,7 @@ export class ServersService implements OnApplicationBootstrap {
         },
       };
       data.configJson = JSON.stringify(merged);
+      data.configDirty = true; // settings changed — flag a restart if it's running
     }
 
     const updated = await this.prisma.server.update({
@@ -304,7 +305,10 @@ export class ServersService implements OnApplicationBootstrap {
     for (const t of targets) {
       if (t.id === sourceId || t.game !== source.game) continue;
       const data: Record<string, unknown> = {};
-      if (opts.settings) data.configJson = source.configJson;
+      if (opts.settings) {
+        data.configJson = source.configJson;
+        data.configDirty = true; // copied settings apply on the target's next start
+      }
       if (opts.mods) data.modIds = source.modIds;
       await this.prisma.server.update({ where: { id: t.id }, data });
       await this.events.emit({
@@ -408,7 +412,8 @@ export class ServersService implements OnApplicationBootstrap {
         this.logger.warn(`pull skipped: ${(e as Error).message}`),
       );
       const containerId = await this.docker.createContainer(spec);
-      await this.prisma.server.update({ where: { id }, data: { containerId } });
+      // Container now reflects the current config → clear the restart-needed flag.
+      await this.prisma.server.update({ where: { id }, data: { containerId, configDirty: false } });
       await this.docker.start(containerId);
 
       await this.attachMonitors(id, containerId);
@@ -585,6 +590,7 @@ export class ServersService implements OnApplicationBootstrap {
       ports: this.portsOf(row) ?? DEFAULT_PORTS,
       installedBuildId: row.installedBuildId,
       updateAvailable: row.updateAvailable,
+      configDirty: row.configDirty,
       playersOnline: null,
       maxPlayers: row.maxPlayers,
       modIds: JSON.parse(row.modIds) as number[],

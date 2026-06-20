@@ -13,6 +13,9 @@ export interface ServerSummary {
   ports: PortSet;
   installedBuildId?: string | null;
   updateAvailable: boolean;
+  /** Settings changed after the running container was created — a restart will
+   *  apply them. The dashboard turns the Start button into Restart when set. */
+  configDirty: boolean;
   playersOnline?: number | null;
   maxPlayers: number;
   modIds: number[];
