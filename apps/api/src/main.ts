@@ -4,8 +4,12 @@ import { NestFactory } from "@nestjs/core";
 import { ValidationPipe, Logger } from "@nestjs/common";
 import { AppModule } from "./app.module";
 import { loadEnv } from "./config/env";
+import { installProcessSafetyNet } from "./common/process-safety";
 
 async function bootstrap() {
+  // Guard against a single background error (a socket reset, a stray rejection)
+  // taking the whole manager down — must be active before anything else runs.
+  installProcessSafetyNet();
   const env = loadEnv();
   const app = await NestFactory.create(AppModule, { bufferLogs: false });
 
