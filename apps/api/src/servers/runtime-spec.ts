@@ -2,6 +2,7 @@ import type Docker from "dockerode";
 import {
   Game,
   GAME_ICONS,
+  SettingTarget,
   type PortSet,
   type ServerConfigValues,
   type SettingsCatalog,
@@ -9,7 +10,7 @@ import {
 } from "@ark/shared";
 import { buildCustomArgs, isBattlEyeDisabled } from "../catalog/command-line";
 import { HostPaths, ContainerPaths } from "../common/paths";
-import { IMAGES, POK_DATA_DIR, HERMSI_VOLUME } from "../common/images";
+import { IMAGES, POK_DATA_DIR, HERMSI_VOLUME, CONAN_DATA_DIR } from "../common/images";
 import { ARK_NETWORK, containerName } from "../common/naming";
 import { loadEnv } from "../config/env";
 
@@ -35,7 +36,9 @@ export interface RuntimeSpecInput {
 
 /** Build the Docker create spec for a game-server container. */
 export function buildContainerSpec(input: RuntimeSpecInput): Docker.ContainerCreateOptions {
-  return input.game === Game.ASA ? buildPokSpec(input) : buildAseSpec(input);
+  if (input.game === Game.ASA) return buildPokSpec(input);
+  if (input.game === Game.CONAN) return buildConanSpec(input);
+  return buildAseSpec(input);
 }
 
 const portKey = (p: number, proto: "udp" | "tcp") => `${p}/${proto}`;
@@ -239,6 +242,94 @@ function buildAseSpec(input: RuntimeSpecInput): Docker.ContainerCreateOptions {
       Memory: input.ramLimitMb ? input.ramLimitMb * 1024 * 1024 : undefined,
       NanoCpus: input.cpuLimit ? Math.round(input.cpuLimit * 1e9) : undefined,
       Ulimits: [{ Name: "nofile", Soft: 100000, Hard: 100000 }],
+    },
+    ...(hostNet ? {} : { NetworkingConfig: { EndpointsConfig: { [ARK_NETWORK]: {} } } }),
+  };
+}
+
+/** Catalog Env-target settings → env var strings (Conan's image writes its INIs
+ *  from these). Bools become true/false; everything else is stringified. */
+function conanCatalogEnv(input: RuntimeSpecInput): string[] {
+  const out: string[] = [];
+  for (const def of input.catalog.settings) {
+    if (def.target !== SettingTarget.Env) continue;
+    const raw = input.config.values?.[def.key] ?? def.default;
+    if (raw === undefined || raw === null) continue;
+    const val = typeof raw === "boolean" ? (raw ? "true" : "false") : String(raw);
+    out.push(`${def.emitAs ?? def.key}=${val}`);
+  }
+  return out;
+}
+
+/**
+ * Conan Exiles (Enhanced): drive acekorneya/conan_enhanced_server via env vars.
+ * The image installs the native Linux server (app 443030) + Workshop mods on boot
+ * and writes ServerSettings.ini / Engine.ini / Game.ini itself from env — so we
+ * deliver config as env (no INI rendering) and read RCON over the shared network.
+ * We disable the image's own watchdog/auto-update/daily-restart since the manager
+ * owns the lifecycle. (Contract extracted from the image's configure-server.sh.)
+ */
+function buildConanSpec(input: RuntimeSpecInput): Docker.ContainerCreateOptions {
+  const env = loadEnv();
+  const { ports } = input;
+
+  const conanEnv = [
+    `TZ=${input.timezone || env.TZ}`,
+    `PUID=${env.PUID}`,
+    `PGID=${env.PGID}`,
+    `SERVER_NAME=${input.sessionName}`,
+    `SERVER_PASSWORD=${serverPassword(input)}`,
+    `ADMIN_PASSWORD=${input.adminPassword}`,
+    `RCON_ENABLED=true`,
+    `RCON_PASSWORD=${input.adminPassword}`, // manager's RCON authenticates with the admin password
+    `RCON_PORT=${ports.rcon}`,
+    `SERVER_PORT=${ports.game}`,
+    `RAW_UDP_PORT=${ports.rawSocket}`,
+    `QUERY_PORT=${ports.query}`,
+    `MAX_PLAYERS=${input.maxPlayers}`,
+    `MOD_IDS=${(input.modIds ?? []).join(",")}`,
+    // The manager owns updates/restarts/health — turn off the image's own loops.
+    `AUTO_UPDATE=false`,
+    `SERVER_WATCHDOG_ENABLED=false`,
+    `DAILY_RESTART_ENABLED=false`,
+    ...conanCatalogEnv(input),
+  ];
+
+  // One bind: the whole instance dir → /data (the image lays out /data/server,
+  // /data/steam, /data/backups beneath it; saves at server/ConanSandbox/Saved).
+  const binds = [`${HostPaths.instanceRoot(input.serverId)}:${CONAN_DATA_DIR}`];
+
+  const hostNet = env.GAME_HOST_NETWORK;
+  return {
+    name: containerName(input.serverId, input.sessionName),
+    Image: IMAGES[Game.CONAN],
+    Hostname: containerName(input.serverId, input.sessionName),
+    Env: conanEnv,
+    Labels: serverLabels(input, env.PUBLIC_BASE_URL),
+    ...(hostNet
+      ? {}
+      : {
+          ExposedPorts: {
+            [portKey(ports.game, "udp")]: {},
+            [portKey(ports.query, "udp")]: {},
+            [portKey(ports.rcon, "tcp")]: {},
+          },
+        }),
+    HostConfig: {
+      Binds: binds,
+      ...(hostNet
+        ? { NetworkMode: "host" }
+        : {
+            PortBindings: {
+              [portKey(ports.game, "udp")]: [{ HostPort: String(ports.game) }],
+              [portKey(ports.rawSocket, "udp")]: [{ HostPort: String(ports.rawSocket) }],
+              [portKey(ports.query, "udp")]: [{ HostPort: String(ports.query) }],
+              [portKey(ports.rcon, "tcp")]: [{ HostPort: String(ports.rcon) }],
+            },
+          }),
+      RestartPolicy: { Name: "no" }, // manager watchdog owns restarts
+      Memory: input.ramLimitMb ? input.ramLimitMb * 1024 * 1024 : undefined,
+      NanoCpus: input.cpuLimit ? Math.round(input.cpuLimit * 1e9) : undefined,
     },
     ...(hostNet ? {} : { NetworkingConfig: { EndpointsConfig: { [ARK_NETWORK]: {} } } }),
   };

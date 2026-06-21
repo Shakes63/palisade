@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from "@nestjs/common";
 import { Game, type ServerConfigValues, type SettingsCatalog } from "@ark/shared";
 import { ASA_CATALOG } from "./asa.catalog";
 import { ASE_CATALOG } from "./ase.catalog";
+import { CONAN_CATALOG } from "./conan.catalog";
 import { serializeGameIni, serializeGameUserSettings } from "./ini-serializer";
 
 @Injectable()
@@ -9,6 +10,7 @@ export class CatalogService {
   getCatalog(game: Game): SettingsCatalog {
     if (game === Game.ASA) return ASA_CATALOG;
     if (game === Game.ASE) return ASE_CATALOG;
+    if (game === Game.CONAN) return CONAN_CATALOG;
     throw new NotFoundException(`Unknown game: ${game}`);
   }
 

@@ -10,6 +10,8 @@ import {
   ServerState,
   ASA_OFFICIAL_MAPS,
   ASE_OFFICIAL_MAPS,
+  CONAN_OFFICIAL_MAPS,
+  GAME_LABELS,
   mapLabel,
   type ServerSummary,
   type ServerStatsById,
@@ -221,9 +223,15 @@ export default function DashboardPage() {
   );
 }
 
+const MAPS_FOR: Record<Game, readonly string[]> = {
+  [Game.ASA]: ASA_OFFICIAL_MAPS,
+  [Game.ASE]: ASE_OFFICIAL_MAPS,
+  [Game.CONAN]: CONAN_OFFICIAL_MAPS,
+};
+
 function CreateServerForm({ onDone }: { onDone: () => void }) {
   const [game, setGame] = useState<Game>(Game.ASA);
-  const maps = game === Game.ASA ? ASA_OFFICIAL_MAPS : ASE_OFFICIAL_MAPS;
+  const maps = MAPS_FOR[game];
   const [form, setForm] = useState<{
     name: string;
     map: string;
@@ -263,9 +271,20 @@ function CreateServerForm({ onDone }: { onDone: () => void }) {
         </div>
         <div>
           <label className="label">Game</label>
-          <select className="input" value={game} onChange={(e) => setGame(e.target.value as Game)}>
-            <option value={Game.ASA}>ARK: Survival Ascended</option>
-            <option value={Game.ASE}>ARK: Survival Evolved</option>
+          <select
+            className="input"
+            value={game}
+            onChange={(e) => {
+              const g = e.target.value as Game;
+              setGame(g);
+              setForm((f) => ({ ...f, map: MAPS_FOR[g][0] })); // reset map to the new game's default
+            }}
+          >
+            {Object.values(Game).map((g) => (
+              <option key={g} value={g}>
+                {GAME_LABELS[g]}
+              </option>
+            ))}
           </select>
         </div>
         <div>

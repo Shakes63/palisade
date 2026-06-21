@@ -12,6 +12,9 @@ export enum SettingTarget {
   CommandLineFlag = "CommandLineFlag",
   /** -Key=Value style command-line option (e.g. -ActiveEvent=Easter) */
   CommandLineDashOption = "CommandLineDashOption",
+  /** Passed to the container as an env var (e.g. Conan, whose image writes the
+   *  INIs itself from env). `emitAs` is the env var name. */
+  Env = "Env",
 }
 
 export type SettingValueType =

@@ -138,3 +138,45 @@ describe("buildContainerSpec (hermsi / ASE)", () => {
     expect(spec.Cmd).toBeUndefined();
   });
 });
+
+async function buildConan(config: ServerConfigValues) {
+  const { buildContainerSpec } = await import("./runtime-spec");
+  const { CONAN_CATALOG } = await import("../catalog/conan.catalog");
+  return buildContainerSpec({
+    serverId: "srv1",
+    game: Game.CONAN,
+    map: "ConanSandbox",
+    sessionName: "My Conan Server",
+    ports: { game: 7777, rawSocket: 7778, query: 27015, rcon: 25575 },
+    maxPlayers: 40,
+    adminPassword: "secret",
+    serverPassword: "pw",
+    modIds: [111, 222],
+    cluster: null,
+    config,
+    catalog: CONAN_CATALOG,
+  });
+}
+
+describe("buildContainerSpec (Conan)", () => {
+  it("uses the Conan image and the core env contract", async () => {
+    const spec = await buildConan({ values: {} });
+    expect(spec.Image).toBe("acekorneya/conan_enhanced_server:latest");
+    const env = envOf(spec);
+    expect(env).toContain("SERVER_NAME=My Conan Server");
+    expect(env).toContain("ADMIN_PASSWORD=secret");
+    expect(env).toContain("RCON_PASSWORD=secret"); // RCON authenticates with the admin password
+    expect(env).toContain("RCON_PORT=25575");
+    expect(env).toContain("SERVER_PORT=7777");
+    expect(env).toContain("QUERY_PORT=27015");
+    expect(env).toContain("MAX_PLAYERS=40");
+    expect(env).toContain("MOD_IDS=111,222");
+    expect(env).toContain("AUTO_UPDATE=false"); // manager owns updates
+  });
+
+  it("passes catalog settings through as env vars (bools as true/false)", async () => {
+    const env = envOf(await buildConan({ values: { PVP_ENABLED: false, XP_RATE_MULTIPLIER: 2 } }));
+    expect(env).toContain("PVP_ENABLED=false");
+    expect(env).toContain("XP_RATE_MULTIPLIER=2");
+  });
+});

@@ -61,7 +61,12 @@ type ServerRow = Awaited<ReturnType<PrismaService["server"]["findUnique"]>> & {
 // — while still booting. The real completion line isn't quoted (it ends with
 // `. (NN.NGB Mem)`), so rejecting a trailing single-quote after "join" tells the
 // two apart, whether we test one line or a multi-line blob.
-export const READY_RE = /(advertising for join(?!')|server is up)/i;
+//
+// Conan (acekorneya/conan_enhanced_server): the image's wrapper logs `Conan server
+// process started` reliably to stdout. TODO(conan): this fires at process start,
+// not when the world finishes loading — refine to the true "ready" line once we've
+// watched a real Conan boot (the thin-slice live-verify item).
+export const READY_RE = /(advertising for join(?!')|server is up|Conan server process started)/i;
 const CRASH_WINDOW_MS = 5 * 60_000;
 const CRASH_LIMIT = 3;
 

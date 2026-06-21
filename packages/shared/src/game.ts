@@ -1,15 +1,25 @@
-/** Which ARK title an instance runs. */
+/** Which game an instance runs. */
 export enum Game {
   /** ARK: Survival Ascended — Windows binary via Proton, CurseForge mods. */
   ASA = "ASA",
   /** ARK: Survival Evolved — native Linux, Steam Workshop mods. */
   ASE = "ASE",
+  /** Conan Exiles (Enhanced) — native Linux, Steam Workshop mods. */
+  CONAN = "CONAN",
 }
+
+/** Friendly game names for the UI. */
+export const GAME_LABELS: Record<Game, string> = {
+  [Game.ASA]: "ARK: Survival Ascended",
+  [Game.ASE]: "ARK: Survival Evolved",
+  [Game.CONAN]: "Conan Exiles",
+};
 
 /** SteamCMD app IDs for the dedicated server (anonymous login). */
 export const STEAM_APP_ID: Record<Game, number> = {
   [Game.ASA]: 2430930,
   [Game.ASE]: 376030,
+  [Game.CONAN]: 443030,
 };
 
 /** Steam Workshop "consumer" app id used for ASE mod downloads. */
@@ -22,6 +32,7 @@ export const ASE_WORKSHOP_APP_ID = 346110;
 export const GAME_ICONS: Record<Game, string> = {
   [Game.ASA]: "https://cdn.cloudflare.steamstatic.com/steam/apps/2399830/header.jpg",
   [Game.ASE]: "https://cdn.cloudflare.steamstatic.com/steam/apps/346110/header.jpg",
+  [Game.CONAN]: "https://cdn.cloudflare.steamstatic.com/steam/apps/440900/header.jpg",
 };
 
 /** CurseForge numeric game id for ASA (used by the mod browser). */
@@ -71,8 +82,13 @@ export const ASE_OFFICIAL_MAPS = [
   "Ragnarok",
 ] as const;
 
+/** Conan Exiles maps. Exiled Lands is the base game; Isle of Siptah is a DLC map. */
+export const CONAN_OFFICIAL_MAPS = ["ConanSandbox"] as const;
+
 /** Friendly display names for known level names (raw level → label). */
 export const MAP_LABELS: Record<string, string> = {
+  // Conan Exiles
+  ConanSandbox: "Exiled Lands",
   // ASA (World Partition — *_WP)
   TheIsland_WP: "The Island",
   TheCenter_WP: "The Center",

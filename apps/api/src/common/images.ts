@@ -11,6 +11,9 @@ import { Game } from "@ark/shared";
 export const IMAGES: Record<Game, string> = {
   [Game.ASA]: "acekorneya/asa_server:2_1_latest",
   [Game.ASE]: "hermsi/ark-server:latest",
+  // POK family (same author as ASA): native Linux Conan Enhanced server. Installs
+  // app 443030 via SteamCMD on boot; writes its own INIs from env vars.
+  [Game.CONAN]: "acekorneya/conan_enhanced_server:latest",
 };
 
 /** POK keeps all instance data (install + saves + config) under this path. */
@@ -18,6 +21,10 @@ export const POK_DATA_DIR = "/home/pok/arkserver";
 
 /** hermsi's ARK_SERVER_VOLUME — game files install under <vol>/server. */
 export const HERMSI_VOLUME = "/app";
+
+/** Conan image's data base — it expects /data/server, /data/steam, /data/backups,
+ *  so we bind the whole instance dir here. Saves live at server/ConanSandbox/Saved. */
+export const CONAN_DATA_DIR = "/data";
 
 /**
  * The uid/gid each image runs the server as. Neither chowns its mounts fully
@@ -27,8 +34,10 @@ export const HERMSI_VOLUME = "/app";
 export const SERVER_UID: Record<Game, number> = {
   [Game.ASA]: 7777, // POK's fixed "pok" user (also in group 100/users)
   [Game.ASE]: 1000, // hermsi's "steam" user
+  [Game.CONAN]: 1000, // Conan image's "pokuser"
 };
 export const SERVER_GID: Record<Game, number> = {
   [Game.ASA]: 7777,
   [Game.ASE]: 1000,
+  [Game.CONAN]: 1000,
 };
