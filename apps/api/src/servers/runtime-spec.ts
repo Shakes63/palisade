@@ -87,7 +87,7 @@ function buildPokSpec(input: RuntimeSpecInput): Docker.ContainerCreateOptions {
   const { ports } = input;
 
   const pokEnv = [
-    `INSTANCE_NAME=${containerName(input.serverId)}`,
+    `INSTANCE_NAME=${containerName(input.serverId, input.game)}`,
     `TZ=${input.timezone || env.TZ}`,
     `PUID=${env.PUID}`,
     `PGID=${env.PGID}`,
@@ -137,9 +137,9 @@ function buildPokSpec(input: RuntimeSpecInput): Docker.ContainerCreateOptions {
   // bridge we publish the game + RCON ports and attach to ark-net instead.
   const hostNet = env.GAME_HOST_NETWORK;
   return {
-    name: containerName(input.serverId, input.sessionName),
+    name: containerName(input.serverId, input.game, input.sessionName),
     Image: IMAGES[Game.ASA],
-    Hostname: containerName(input.serverId, input.sessionName),
+    Hostname: containerName(input.serverId, input.game, input.sessionName),
     Env: pokEnv,
     Labels: serverLabels(input, env.PUBLIC_BASE_URL),
     ...(hostNet
@@ -228,9 +228,9 @@ function buildAseSpec(input: RuntimeSpecInput): Docker.ContainerCreateOptions {
 
   const hostNet = env.GAME_HOST_NETWORK;
   return {
-    name: containerName(input.serverId, input.sessionName),
+    name: containerName(input.serverId, input.game, input.sessionName),
     Image: IMAGES[Game.ASE],
-    Hostname: containerName(input.serverId, input.sessionName),
+    Hostname: containerName(input.serverId, input.game, input.sessionName),
     Cmd: cmd,
     Env: aseEnv,
     Labels: serverLabels(input, env.PUBLIC_BASE_URL),
@@ -312,9 +312,9 @@ function buildConanSpec(input: RuntimeSpecInput): Docker.ContainerCreateOptions 
 
   const hostNet = env.GAME_HOST_NETWORK;
   return {
-    name: containerName(input.serverId, input.sessionName),
+    name: containerName(input.serverId, input.game, input.sessionName),
     Image: IMAGES[Game.CONAN],
-    Hostname: containerName(input.serverId, input.sessionName),
+    Hostname: containerName(input.serverId, input.game, input.sessionName),
     Env: conanEnv,
     Labels: serverLabels(input, env.PUBLIC_BASE_URL),
     ...(hostNet

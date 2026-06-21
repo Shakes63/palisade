@@ -51,7 +51,7 @@ export class RconService {
     // manager must run with --add-host host.docker.internal:host-gateway).
     const host = loadEnv().GAME_HOST_NETWORK
       ? "host.docker.internal"
-      : containerName(serverId, server.name);
+      : containerName(serverId, server.game as Game, server.name);
     // 2s (the lib default) is too tight over the container network; 10s keeps
     // interactive commands snappy without spurious timeouts. (The world save on
     // stop is handled by the container's graceful SIGTERM shutdown, not by waiting

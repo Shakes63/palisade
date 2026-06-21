@@ -465,7 +465,7 @@ export class ServersService implements OnApplicationBootstrap {
     // are matched by the ark.serverId label, so a failure here is purely cosmetic.
     if (dto.name !== undefined && dto.name !== existing.name && existing.containerId) {
       await this.docker
-        .rename(existing.containerId, containerName(id, dto.name))
+        .rename(existing.containerId, containerName(id, existing.game as Game, dto.name))
         .catch((e) => this.logger.warn(`rename container for ${id} failed: ${(e as Error).message}`));
     }
     await this.events.emit({
