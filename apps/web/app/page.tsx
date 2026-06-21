@@ -1,7 +1,10 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Plus, Play, Square, Download, Settings2, Boxes, Loader2, RotateCw } from "lucide-react";
+import {
+  Plus, Play, Square, Download, Settings2, Boxes, Loader2, RotateCw,
+  Cpu, MemoryStick, HardDrive,
+} from "lucide-react";
 import {
   Game,
   ServerState,
@@ -9,6 +12,7 @@ import {
   ASE_OFFICIAL_MAPS,
   mapLabel,
   type ServerSummary,
+  type ServerStatsById,
 } from "@ark/shared";
 import { apiGet, apiPost } from "@/lib/api";
 import { useRealtime } from "@/lib/socket";
@@ -27,6 +31,7 @@ export default function DashboardPage() {
   const [clusters, setClusters] = useState<ClusterLite[]>([]);
   const [creating, setCreating] = useState(false);
   const [pending, setPending] = useState<Record<string, "install" | "start" | "stop" | "restart">>({});
+  const [stats, setStats] = useState<Record<string, ServerStatsById>>({});
 
   const refresh = useCallback(() => {
     apiGet<ServerSummary[]>("/servers").then(setServers).catch(() => undefined);
@@ -39,6 +44,31 @@ export default function DashboardPage() {
   useRealtime((msg) => {
     if (msg.topic === "server.state" || msg.topic === "event") refresh();
   });
+
+  // Live per-card resource numbers; poll while the tab is visible.
+  useEffect(() => {
+    let cancelled = false;
+    const tick = async () => {
+      if (document.hidden) return;
+      try {
+        const rows = await apiGet<ServerStatsById[]>("/servers/stats");
+        if (!cancelled) setStats(Object.fromEntries(rows.map((r) => [r.id, r])));
+      } catch {
+        /* silent */
+      }
+    };
+    void tick();
+    const id = setInterval(() => void tick(), 5000);
+    const onVisible = () => {
+      if (!document.hidden) void tick();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, []);
 
   const act = async (id: string, action: "install" | "start" | "stop" | "restart") => {
     setPending((p) => ({ ...p, [id]: action }));
@@ -84,6 +114,7 @@ export default function DashboardPage() {
                 <div className="text-sm text-slate-400">
                   {s.game} · {mapLabel(s.map)} · :{s.ports.game}
                 </div>
+                <MiniStats s={stats[s.id]} />
                 {s.clusterId && (
                   <Link
                     href="/clusters"
@@ -273,5 +304,35 @@ function CreateServerForm({ onDone }: { onDone: () => void }) {
         {busy ? "Creating…" : "Create server"}
       </button>
     </form>
+  );
+}
+
+/** Compact CPU / RAM / disk chips on a server card. CPU+RAM appear only while the
+ *  container is up; disk shows whenever it's been measured. */
+function MiniStats({ s }: { s?: ServerStatsById }) {
+  if (!s) return null;
+  const u = (mb: number | null) => (mb == null ? "" : mb >= 1024 ? `${(mb / 1024).toFixed(1)}G` : `${mb}M`);
+  const cpu = s.live && s.cpuPercent != null;
+  const mem = s.live && s.memUsedMb != null;
+  if (!cpu && !mem && s.diskUsedMb == null) return null;
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
+      {cpu && (
+        <span className="inline-flex items-center gap-1" title="CPU">
+          <Cpu className="h-3 w-3" /> {s.cpuPercent}%
+        </span>
+      )}
+      {mem && (
+        <span className="inline-flex items-center gap-1" title="Memory used / limit">
+          <MemoryStick className="h-3 w-3" /> {u(s.memUsedMb)}
+          {s.memLimitMb ? ` / ${u(s.memLimitMb)}` : ""}
+        </span>
+      )}
+      {s.diskUsedMb != null && (
+        <span className="inline-flex items-center gap-1" title="Disk (saves + game files)">
+          <HardDrive className="h-3 w-3" /> {u(s.diskUsedMb)}
+        </span>
+      )}
+    </div>
   );
 }

@@ -19,6 +19,7 @@ import {
   type UpdateServerDto,
   type ServerSummary,
   type ServerStats,
+  type ServerStatsById,
   type ServerConfigValues,
 } from "@ark/shared";
 import { PrismaService } from "../prisma/prisma.service";
@@ -223,19 +224,33 @@ export class ServersService implements OnApplicationBootstrap {
     return this.docker.tailLogs(server.containerId, tail).catch(() => "");
   }
 
-  /** Live resource usage: CPU% + memory from Docker (null when not running), and
-   *  the on-disk instance size (cached + background-refreshed). */
+  /** Live resource usage: CPU% + memory from Docker, plus the on-disk instance
+   *  size (cached + background-refreshed). */
   async stats(id: string): Promise<ServerStats> {
     const server = await this.prisma.server.findUnique({ where: { id } });
     if (!server) throw new NotFoundException("Server not found");
-    const running = server.state === ServerState.Running && !!server.containerId;
-    const live = running && server.containerId ? await this.docker.stats(server.containerId) : null;
+    return this.statsFor(server.id, server.containerId);
+  }
+
+  /** Stats for every server, keyed by id (for the servers list). */
+  async statsAll(): Promise<ServerStatsById[]> {
+    const servers = await this.prisma.server.findMany({ select: { id: true, containerId: true } });
+    return Promise.all(
+      servers.map(async (s) => ({ id: s.id, ...(await this.statsFor(s.id, s.containerId)) })),
+    );
+  }
+
+  /** Build a stats payload. We query Docker whenever a container is linked — that
+   *  covers Starting (boot is the heaviest period), not just Running — and Docker
+   *  returns null when the container isn't actually up. */
+  private async statsFor(serverId: string, containerId: string | null): Promise<ServerStats> {
+    const live = containerId ? await this.docker.stats(containerId) : null;
     return {
-      running,
+      live: !!live,
       cpuPercent: live?.cpuPercent ?? null,
       memUsedMb: live?.memUsedMb ?? null,
       memLimitMb: live?.memLimitMb ?? null,
-      diskUsedMb: this.diskUsedMb(id),
+      diskUsedMb: this.diskUsedMb(serverId),
     };
   }
 

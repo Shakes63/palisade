@@ -23,6 +23,12 @@ export class ServersController {
     return this.servers.list();
   }
 
+  // Must precede @Get(":id") so "/servers/stats" isn't captured as id="stats".
+  @Get("stats")
+  statsAll() {
+    return this.servers.statsAll();
+  }
+
   @Get(":id")
   get(@Param("id") id: string) {
     return this.servers.get(id);

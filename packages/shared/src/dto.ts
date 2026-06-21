@@ -32,15 +32,20 @@ export interface ServerSummary {
   updatedAt: string;
 }
 
-/** Live resource usage for a server. CPU/memory are null when not running;
- *  disk (the on-disk instance size) is null until the first measurement lands. */
+/** Live resource usage for a server. CPU/memory are null unless the container is
+ *  up (Starting counts — boot is the heaviest period); disk (the on-disk instance
+ *  size) is null until the first measurement lands. */
 export interface ServerStats {
-  running: boolean;
+  /** True when the container is up and reporting CPU/memory. */
+  live: boolean;
   cpuPercent: number | null;
   memUsedMb: number | null;
   memLimitMb: number | null;
   diskUsedMb: number | null;
 }
+
+/** Batch stats keyed by server id (for the servers list). */
+export type ServerStatsById = ServerStats & { id: string };
 
 export interface CreateServerDto {
   name: string;

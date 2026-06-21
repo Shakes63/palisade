@@ -25,7 +25,9 @@ export function ResourcesPanel({ serverId, state }: { serverId: string; state: S
       }
     };
     void tick();
-    const id = state === ServerState.Running ? setInterval(() => void tick(), POLL_MS) : null;
+    // Boot is the heaviest period, so poll while Starting as well as Running.
+    const liveState = state === ServerState.Running || state === ServerState.Starting;
+    const id = liveState ? setInterval(() => void tick(), POLL_MS) : null;
     const onVisible = () => {
       if (!document.hidden) void tick();
     };
@@ -37,7 +39,8 @@ export function ResourcesPanel({ serverId, state }: { serverId: string; state: S
     };
   }, [serverId, state]);
 
-  const running = state === ServerState.Running;
+  const liveState = state === ServerState.Running || state === ServerState.Starting;
+  const live = stats?.live ?? false; // container is up and reporting CPU/memory
   const memPct =
     stats?.memUsedMb != null && stats?.memLimitMb
       ? Math.min(100, (stats.memUsedMb / stats.memLimitMb) * 100)
@@ -48,25 +51,21 @@ export function ResourcesPanel({ serverId, state }: { serverId: string; state: S
     <div className="card">
       <div className="mb-4 flex items-center justify-between">
         <h3 className="text-sm font-semibold text-slate-300">Resources</h3>
-        {running && <span className="text-xs text-slate-500">live · every {POLL_MS / 1000}s</span>}
+        {liveState && <span className="text-xs text-slate-500">live · every {POLL_MS / 1000}s</span>}
       </div>
       <div className="grid gap-5 sm:grid-cols-3">
         <Metric
           icon={<Cpu className="h-4 w-4" />}
           label="CPU"
-          value={running && stats?.cpuPercent != null ? `${stats.cpuPercent}%` : "—"}
+          value={live && stats?.cpuPercent != null ? `${stats.cpuPercent}%` : "—"}
         />
         <div>
           <Metric
             icon={<MemoryStick className="h-4 w-4" />}
             label="Memory"
-            value={
-              running && stats?.memUsedMb != null
-                ? `${fmt(stats.memUsedMb)} / ${fmt(stats.memLimitMb)}`
-                : "—"
-            }
+            value={live && stats?.memUsedMb != null ? `${fmt(stats.memUsedMb)} / ${fmt(stats.memLimitMb)}` : "—"}
           />
-          {running && stats?.memUsedMb != null && (
+          {live && stats?.memUsedMb != null && (
             <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-700/60">
               <div
                 className={`h-full rounded-full ${memHot ? "bg-red-400" : "bg-ark-accent"}`}
@@ -81,8 +80,8 @@ export function ResourcesPanel({ serverId, state }: { serverId: string; state: S
           value={fmt(stats?.diskUsedMb)}
         />
       </div>
-      {!running && (
-        <p className="mt-3 text-xs text-slate-500">CPU and memory show while the server is running.</p>
+      {!live && (
+        <p className="mt-3 text-xs text-slate-500">CPU and memory show while the server is up.</p>
       )}
     </div>
   );
