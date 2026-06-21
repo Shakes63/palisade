@@ -1,18 +1,32 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { RefreshCw, ScrollText } from "lucide-react";
+import { RefreshCw, ScrollText, Filter } from "lucide-react";
 import { apiGet } from "@/lib/api";
 import { useRealtime } from "@/lib/socket";
+import { isEngineNoise } from "@/lib/log-noise";
 
 const MAX_LINES = 6000;
+const NOISE_PREF = "ark.hideEngineNoise";
 
 /** Full log of the current run, captured server-side — complete whether or not
  *  this tab was open, kept across refreshes/tab switches, wiped on the next Start. */
 export function LogsTab({ serverId }: { serverId: string }) {
   const [lines, setLines] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  const [hideNoise, setHideNoise] = useState(false);
   const boxRef = useRef<HTMLDivElement>(null);
   const atBottom = useRef(true);
+
+  // Remember the filter preference across refreshes/tabs.
+  useEffect(() => setHideNoise(localStorage.getItem(NOISE_PREF) === "1"), []);
+  const toggleNoise = () =>
+    setHideNoise((v) => {
+      localStorage.setItem(NOISE_PREF, v ? "0" : "1");
+      return !v;
+    });
+
+  const visible = hideNoise ? lines.filter((l) => !isEngineNoise(l)) : lines;
+  const hidden = lines.length - visible.length;
 
   const scrollToBottom = () =>
     requestAnimationFrame(() => {
@@ -45,6 +59,14 @@ export function LogsTab({ serverId }: { serverId: string }) {
         <button className="btn-secondary" onClick={load} disabled={loading}>
           <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} /> Refresh
         </button>
+        <button
+          className={`btn-secondary ${hideNoise ? "border-ark-accent text-ark-accent" : ""}`}
+          onClick={toggleNoise}
+          title="Hide known-benign Conan/Unreal engine log spam"
+        >
+          <Filter className="h-4 w-4" />
+          {hideNoise ? `Engine noise hidden${hidden ? ` (${hidden})` : ""}` : "Hide engine noise"}
+        </button>
         <span className="flex items-center gap-1 text-xs text-slate-500">
           <ScrollText className="h-3.5 w-3.5" /> Full log of the current run — kept until the next Start.
         </span>
@@ -57,10 +79,14 @@ export function LogsTab({ serverId }: { serverId: string }) {
         }}
         className="h-[32rem] overflow-y-auto whitespace-pre-wrap break-words rounded-lg border border-ark-border bg-black/40 p-3 font-mono text-xs leading-relaxed"
       >
-        {lines.length === 0 ? (
-          <span className="text-slate-500">No log captured yet — start the server to capture this run.</span>
+        {visible.length === 0 ? (
+          <span className="text-slate-500">
+            {lines.length === 0
+              ? "No log captured yet — start the server to capture this run."
+              : "Every captured line is engine noise — toggle the filter off to see them."}
+          </span>
         ) : (
-          lines.join("\n")
+          visible.join("\n")
         )}
       </div>
     </div>

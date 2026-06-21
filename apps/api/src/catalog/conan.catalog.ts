@@ -29,6 +29,17 @@ const settings: SettingDef[] = [
     ],
     help: "Conan's server-community category shown in the browser.",
   }),
+  cset("SERVER_REGION", "Region", "General", "enum", "1", {
+    choices: [
+      { value: "0", label: "Europe" },
+      { value: "1", label: "North America" },
+      { value: "2", label: "Asia" },
+      { value: "3", label: "Australia" },
+      { value: "4", label: "South America" },
+      { value: "5", label: "Japan" },
+    ],
+    help: "Region the server advertises in the in-game server browser.",
+  }),
   cset("SERVER_MESSAGE_OF_THE_DAY", "Message of the day", "General", "string", "", {
     help: "Shown to players when they join.",
   }),

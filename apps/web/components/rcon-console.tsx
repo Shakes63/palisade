@@ -1,18 +1,32 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { SendHorizontal, Save, Users, RefreshCw } from "lucide-react";
+import { SendHorizontal, Save, Users, RefreshCw, Filter } from "lucide-react";
 import { ServerState } from "@ark/shared";
 import { apiGet, apiPost } from "@/lib/api";
 import { useRealtime } from "@/lib/socket";
+import { isEngineNoise } from "@/lib/log-noise";
 
 const PLAYER_POLL_MS = 20_000;
 const MAX_LINES = 6000;
+const NOISE_PREF = "ark.hideEngineNoise";
 
 export function RconConsole({ serverId, state }: { serverId: string; state: ServerState }) {
   const [lines, setLines] = useState<string[]>([]);
   const [command, setCommand] = useState("");
   const [players, setPlayers] = useState<string[]>([]);
+  const [hideNoise, setHideNoise] = useState(false);
   const boxRef = useRef<HTMLDivElement>(null);
+
+  // Shares the Logs tab's filter preference; RCON command/response lines never
+  // match the noise patterns, so they are always shown.
+  useEffect(() => setHideNoise(localStorage.getItem(NOISE_PREF) === "1"), []);
+  const toggleNoise = () =>
+    setHideNoise((v) => {
+      localStorage.setItem(NOISE_PREF, v ? "0" : "1");
+      return !v;
+    });
+  const visible = hideNoise ? lines.filter((l) => !isEngineNoise(l)) : lines;
+  const hidden = lines.length - visible.length;
 
   const append = (line: string) => {
     setLines((prev) => [...prev.slice(-(MAX_LINES - 1)), line]);
@@ -99,15 +113,27 @@ export function RconConsole({ serverId, state }: { serverId: string; state: Serv
           <button className="btn-secondary" onClick={refreshPlayers}>
             <RefreshCw className="h-4 w-4" /> Refresh players
           </button>
+          <button
+            className={`btn-secondary ${hideNoise ? "border-ark-accent text-ark-accent" : ""}`}
+            onClick={toggleNoise}
+            title="Hide known-benign Conan/Unreal engine log spam"
+          >
+            <Filter className="h-4 w-4" />
+            {hideNoise ? `Engine noise hidden${hidden ? ` (${hidden})` : ""}` : "Hide engine noise"}
+          </button>
         </div>
         <div
           ref={boxRef}
           className="h-80 overflow-y-auto whitespace-pre-wrap break-words rounded-lg border border-ark-border bg-black/40 p-3 font-mono text-xs leading-relaxed"
         >
-          {lines.length === 0 ? (
-            <span className="text-slate-500">Console output and live logs appear here…</span>
+          {visible.length === 0 ? (
+            <span className="text-slate-500">
+              {lines.length === 0
+                ? "Console output and live logs appear here…"
+                : "Every line is engine noise — toggle the filter off to see them."}
+            </span>
           ) : (
-            lines.join("\n")
+            visible.join("\n")
           )}
         </div>
         <form onSubmit={send} className="flex gap-2">
