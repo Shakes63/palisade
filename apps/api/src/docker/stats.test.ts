@@ -16,8 +16,8 @@ describe("computeContainerStats", () => {
         stats: { inactive_file: 1 * 1024 * 1024 * 1024 },
       },
     });
-    // cpuDelta=100M, sysDelta=400M → 0.25 × 4 × 100 = 100%
-    expect(r?.cpuPercent).toBe(100);
+    // cpuDelta=100M, sysDelta=400M → 0.25 → 25% of the whole machine (no × cores)
+    expect(r?.cpuPercent).toBe(25);
     expect(r?.memUsedMb).toBe(8192); // 9 GB usage − 1 GB cache
     expect(r?.memLimitMb).toBe(16384);
   });
