@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CalendarClock, Plus, Trash2 } from "lucide-react";
 import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/api";
-import { buildCron, describeCron, type Frequency } from "@/lib/cron";
+import { buildCron, describeCron, onceCron, fmtLocal, type Frequency } from "@/lib/cron";
 
 interface Schedule {
   id: string;
@@ -12,6 +12,7 @@ interface Schedule {
   warnMinutes: number;
   enabled: boolean;
   lastRunAt: string | null;
+  runAt: string | null;
 }
 
 const ACTIONS: { value: string; label: string; hint: string }[] = [
@@ -22,6 +23,7 @@ const ACTIONS: { value: string; label: string; hint: string }[] = [
   { value: "start", label: "Start", hint: "Bring the server up." },
 ];
 const FREQS: { value: Frequency; label: string }[] = [
+  { value: "once", label: "One time" },
   { value: "daily", label: "Every day" },
   { value: "weekly", label: "Certain days" },
   { value: "hourly", label: "Every hour" },
@@ -41,33 +43,52 @@ export function ScheduleList({ serverId }: { serverId: string }) {
   const [minute, setMinute] = useState(0);
   const [warnMinutes, setWarnMinutes] = useState(10);
   const [name, setName] = useState("");
+  const [onceAt, setOnceAt] = useState("");
 
   const refresh = useCallback(() => {
     apiGet<Schedule[]>(`/schedules?serverId=${serverId}`).then(setSchedules).catch(() => undefined);
   }, [serverId]);
   useEffect(() => refresh(), [refresh]);
 
+  const isOnce = frequency === "once";
   const cron = useMemo(
     () => buildCron({ frequency, time, days, intervalHours, minute }),
     [frequency, time, days, intervalHours, minute],
   );
   const disruptive = DISRUPTIVE.has(action);
-  const summary = `${actionLabel(action)} · ${describeCron(cron)}`;
+  const summary = isOnce
+    ? `${actionLabel(action)} · ${onceAt ? `once on ${fmtLocal(onceAt)}` : "once — pick a date & time"}`
+    : `${actionLabel(action)} · ${describeCron(cron)}`;
+  // "now" in datetime-local format, for the picker's min.
+  const nowLocal = new Date(Date.now() - new Date().getTimezoneOffset() * 60000)
+    .toISOString()
+    .slice(0, 16);
 
   const toggleDay = (d: number) =>
     setDays((ds) => (ds.includes(d) ? ds.filter((x) => x !== d) : [...ds, d]));
 
   const create = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (frequency === "weekly" && days.length === 0) return alert("Pick at least one day.");
+    let cronStr = cron;
+    let runAt: string | undefined;
+    if (isOnce) {
+      if (!onceAt) return alert("Pick a date and time.");
+      const when = new Date(onceAt);
+      if (when.getTime() <= Date.now()) return alert("Pick a time in the future.");
+      runAt = when.toISOString();
+      cronStr = onceCron(onceAt);
+    } else if (frequency === "weekly" && days.length === 0) {
+      return alert("Pick at least one day.");
+    }
     try {
       await apiPost("/schedules", {
         serverId,
         name: name.trim() || summary,
-        cron,
+        cron: cronStr,
         action,
         warnMinutes: disruptive ? Number(warnMinutes) : 0,
         enabled: true,
+        ...(runAt ? { runAt } : {}),
       });
       setName("");
       refresh();
@@ -118,6 +139,18 @@ export function ScheduleList({ serverId }: { serverId: string }) {
 
         {/* When-controls per frequency */}
         <div className="flex flex-wrap items-end gap-4">
+          {isOnce && (
+            <div>
+              <label className="label">On</label>
+              <input
+                type="datetime-local"
+                className="input w-auto"
+                value={onceAt}
+                min={nowLocal}
+                onChange={(e) => setOnceAt(e.target.value)}
+              />
+            </div>
+          )}
           {frequency === "weekly" && (
             <div>
               <label className="label">On days</label>
@@ -233,7 +266,8 @@ export function ScheduleList({ serverId }: { serverId: string }) {
                 <div>
                   <div className="font-medium">{s.name}</div>
                   <div className="text-xs text-slate-400">
-                    {actionLabel(s.action)} · {describeCron(s.cron)}
+                    {actionLabel(s.action)} ·{" "}
+                    {s.runAt ? `Once · ${fmtLocal(s.runAt)}` : describeCron(s.cron)}
                     {s.warnMinutes ? ` · warn ${s.warnMinutes}m` : ""}
                     {s.lastRunAt ? ` · last ${new Date(s.lastRunAt).toLocaleString()}` : ""}
                   </div>

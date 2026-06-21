@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from "@nestjs/common";
-import { IsBoolean, IsIn, IsInt, IsOptional, IsString, Min } from "class-validator";
+import { IsBoolean, IsDateString, IsIn, IsInt, IsOptional, IsString, Min } from "class-validator";
 import { PrismaService } from "../prisma/prisma.service";
 import { SchedulerService } from "./scheduler.service";
 
@@ -10,6 +10,8 @@ class ScheduleBody {
   @IsIn(["restart", "update", "backup", "stop", "start"]) action!: string;
   @IsOptional() @IsInt() @Min(0) warnMinutes?: number;
   @IsOptional() @IsBoolean() enabled?: boolean;
+  /** Set for a ONE-TIME schedule: ISO instant to fire once (cron then ignored). */
+  @IsOptional() @IsDateString() runAt?: string;
 }
 
 @Controller("schedules")
@@ -37,17 +39,24 @@ export class SchedulesController {
         action: body.action,
         warnMinutes: body.warnMinutes ?? 10,
         enabled: body.enabled ?? true,
+        runAt: body.runAt ? new Date(body.runAt) : null,
       },
     });
-    if (created.enabled) await this.scheduler.registerWithTimezone(created.id, created.cron);
+    // One-time schedules (runAt) are driven by the poll, not cron.
+    if (created.enabled && !created.runAt) {
+      await this.scheduler.registerWithTimezone(created.id, created.cron);
+    }
     return created;
   }
 
   @Patch(":id")
   async update(@Param("id") id: string, @Body() body: Partial<ScheduleBody>) {
-    const updated = await this.prisma.schedule.update({ where: { id }, data: body });
+    const data = { ...body, runAt: body.runAt !== undefined ? new Date(body.runAt) : undefined };
+    const updated = await this.prisma.schedule.update({ where: { id }, data });
     this.scheduler.unregister(id);
-    if (updated.enabled) await this.scheduler.registerWithTimezone(id, updated.cron);
+    if (updated.enabled && !updated.runAt) {
+      await this.scheduler.registerWithTimezone(id, updated.cron);
+    }
     return updated;
   }
 

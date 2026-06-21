@@ -11,6 +11,11 @@ import { ManagerSettingsService } from "../manager-settings/manager-settings.ser
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+const ONE_SHOT_POLL_MS = 60_000;
+// A one-time schedule still fires if the manager was briefly down at its moment,
+// but only within this window — beyond it, it's stale and marked missed.
+const ONE_SHOT_GRACE_MS = 60 * 60_000;
+
 @Injectable()
 export class SchedulerService implements OnModuleInit {
   private readonly logger = new Logger(SchedulerService.name);
@@ -28,16 +33,58 @@ export class SchedulerService implements OnModuleInit {
 
   async onModuleInit(): Promise<void> {
     await this.registerAll();
+    // One-time schedules can't be expressed as cron; a poll fires them (and catches
+    // up any whose moment passed while the manager was briefly down).
+    setInterval(() => void this.fireDueOneShots(), ONE_SHOT_POLL_MS).unref?.();
+    void this.fireDueOneShots();
   }
 
-  /** (Re)register all enabled schedules using the in-app timezone. Called on boot
-   *  and whenever the timezone setting changes. */
+  /** (Re)register all enabled RECURRING schedules using the in-app timezone. Called
+   *  on boot and whenever the timezone setting changes. One-time (runAt) schedules
+   *  are driven by the poll, not cron, so they're excluded here. */
   async registerAll(): Promise<void> {
     for (const id of [...this.tasks.keys()]) this.unregister(id);
     const tz = await this.settings.getTimezone();
-    const enabled = await this.prisma.schedule.findMany({ where: { enabled: true } });
+    const enabled = await this.prisma.schedule.findMany({ where: { enabled: true, runAt: null } });
     for (const s of enabled) this.register(s.id, s.cron, tz);
-    this.logger.log(`Registered ${enabled.length} schedule(s) (tz ${tz})`);
+    this.logger.log(`Registered ${enabled.length} recurring schedule(s) (tz ${tz})`);
+  }
+
+  /** Fire any one-time schedules whose moment has arrived (within the grace window),
+   *  then disable them so they never run again. */
+  private oneShotBusy = false;
+  private async fireDueOneShots(): Promise<void> {
+    if (this.oneShotBusy) return;
+    this.oneShotBusy = true;
+    try {
+      const now = new Date();
+      const due = await this.prisma.schedule.findMany({
+        where: { enabled: true, lastRunAt: null, runAt: { not: null, lte: now } },
+      });
+      for (const s of due) {
+        const runAt = s.runAt as Date;
+        if (now.getTime() - runAt.getTime() > ONE_SHOT_GRACE_MS) {
+          await this.prisma.schedule
+            .update({ where: { id: s.id }, data: { enabled: false } })
+            .catch(() => undefined);
+          await this.events.emit({
+            type: EventType.Warning,
+            message: `One-time schedule "${s.name}" was missed — the manager wasn't running at ${runAt.toLocaleString()}.`,
+            serverId: s.serverId,
+          });
+          continue;
+        }
+        // fire() stamps lastRunAt up front (so the next poll skips it), runs the
+        // action, then we disable it so a one-shot is truly one-time.
+        void this.fire(s.id).finally(() =>
+          this.prisma.schedule
+            .update({ where: { id: s.id }, data: { enabled: false } })
+            .catch(() => undefined),
+        );
+      }
+    } finally {
+      this.oneShotBusy = false;
+    }
   }
 
   /** Register one schedule using the currently-configured timezone. */

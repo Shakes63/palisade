@@ -119,6 +119,10 @@ model Schedule {
   warnMinutes Int       @default(10)
   enabled     Boolean   @default(true)
   lastRunAt   DateTime?
+  // Set for ONE-TIME schedules: the absolute instant to fire once. When non-null,
+  // `cron` is ignored for scheduling — a poll fires it (and catches up if the
+  // manager was briefly down). Null = recurring (driven by `cron`).
+  runAt       DateTime?
   createdAt   DateTime  @default(now())
 }
 

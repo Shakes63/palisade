@@ -1,6 +1,19 @@
 // Friendly schedule ↔ cron helpers, so the UI never makes users write cron.
 
-export type Frequency = "daily" | "weekly" | "hourly" | "everyN";
+export type Frequency = "daily" | "weekly" | "hourly" | "everyN" | "once";
+
+/** Cron representation of a one-time datetime, stored only for display — the
+ *  backend fires one-shots by their absolute runAt, not this. `local` is a
+ *  datetime-local value ("YYYY-MM-DDTHH:MM"). */
+export function onceCron(local: string): string {
+  const d = new Date(local);
+  return `${d.getMinutes()} ${d.getHours()} ${d.getDate()} ${d.getMonth() + 1} *`;
+}
+
+/** Compact local date+time for display, e.g. "Jun 25, 2:00 AM". */
+export function fmtLocal(iso: string): string {
+  return new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+}
 
 export interface CronParts {
   frequency: Frequency;
