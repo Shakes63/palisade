@@ -35,7 +35,7 @@ import { StateMachineService } from "./state-machine.service";
 import { ManagerSettingsService } from "../manager-settings/manager-settings.service";
 import { LogCaptureService, LOG_CAPTURE_MAX } from "../logs/log-capture.service";
 import { buildContainerSpec } from "./runtime-spec";
-import { derivePorts, nextBasePort } from "../catalog/ports";
+import { FIXED_PORTS } from "../catalog/ports";
 import { LocalPaths } from "../common/paths";
 import { containerName } from "../common/naming";
 import { hostStats } from "../common/host-stats";
@@ -312,9 +312,10 @@ export class ServersService implements OnApplicationBootstrap {
 
   async create(dto: CreateServerDto): Promise<ServerSummary> {
     if (!Object.values(Game).includes(dto.game)) throw new BadRequestException("Invalid game");
-    const allocs = await this.prisma.portAllocation.findMany();
-    const base = nextBasePort(allocs.map((a) => a.basePort));
-    const ports = derivePorts(base);
+    // Every server shares one fixed port block (see FIXED_PORTS) so a single set
+    // of port-forwards covers whichever server is running — only one runs at a
+    // time, so the shared ports never actually collide.
+    const ports = FIXED_PORTS;
 
     const defaults = this.catalog.defaultsFor(dto.game);
     const config: ServerConfigValues = {
@@ -345,7 +346,6 @@ export class ServersService implements OnApplicationBootstrap {
         },
         include: { cluster: true },
       });
-      await tx.portAllocation.create({ data: { serverId: created.id, basePort: base } });
       return created;
     });
 

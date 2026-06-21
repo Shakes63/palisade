@@ -23,3 +23,11 @@ export function nextBasePort(usedBases: number[]): number {
   const max = Math.max(...usedBases);
   return max + BLOCK_STRIDE;
 }
+
+/**
+ * For now every server shares this one fixed port block, so a single set of
+ * port-forwards covers whichever server is running — only one runs at a time
+ * anyway. To go back to a unique block per server, restore the nextBasePort /
+ * derivePorts allocation in ServersService.create().
+ */
+export const FIXED_PORTS: PortSet = derivePorts(PORT_POOL_START);
