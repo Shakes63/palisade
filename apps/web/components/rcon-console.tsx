@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { SendHorizontal, Save, Users, RefreshCw, Filter } from "lucide-react";
-import { ServerState } from "@ark/shared";
+import { Game, ServerState } from "@ark/shared";
 import { apiGet, apiPost } from "@/lib/api";
 import { useRealtime } from "@/lib/socket";
 import { isEngineNoise } from "@/lib/log-noise";
@@ -10,7 +10,15 @@ const PLAYER_POLL_MS = 20_000;
 const MAX_LINES = 6000;
 const NOISE_PREF = "ark.hideEngineNoise";
 
-export function RconConsole({ serverId, state }: { serverId: string; state: ServerState }) {
+export function RconConsole({
+  serverId,
+  game,
+  state,
+}: {
+  serverId: string;
+  game: Game;
+  state: ServerState;
+}) {
   const [lines, setLines] = useState<string[]>([]);
   const [command, setCommand] = useState("");
   const [players, setPlayers] = useState<string[]>([]);
@@ -107,9 +115,12 @@ export function RconConsole({ serverId, state }: { serverId: string; state: Serv
     <div className="grid gap-4 lg:grid-cols-3">
       <div className="lg:col-span-2 space-y-3">
         <div className="flex gap-2">
-          <button className="btn-secondary" onClick={() => apiPost(`/servers/${serverId}/rcon/save`)}>
-            <Save className="h-4 w-4" /> Save world
-          </button>
+          {/* Conan has no manual-save command — it persists continuously to its DB. */}
+          {game !== Game.CONAN && (
+            <button className="btn-secondary" onClick={() => apiPost(`/servers/${serverId}/rcon/save`)}>
+              <Save className="h-4 w-4" /> Save world
+            </button>
+          )}
           <button className="btn-secondary" onClick={refreshPlayers}>
             <RefreshCw className="h-4 w-4" /> Refresh players
           </button>

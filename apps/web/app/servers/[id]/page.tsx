@@ -206,7 +206,7 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
           <div className="text-slate-400">Loading settings…</div>
         ))}
       {tab === "Mods" && <ModsTab serverId={id} game={server.game} />}
-      {tab === "Console" && <RconConsole serverId={id} state={server.state} />}
+      {tab === "Console" && <RconConsole serverId={id} game={server.game} state={server.state} />}
       {tab === "Logs" && <LogsTab serverId={id} />}
       {tab === "Schedules" && <ScheduleList serverId={id} />}
       {tab === "Backups" && <BackupsTab serverId={id} />}

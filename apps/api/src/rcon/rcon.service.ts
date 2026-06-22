@@ -121,10 +121,12 @@ export class RconService {
   }
 
   async saveWorld(serverId: string): Promise<string> {
-    // ARK saves the world to .ark files (SaveWorld). Conan persists to a SQLite DB
-    // and flushes it with DoServerSaveAll.
+    // ARK saves the world to .ark files (SaveWorld). Conan has no manual-save RCON
+    // command — it persists continuously to a SQLite DB (and flushes on shutdown),
+    // so there's nothing to issue (verified against the live server's `help`).
     const game = await this.gameOf(serverId);
-    return this.exec(serverId, game === Game.CONAN ? "DoServerSaveAll" : "SaveWorld");
+    if (game === Game.CONAN) return "Conan saves continuously to its database — no manual save needed.";
+    return this.exec(serverId, "SaveWorld");
   }
 
   doExit(serverId: string): Promise<string> {
