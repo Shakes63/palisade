@@ -12,7 +12,9 @@ export interface SettingsPreset {
   games?: Game[];
 }
 
-export const SETTINGS_PRESETS: SettingsPreset[] = [
+// All ARK presets use ARK setting keys; they're scoped to ARK below so they don't
+// appear (and silently do nothing) on a Conan server.
+const ARK_PRESETS: SettingsPreset[] = [
   // Faithful to ASA single player — verified against the ARK wiki's single-player
   // multiplier table and Dododex. "Use Single Player Settings" applies a FIXED rate
   // rebalance (taming ×2.5, XP ×2, egg hatch ×9–10, maturation ×35, mating ×0.15,
@@ -197,6 +199,71 @@ export const SETTINGS_PRESETS: SettingsPreset[] = [
       ItemStackSizeMultiplier: 10,
     },
   },
+];
+
+// Conan Exiles presets — use Conan catalog keys (first-class env vars + raw
+// ServerSettings keys). Scoped to Conan so they only show on Conan servers.
+const CONAN_PRESETS: SettingsPreset[] = [
+  {
+    id: "conan-relaxed",
+    label: "Relaxed / casual",
+    description:
+      "A lighter grind for casual or small-group play: double harvest and XP, half crafting cost, faster thrall conversion, slower spoilage, and longer-lasting fuel.",
+    games: [Game.CONAN],
+    values: {
+      HARVEST_AMOUNT_MULTIPLIER: 2,
+      XP_RATE_MULTIPLIER: 2,
+      CRAFTING_COST_MULTIPLIER: 0.5,
+      THRALL_CONVERSION_MULTIPLIER: 2,
+      ITEM_SPOIL_RATE_SCALE: 0.5,
+      FUEL_BURN_TIME_MULTIPLIER: 2,
+    },
+  },
+  {
+    id: "conan-hardcore",
+    label: "Hardcore survival",
+    description:
+      "Tougher than vanilla: half harvest and XP, slower thrall conversion, faster spoilage, and a steeper stamina cost. For players who want the grind to bite.",
+    games: [Game.CONAN],
+    values: {
+      HARVEST_AMOUNT_MULTIPLIER: 0.5,
+      XP_RATE_MULTIPLIER: 0.5,
+      THRALL_CONVERSION_MULTIPLIER: 0.5,
+      ITEM_SPOIL_RATE_SCALE: 2,
+      PLAYER_STAMINA_COST_MULTIPLIER: 1.5,
+    },
+  },
+  {
+    id: "conan-pve-building",
+    label: "PvE building (no decay)",
+    description:
+      "A chill PvE base-builder: PvP off, buildings never decay while you're away, plus boosted harvest and XP so creative builds come together fast.",
+    games: [Game.CONAN],
+    values: {
+      PVP_ENABLED: false,
+      BUILDING_ABANDONMENT_ENABLED: false,
+      HARVEST_AMOUNT_MULTIPLIER: 2,
+      XP_RATE_MULTIPLIER: 2,
+    },
+  },
+  {
+    id: "conan-fast-thralls",
+    label: "Fast thralls & taming",
+    description:
+      "Capture and tame quickly: very fast Wheel-of-Pain conversion and quicker animal-pen raising, so you spend less time waiting and more time playing.",
+    games: [Game.CONAN],
+    values: {
+      THRALL_CONVERSION_MULTIPLIER: 5,
+      AnimalPenCraftingTimeMultiplier: 0.25,
+    },
+  },
+];
+
+/** Built-in presets. ARK presets default to ARK games (so they're hidden on Conan);
+ *  Conan presets are scoped to Conan. */
+export const SETTINGS_PRESETS: SettingsPreset[] = [
+  ...ARK_PRESETS.map((p) => ({ ...p, games: p.games ?? [Game.ASA, Game.ASE] })),
+  ...CONAN_PRESETS,
 ];
 
 // ── Dependencies (enable/disable based on other settings) ────────────────────
