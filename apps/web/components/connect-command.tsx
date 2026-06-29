@@ -136,6 +136,23 @@ export function ConnectCommand({
     );
   }
 
+  if (game === Game.MINECRAFT) {
+    // Our server runs on the default port (25565), so players can type just the IP.
+    return (
+      <div className={className}>
+        <div className="mb-1 flex items-center gap-1.5 text-xs font-medium text-slate-400">
+          <Terminal className="h-3.5 w-3.5" /> Add server (in-game)
+        </div>
+        <CopyRow value={hostOr} title="Paste into Minecraft's Add Server / Direct Connect" />
+        <p className="mt-1 text-[11px] leading-snug text-slate-500">
+          In Minecraft: <span className="font-mono">Multiplayer → Add Server</span> (or Direct Connect), paste
+          this. It runs on the default port <span className="font-mono">25565</span>, so no port is needed.
+          Online, friends use your public IP (forward TCP 25565).
+        </p>
+      </div>
+    );
+  }
+
   // ARK (ASA / ASE)
   if (joinPassword) {
     return (

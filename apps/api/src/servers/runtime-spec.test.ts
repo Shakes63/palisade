@@ -180,3 +180,57 @@ describe("buildContainerSpec (Conan)", () => {
     expect(env).toContain("XP_RATE_MULTIPLIER=2");
   });
 });
+
+async function buildMinecraft(config: ServerConfigValues, ramLimitMb: number | null = null) {
+  const { buildContainerSpec } = await import("./runtime-spec");
+  const { MINECRAFT_CATALOG } = await import("../catalog/minecraft.catalog");
+  return buildContainerSpec({
+    serverId: "srv1",
+    game: Game.MINECRAFT,
+    map: "minecraft:flat",
+    sessionName: "My MC Server",
+    ports: { game: 25565, rawSocket: 25566, query: 25565, rcon: 25575 },
+    maxPlayers: 20,
+    adminPassword: "secret",
+    serverPassword: "pw",
+    modIds: [],
+    cluster: null,
+    config,
+    catalog: MINECRAFT_CATALOG,
+    ramLimitMb,
+  });
+}
+
+describe("buildContainerSpec (Minecraft / itzg)", () => {
+  it("uses the itzg image, accepts EULA, and wires RCON + the single TCP game port", async () => {
+    const spec = await buildMinecraft({ values: {} });
+    expect(spec.Image).toBe("itzg/minecraft-server:latest");
+    const env = envOf(spec);
+    expect(env).toContain("EULA=TRUE");
+    expect(env).toContain("SERVER_PORT=25565");
+    expect(env).toContain("ENABLE_RCON=true");
+    expect(env).toContain("RCON_PORT=25575");
+    expect(env).toContain("RCON_PASSWORD=secret");
+    expect(env).toContain("MAX_PLAYERS=20");
+    expect(env).toContain("MOTD=My MC Server");
+    expect(env).toContain("LEVEL_TYPE=minecraft:flat"); // the map field carries the world type
+    expect(env).toContain("LEVEL=world");
+    // TCP, not UDP — both the game and RCON ports
+    expect(spec.HostConfig?.PortBindings?.["25565/tcp"]).toEqual([{ HostPort: "25565" }]);
+    expect(spec.HostConfig?.PortBindings?.["25575/tcp"]).toEqual([{ HostPort: "25575" }]);
+    // One bind covers jar + worlds + config at /data
+    expect((spec.HostConfig?.Binds ?? []).some((b) => b.endsWith(":/data"))).toBe(true);
+  });
+
+  it("sizes the JVM heap to ~80% of the RAM cap, else a 3 GB default", async () => {
+    expect(envOf(await buildMinecraft({ values: {} }, 8000))).toContain("MEMORY=6400M");
+    expect(envOf(await buildMinecraft({ values: {} }))).toContain("MEMORY=3072M");
+  });
+
+  it("passes catalog settings through (bools as true/false), dropping empty strings", async () => {
+    const env = envOf(await buildMinecraft({ values: { DIFFICULTY: "hard", PVP: false, SEED: "" } }));
+    expect(env).toContain("DIFFICULTY=hard");
+    expect(env).toContain("PVP=false");
+    expect(env.some((e) => e.startsWith("SEED="))).toBe(false); // empty SEED is dropped
+  });
+});

@@ -18,6 +18,7 @@ import { LogsTab } from "@/components/logs-tab";
 import { ScheduleList } from "@/components/schedule-list";
 import { ModsTab } from "@/components/mods-tab";
 import { PalworldModsTab } from "@/components/palworld-mods-tab";
+import { MinecraftModsTab } from "@/components/minecraft-mods-tab";
 import { useStartGuard } from "@/components/start-guard";
 import { BackupsTab } from "@/components/backups-tab";
 
@@ -218,6 +219,8 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
       {tab === "Mods" &&
         (server.game === Game.PALWORLD ? (
           <PalworldModsTab serverId={id} />
+        ) : server.game === Game.MINECRAFT ? (
+          <MinecraftModsTab />
         ) : (
           <ModsTab serverId={id} game={server.game} />
         ))}

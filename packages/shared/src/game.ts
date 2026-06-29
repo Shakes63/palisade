@@ -8,6 +8,8 @@ export enum Game {
   CONAN = "CONAN",
   /** Palworld — native Linux, env-driven; RCON (no Workshop mods). */
   PALWORLD = "PALWORLD",
+  /** Minecraft (Java) — itzg image, downloads the server jar itself; TCP, RCON. */
+  MINECRAFT = "MINECRAFT",
 }
 
 /** Friendly game names for the UI. */
@@ -16,6 +18,7 @@ export const GAME_LABELS: Record<Game, string> = {
   [Game.ASE]: "ARK: Survival Evolved",
   [Game.CONAN]: "Conan Exiles",
   [Game.PALWORLD]: "Palworld",
+  [Game.MINECRAFT]: "Minecraft (Java)",
 };
 
 /** SteamCMD app IDs for the dedicated server (anonymous login). */
@@ -24,6 +27,10 @@ export const STEAM_APP_ID: Record<Game, number> = {
   [Game.ASE]: 376030,
   [Game.CONAN]: 443030,
   [Game.PALWORLD]: 2394010,
+  // Minecraft isn't on Steam — the itzg image downloads the server jar from
+  // Mojang/its build sources. This is only read by the ASA-only game-file cache,
+  // so the value is unused for Minecraft.
+  [Game.MINECRAFT]: 0,
 };
 
 /** Steam Workshop "consumer" app ids for mod downloads (ARK: Survival Evolved /
@@ -48,6 +55,10 @@ export const GAME_ICONS: Record<Game, string> = {
   [Game.ASE]: "https://cdn.cloudflare.steamstatic.com/steam/apps/346110/header.jpg",
   [Game.CONAN]: "https://cdn.cloudflare.steamstatic.com/steam/apps/440900/header.jpg",
   [Game.PALWORLD]: "https://cdn.cloudflare.steamstatic.com/steam/apps/1623730/header.jpg",
+  // Minecraft has no Steam page; use the Wikimedia logo thumbnail (cosmetic — a
+  // 404 just falls back to Unraid's default container icon).
+  [Game.MINECRAFT]:
+    "https://upload.wikimedia.org/wikipedia/commons/thumb/8/85/Minecraft_2024_logo.svg/512px-Minecraft_2024_logo.svg.png",
 };
 
 /** CurseForge numeric game id for ASA (used by the mod browser). */
@@ -64,6 +75,9 @@ export const RAM_ESTIMATE_MB: Record<Game, number> = {
   [Game.ASE]: 7000,
   [Game.CONAN]: 7000,
   [Game.PALWORLD]: 8000,
+  // Vanilla Java is light (~2-3 GB); modpacks run heavier. 4 GB is a safe headroom
+  // estimate for the start guard — a server's own ramLimitMb overrides it.
+  [Game.MINECRAFT]: 4000,
 };
 
 /** Default port offsets within a per-server allocation block. */
@@ -116,12 +130,28 @@ export const CONAN_OFFICIAL_MAPS = ["ConanSandbox"] as const;
 /** Palworld has a single world (no map selection). */
 export const PALWORLD_OFFICIAL_MAPS = ["Palworld"] as const;
 
+/**
+ * Minecraft has no "map" — we repurpose the map field as the world generation type
+ * (itzg's LEVEL_TYPE). These are the vanilla generators players actually pick.
+ */
+export const MINECRAFT_OFFICIAL_MAPS = [
+  "minecraft:normal",
+  "minecraft:flat",
+  "minecraft:large_biomes",
+  "minecraft:amplified",
+] as const;
+
 /** Friendly display names for known level names (raw level → label). */
 export const MAP_LABELS: Record<string, string> = {
   // Conan Exiles
   ConanSandbox: "Exiled Lands",
   // Palworld
   Palworld: "Palpagos Islands",
+  // Minecraft world-generation types (used in place of a map)
+  "minecraft:normal": "Default",
+  "minecraft:flat": "Superflat",
+  "minecraft:large_biomes": "Large Biomes",
+  "minecraft:amplified": "Amplified",
   // ASA (World Partition — *_WP)
   TheIsland_WP: "The Island",
   TheCenter_WP: "The Center",

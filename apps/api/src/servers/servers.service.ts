@@ -39,7 +39,7 @@ import { StateMachineService } from "./state-machine.service";
 import { ManagerSettingsService } from "../manager-settings/manager-settings.service";
 import { LogCaptureService, LOG_CAPTURE_MAX } from "../logs/log-capture.service";
 import { buildContainerSpec } from "./runtime-spec";
-import { FIXED_PORTS } from "../catalog/ports";
+import { portsFor } from "../catalog/ports";
 import { LocalPaths } from "../common/paths";
 import { containerName } from "../common/naming";
 import { hostStats } from "../common/host-stats";
@@ -77,8 +77,12 @@ type ServerRow = Awaited<ReturnType<PrismaService["server"]["findUnique"]>> & {
 //
 // Palworld (thijsvanloef): logs `Running Palworld dedicated server on :<port>` once,
 // when the server starts listening — its joinable marker (verified against a real boot).
+//
+// Minecraft (itzg): the server logs `Done (12.345s)! For help, type "help"` exactly
+// once when the world has finished loading and it accepts joins (and RCON). The
+// `Done (...s)!` shape is Minecraft-specific, so it won't misfire on the others.
 export const READY_RE =
-  /(advertising for join(?!')|server is up|Startup report\. StartupTime=|Running Palworld dedicated server)/i;
+  /(advertising for join(?!')|server is up|Startup report\. StartupTime=|Running Palworld dedicated server|Done \([\d.]+s\)! For help)/i;
 const CRASH_WINDOW_MS = 5 * 60_000;
 const CRASH_LIMIT = 3;
 
@@ -323,10 +327,10 @@ export class ServersService implements OnApplicationBootstrap {
 
   async create(dto: CreateServerDto): Promise<ServerSummary> {
     if (!Object.values(Game).includes(dto.game)) throw new BadRequestException("Invalid game");
-    // Every server shares one fixed port block (see FIXED_PORTS) so a single set
-    // of port-forwards covers whichever server is running — only one runs at a
-    // time, so the shared ports never actually collide.
-    const ports = FIXED_PORTS;
+    // Every server of a given family shares one fixed port block so a single set of
+    // port-forwards covers whichever is running — only one runs at a time, so the
+    // shared ports never actually collide. Minecraft uses its own TCP block (25565).
+    const ports = portsFor(dto.game);
 
     const defaults = this.catalog.defaultsFor(dto.game);
     const config: ServerConfigValues = {
@@ -790,7 +794,12 @@ export class ServersService implements OnApplicationBootstrap {
     // save (DoServerSaveAll, via the game-aware wrapper) and return; SIGTERM flushes
     // the DB on shutdown. Waiting for the ARK log here would just burn the timeout.
     const row = await this.prisma.server.findUnique({ where: { id }, select: { game: true } });
-    if (!containerId || (row?.game as Game) === Game.CONAN) {
+    const game = row?.game as Game;
+    // Conan persists to SQLite and Minecraft never logs ARK's "World Save Complete"
+    // — issue their save (save-all for Minecraft, via the game-aware wrapper) and
+    // return; the container's SIGTERM handler flushes the rest on shutdown. Waiting
+    // for the ARK log here would just burn the timeout.
+    if (!containerId || game === Game.CONAN || game === Game.MINECRAFT) {
       await this.rcon.saveWorld(id).catch(() => undefined);
       return;
     }
@@ -923,6 +932,9 @@ export class ServersService implements OnApplicationBootstrap {
     if (!server) return;
     const env = loadEnv();
     const game = server.game as Game;
+    // Minecraft (itzg) builds server.properties from env vars — it has no INI files
+    // to render, and its data dir layout is nothing like ARK's. Nothing to write.
+    if (game === Game.MINECRAFT) return;
     const base = join(env.DATA_DIR, "instances", server.id);
     // Both images bind the instance dir as their data root. ASA (POK) installs
     // at the root → config under ShooterGame/Saved/Config/WindowsServer; ASE

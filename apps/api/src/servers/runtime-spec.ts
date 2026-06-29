@@ -10,7 +10,14 @@ import {
 } from "@ark/shared";
 import { buildCustomArgs, isBattlEyeDisabled } from "../catalog/command-line";
 import { HostPaths, ContainerPaths } from "../common/paths";
-import { IMAGES, POK_DATA_DIR, HERMSI_VOLUME, CONAN_DATA_DIR, PALWORLD_DATA_DIR } from "../common/images";
+import {
+  IMAGES,
+  POK_DATA_DIR,
+  HERMSI_VOLUME,
+  CONAN_DATA_DIR,
+  PALWORLD_DATA_DIR,
+  MINECRAFT_DATA_DIR,
+} from "../common/images";
 import { ARK_NETWORK, containerName } from "../common/naming";
 import { loadEnv } from "../config/env";
 
@@ -39,6 +46,7 @@ export function buildContainerSpec(input: RuntimeSpecInput): Docker.ContainerCre
   if (input.game === Game.ASA) return buildPokSpec(input);
   if (input.game === Game.CONAN) return buildConanSpec(input);
   if (input.game === Game.PALWORLD) return buildPalworldSpec(input);
+  if (input.game === Game.MINECRAFT) return buildMinecraftSpec(input);
   return buildAseSpec(input);
 }
 
@@ -444,6 +452,90 @@ function palworldCatalogEnv(input: RuntimeSpecInput): string[] {
     const raw = input.config.values?.[def.key] ?? def.default;
     if (raw === undefined || raw === null) continue;
     const val = typeof raw === "boolean" ? (raw ? "True" : "False") : String(raw);
+    out.push(`${def.emitAs ?? def.key}=${val}`);
+  }
+  return out;
+}
+
+/**
+ * Minecraft (Java): drive itzg/minecraft-server via env vars. The image downloads
+ * the chosen server jar (TYPE/VERSION from the catalog) on first boot, writes
+ * server.properties from these vars, and exposes RCON. Unlike the ARK/Conan/Palworld
+ * images this is plain TCP on a single game port (25565) + RCON (25575). EULA is
+ * accepted on the user's behalf by creating the server. The "map" field carries the
+ * world-generation type (LEVEL_TYPE); the world folder is always "world".
+ */
+function buildMinecraftSpec(input: RuntimeSpecInput): Docker.ContainerCreateOptions {
+  const env = loadEnv();
+  const { ports } = input;
+
+  // Give the JVM ~80% of the container's RAM cap (the rest covers JVM off-heap,
+  // metaspace + the OS); fall back to 3 GB when the server has no explicit cap.
+  const heapMb = input.ramLimitMb ? Math.max(1024, Math.floor(input.ramLimitMb * 0.8)) : 3072;
+
+  const mcEnv = [
+    `TZ=${input.timezone || env.TZ}`,
+    `UID=${env.PUID}`, // itzg reads UID/GID (not PUID/PGID) to own /data
+    `GID=${env.PGID}`,
+    `EULA=TRUE`, // accepted by creating the server through the manager
+    `SERVER_PORT=${ports.game}`,
+    `ENABLE_RCON=true`,
+    `RCON_PORT=${ports.rcon}`,
+    `RCON_PASSWORD=${input.adminPassword}`, // the manager's RCON authenticates with this
+    `BROADCAST_RCON_TO_OPS=false`, // don't echo our management commands to in-game ops
+    `MAX_PLAYERS=${input.maxPlayers}`,
+    `MOTD=${input.sessionName}`, // shown next to the server in the client's list
+    `LEVEL_TYPE=${input.map}`, // world-generation type (e.g. minecraft:normal)
+    `LEVEL=world`,
+    `MEMORY=${heapMb}M`,
+    ...minecraftCatalogEnv(input),
+  ];
+
+  // One bind covers the jar, config + all worlds (overworld at /data/world).
+  const binds = [`${HostPaths.instanceRoot(input.serverId)}:${MINECRAFT_DATA_DIR}`];
+
+  const hostNet = env.GAME_HOST_NETWORK;
+  return {
+    name: containerName(input.serverId, input.game, input.sessionName),
+    Image: IMAGES[Game.MINECRAFT],
+    Hostname: containerName(input.serverId, input.game, input.sessionName),
+    Env: mcEnv,
+    Labels: serverLabels(input, env.PUBLIC_BASE_URL),
+    ...(hostNet
+      ? {}
+      : {
+          ExposedPorts: {
+            [portKey(ports.game, "tcp")]: {},
+            [portKey(ports.rcon, "tcp")]: {},
+          },
+        }),
+    HostConfig: {
+      Binds: binds,
+      ...(hostNet
+        ? { NetworkMode: "host" }
+        : {
+            PortBindings: {
+              [portKey(ports.game, "tcp")]: [{ HostPort: String(ports.game) }],
+              [portKey(ports.rcon, "tcp")]: [{ HostPort: String(ports.rcon) }],
+            },
+          }),
+      RestartPolicy: { Name: "no" }, // manager watchdog owns restarts
+      Memory: input.ramLimitMb ? input.ramLimitMb * 1024 * 1024 : undefined,
+      NanoCpus: input.cpuLimit ? Math.round(input.cpuLimit * 1e9) : undefined,
+    },
+    ...(hostNet ? {} : { NetworkingConfig: { EndpointsConfig: { [ARK_NETWORK]: {} } } }),
+  };
+}
+
+/** Minecraft settings -> itzg env vars. Booleans become true/false; empty strings
+ *  are dropped so an unset SEED/OPS/whitelist leaves the image's own default. */
+function minecraftCatalogEnv(input: RuntimeSpecInput): string[] {
+  const out: string[] = [];
+  for (const def of input.catalog.settings) {
+    if (def.target !== SettingTarget.Env) continue;
+    const raw = input.config.values?.[def.key] ?? def.default;
+    if (raw === undefined || raw === null || raw === "") continue;
+    const val = typeof raw === "boolean" ? (raw ? "true" : "false") : String(raw);
     out.push(`${def.emitAs ?? def.key}=${val}`);
   }
   return out;

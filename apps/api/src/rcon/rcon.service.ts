@@ -119,19 +119,21 @@ export class RconService {
   }
 
   async broadcast(serverId: string, message: string): Promise<string> {
-    // ARK: ServerChat. Conan: broadcast. Palworld: Broadcast.
+    // ARK: ServerChat. Conan: broadcast. Palworld: Broadcast. Minecraft: say.
     const game = await this.gameOf(serverId);
     if (game === Game.CONAN) return this.exec(serverId, `broadcast ${message}`);
     if (game === Game.PALWORLD) return this.exec(serverId, `Broadcast ${message}`);
+    if (game === Game.MINECRAFT) return this.exec(serverId, `say ${message}`);
     return this.exec(serverId, `ServerChat ${message}`);
   }
 
   async saveWorld(serverId: string): Promise<string> {
-    // ARK: SaveWorld. Palworld: Save. Conan has no manual-save RCON command — it
-    // persists continuously to a SQLite DB (and flushes on shutdown).
+    // ARK: SaveWorld. Palworld: Save. Minecraft: save-all. Conan has no manual-save
+    // RCON command — it persists continuously to a SQLite DB (and flushes on shutdown).
     const game = await this.gameOf(serverId);
     if (game === Game.CONAN) return "Conan saves continuously to its database — no manual save needed.";
     if (game === Game.PALWORLD) return this.exec(serverId, "Save");
+    if (game === Game.MINECRAFT) return this.exec(serverId, "save-all");
     return this.exec(serverId, "SaveWorld");
   }
 
@@ -140,6 +142,15 @@ export class RconService {
   }
 
   async listPlayers(serverId: string): Promise<string[]> {
+    // Minecraft: `list` → "There are 2 of a max of 20 players online: Steve, Alex".
+    if ((await this.gameOf(serverId)) === Game.MINECRAFT) {
+      const out = await this.exec(serverId, "list");
+      const names = out.split(/online:/i)[1] ?? "";
+      return names
+        .split(",")
+        .map((n) => n.trim())
+        .filter(Boolean);
+    }
     const out = await this.exec(serverId, "ListPlayers");
     if (/no players/i.test(out)) return [];
     return out

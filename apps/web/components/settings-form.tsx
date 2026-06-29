@@ -123,6 +123,16 @@ const PALWORLD_GROUPS: SettingGroup[] = [
   { id: "building", label: "Building & Items", Icon: Building2, cats: ["Building", "Items", "Guild"] },
 ];
 
+// Minecraft's catalog categories → their own tabs (covers every category, so no
+// catch-all is needed).
+const MINECRAFT_GROUPS: SettingGroup[] = [
+  { id: "server", label: "Server", Icon: SlidersHorizontal, cats: ["Server"] },
+  { id: "world", label: "World", Icon: MapIcon, cats: ["World"] },
+  { id: "gameplay", label: "Gameplay", Icon: Swords, cats: ["Gameplay"] },
+  { id: "mobs", label: "Mobs", Icon: PawPrint, cats: ["Mobs"] },
+  { id: "players", label: "Players", Icon: User, cats: ["Players"] },
+];
+
 /**
  * Map-specific categories → fragments of the server's map name they apply to.
  * A setting in one of these only shows when the managed server's map matches,
@@ -161,7 +171,13 @@ export function SettingsForm({
 }) {
   // Tabs + their category membership are game-specific.
   const GROUPS =
-    game === Game.CONAN ? CONAN_GROUPS : game === Game.PALWORLD ? PALWORLD_GROUPS : ARK_GROUPS;
+    game === Game.CONAN
+      ? CONAN_GROUPS
+      : game === Game.PALWORLD
+        ? PALWORLD_GROUPS
+        : game === Game.MINECRAFT
+          ? MINECRAFT_GROUPS
+          : ARK_GROUPS;
   const MAPPED_CATS = new Set(GROUPS.flatMap((g) => g.cats));
 
   // A map-specific category is shown only when the server's map matches it.

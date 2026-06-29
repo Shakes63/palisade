@@ -4,6 +4,7 @@ import { ASA_CATALOG } from "./asa.catalog";
 import { ASE_CATALOG } from "./ase.catalog";
 import { CONAN_CATALOG } from "./conan.catalog";
 import { PALWORLD_CATALOG } from "./palworld.catalog";
+import { MINECRAFT_CATALOG } from "./minecraft.catalog";
 import { serializeGameIni, serializeGameUserSettings } from "./ini-serializer";
 
 @Injectable()
@@ -13,6 +14,7 @@ export class CatalogService {
     if (game === Game.ASE) return ASE_CATALOG;
     if (game === Game.CONAN) return CONAN_CATALOG;
     if (game === Game.PALWORLD) return PALWORLD_CATALOG;
+    if (game === Game.MINECRAFT) return MINECRAFT_CATALOG;
     throw new NotFoundException(`Unknown game: ${game}`);
   }
 

@@ -12,6 +12,7 @@ import {
   ASE_OFFICIAL_MAPS,
   CONAN_OFFICIAL_MAPS,
   PALWORLD_OFFICIAL_MAPS,
+  MINECRAFT_OFFICIAL_MAPS,
   GAME_LABELS,
   mapLabel,
   type ServerSummary,
@@ -245,6 +246,7 @@ const MAPS_FOR: Record<Game, readonly string[]> = {
   [Game.ASE]: ASE_OFFICIAL_MAPS,
   [Game.CONAN]: CONAN_OFFICIAL_MAPS,
   [Game.PALWORLD]: PALWORLD_OFFICIAL_MAPS,
+  [Game.MINECRAFT]: MINECRAFT_OFFICIAL_MAPS,
 };
 
 function CreateServerForm({ onDone }: { onDone: () => void }) {

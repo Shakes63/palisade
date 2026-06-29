@@ -1,4 +1,4 @@
-import type { PortSet } from "@ark/shared";
+import { Game, type PortSet } from "@ark/shared";
 
 /**
  * Each server gets a contiguous block of host ports derived from a single base,
@@ -31,3 +31,15 @@ export function nextBasePort(usedBases: number[]): number {
  * derivePorts allocation in ServersService.create().
  */
 export const FIXED_PORTS: PortSet = derivePorts(PORT_POOL_START);
+
+/**
+ * Minecraft (Java) is TCP and has a single well-known port (25565) plus RCON
+ * (25575). Using the standard ports means players just type the IP (no port) and
+ * the port-forward is the canonical Minecraft one. rawSocket/query are unused.
+ */
+export const MINECRAFT_PORTS: PortSet = { game: 25565, rawSocket: 25566, query: 25565, rcon: 25575 };
+
+/** The fixed port block a new server gets, by game. */
+export function portsFor(game: Game): PortSet {
+  return game === Game.MINECRAFT ? MINECRAFT_PORTS : FIXED_PORTS;
+}

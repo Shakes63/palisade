@@ -33,6 +33,7 @@ export function UnofficialListHelp({
   const [open, setOpen] = useState(defaultOpen);
   const conan = game === Game.CONAN;
   const palworld = game === Game.PALWORLD;
+  const minecraft = game === Game.MINECRAFT;
   const passwordHint = hasJoinPassword
     ? "your server has a join password"
     : "ON only if you set a join password";
@@ -47,15 +48,33 @@ export function UnofficialListHelp({
       >
         <span className="flex items-center gap-1.5">
           <Search className="h-3.5 w-3.5" />
-          {conan || palworld
-            ? "Find it in the in-game server browser"
-            : "Find it on the in-game Unofficial list"}
+          {minecraft
+            ? "Add it to your Minecraft server list"
+            : conan || palworld
+              ? "Find it in the in-game server browser"
+              : "Find it on the in-game Unofficial list"}
         </span>
         <ChevronDown className={`h-3.5 w-3.5 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
 
       {open &&
-        (conan ? (
+        (minecraft ? (
+          <div className="space-y-1.5 border-t border-ark-border px-2.5 py-2 text-xs">
+            <p className="text-slate-400">
+              Minecraft has no public browser — players add the server by IP:
+            </p>
+            <FilterRow state="on" label="Multiplayer → Add Server, paste the address above" />
+            <FilterRow
+              state={hasJoinPassword ? "on" : "off"}
+              label="Whitelist — add each player's username"
+              hint={hasJoinPassword ? "you enabled the whitelist" : "ON only if you enable the whitelist"}
+            />
+            <p className="pt-1 leading-snug text-slate-400">
+              The server name <span className="font-mono text-slate-200">{serverName}</span> shows as the MOTD
+              in their list. Online, friends use your public IP (forward TCP 25565).
+            </p>
+          </div>
+        ) : conan ? (
           <div className="space-y-1.5 border-t border-ark-border px-2.5 py-2 text-xs">
             <p className="text-slate-400">
               In <span className="text-slate-200">Online → Server List</span>, set these filters:

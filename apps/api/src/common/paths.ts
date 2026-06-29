@@ -42,7 +42,9 @@ export const LocalPaths = {
         ? "server/ConanSandbox/Saved"
         : game === Game.PALWORLD
           ? "Pal/Saved"
-          : "ShooterGame/Saved";
+          : game === Game.MINECRAFT
+            ? "world" // itzg writes the overworld to /data/world (+ world_nether, world_the_end)
+            : "ShooterGame/Saved";
     return `${this.instanceRoot(serverId)}/${sub}`;
   },
   /** Warmed golden copy of a game's files, reflink-cloned into each instance. */
