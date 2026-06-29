@@ -15,6 +15,9 @@ export class ApiError extends Error {
   constructor(
     public status: number,
     message: string,
+    /** The parsed JSON error body, when present — e.g. the start guard's
+     *  InsufficientRamInfo (code "INSUFFICIENT_RAM"). */
+    public body?: unknown,
   ) {
     super(message);
   }
@@ -32,13 +35,14 @@ export async function api<T = unknown>(path: string, init: RequestInit = {}): Pr
   });
   if (!res.ok) {
     let message = res.statusText;
+    let body: unknown;
     try {
-      const body = await res.json();
-      message = body.message ?? message;
+      body = await res.json();
+      message = (body as { message?: string }).message ?? message;
     } catch {
       /* ignore */
     }
-    throw new ApiError(res.status, Array.isArray(message) ? message.join(", ") : message);
+    throw new ApiError(res.status, Array.isArray(message) ? message.join(", ") : message, body);
   }
   if (res.status === 204) return undefined as T;
   // Some endpoints (start/stop/restart) return an empty body — read as text and

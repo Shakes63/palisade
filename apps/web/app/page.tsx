@@ -23,6 +23,7 @@ import { StateBadge } from "@/components/state-badge";
 import { UpdateBadge } from "@/components/update-badge";
 import { ConnectCommand } from "@/components/connect-command";
 import { UnofficialListHelp } from "@/components/unofficial-list-help";
+import { useStartGuard } from "@/components/start-guard";
 
 interface ClusterLite {
   id: string;
@@ -41,6 +42,7 @@ export default function DashboardPage() {
     apiGet<ClusterLite[]>("/clusters").then(setClusters).catch(() => undefined);
   }, []);
 
+  const { start: guardedStart, dialog: startDialog } = useStartGuard(refresh);
   const clusterName = (id?: string | null) => clusters.find((c) => c.id === id)?.name;
 
   useEffect(() => refresh(), [refresh]);
@@ -76,8 +78,14 @@ export default function DashboardPage() {
   const act = async (id: string, action: "install" | "start" | "stop" | "restart") => {
     setPending((p) => ({ ...p, [id]: action }));
     try {
-      await apiPost(`/servers/${id}/${action}`);
-      await apiGet<ServerSummary[]>("/servers").then(setServers); // await so state lands before re-enabling
+      if (action === "start") {
+        // RAM-guarded: surfaces a "stop one to free RAM" dialog if it won't fit.
+        const name = servers.find((s) => s.id === id)?.name ?? "this server";
+        await guardedStart(id, name);
+      } else {
+        await apiPost(`/servers/${id}/${action}`);
+        await apiGet<ServerSummary[]>("/servers").then(setServers); // await so state lands before re-enabling
+      }
     } catch (e) {
       alert((e as Error).message);
     } finally {
@@ -91,6 +99,7 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      {startDialog}
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Servers</h1>
         <button className="btn-primary" onClick={() => setCreating((v) => !v)}>

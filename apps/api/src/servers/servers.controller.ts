@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from "@nestjs/common";
-import { IsArray, IsBoolean, IsString } from "class-validator";
+import { IsArray, IsBoolean, IsOptional, IsString } from "class-validator";
 import type { CreateServerDto, UpdateServerDto } from "@ark/shared";
 import { ServersService } from "./servers.service";
 import { EventsService } from "../events/events.service";
@@ -9,6 +9,13 @@ class CopyServerBody {
   @IsArray() @IsString({ each: true }) targetIds!: string[];
   @IsBoolean() settings!: boolean;
   @IsBoolean() mods!: boolean;
+}
+
+class StartBody {
+  /** Skip the RAM guard and start anyway. */
+  @IsOptional() @IsBoolean() force?: boolean;
+  /** Stop this running server first (freeing its RAM), then start. */
+  @IsOptional() @IsString() stopFirst?: string;
 }
 
 @Controller("servers")
@@ -93,8 +100,8 @@ export class ServersController {
   }
 
   @Post(":id/start")
-  start(@Param("id") id: string) {
-    return this.servers.start(id);
+  start(@Param("id") id: string, @Body() body: StartBody) {
+    return this.servers.start(id, { force: body?.force, stopFirst: body?.stopFirst });
   }
 
   @Post(":id/stop")

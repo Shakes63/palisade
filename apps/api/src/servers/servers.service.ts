@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   Logger,
   NotFoundException,
@@ -15,6 +16,9 @@ import {
   EventType,
   RealtimeTopic,
   DEFAULT_PORTS,
+  RAM_ESTIMATE_MB,
+  type RunningServerRam,
+  type InsufficientRamInfo,
   type CreateServerDto,
   type UpdateServerDto,
   type ServerSummary,
@@ -561,8 +565,54 @@ export class ServersService implements OnApplicationBootstrap {
     return { jobId };
   }
 
-  async start(id: string): Promise<void> {
+  async start(id: string, opts: { force?: boolean; stopFirst?: string } = {}): Promise<void> {
+    if (opts.stopFirst && opts.stopFirst !== id) {
+      // Free the chosen server's RAM first, then start this one. stop() returns once
+      // teardown begins but holds the server's lock until it completes — await that
+      // so the RAM is actually reclaimed before we launch.
+      await this.stop(opts.stopFirst).catch(() => undefined);
+      await this.locks.get(opts.stopFirst)?.catch(() => undefined);
+    } else if (!opts.force) {
+      await this.assertRamAvailable(id);
+    }
     return this.withLock(id, () => this.doStart(id));
+  }
+
+  /** Throw a 409 (with the running servers + RAM) if starting `id` would exceed the
+   *  host's free RAM. A server's ramLimitMb overrides the per-game estimate. */
+  private async assertRamAvailable(id: string): Promise<void> {
+    const server = await this.prisma.server.findUnique({ where: { id } });
+    if (!server) throw new NotFoundException("Server not found");
+    const needMb = server.ramLimitMb ?? RAM_ESTIMATE_MB[server.game as Game];
+    const host = await hostStats(loadEnv().DATA_DIR);
+    const running = await this.runningServersRam();
+    // Free RAM now, minus each running server's remaining headroom up to its peak
+    // estimate — so a not-yet-peaked server (e.g. an empty one that fills up) can't
+    // OOM the box after we start another. Headroom is 0 when we can't read its usage.
+    const reservedMb = running.reduce((sum, r) => {
+      const est = RAM_ESTIMATE_MB[r.game];
+      return sum + Math.max(0, est - (r.ramUsedMb ?? est));
+    }, 0);
+    const availableMb = Math.max(0, host.memTotalMb - host.memUsedMb - reservedMb);
+    if (needMb <= availableMb) return;
+    throw new ConflictException({
+      code: "INSUFFICIENT_RAM",
+      needMb,
+      availableMb,
+      totalMb: host.memTotalMb,
+      running,
+    } satisfies InsufficientRamInfo);
+  }
+
+  /** Currently-running servers with their live RAM, for the start-guard dialog. */
+  private async runningServersRam(): Promise<RunningServerRam[]> {
+    const rows = await this.prisma.server.findMany({ where: { state: { in: LIVE_STATES } } });
+    return Promise.all(
+      rows.map(async (r) => {
+        const st = r.containerId ? await this.docker.stats(r.containerId).catch(() => null) : null;
+        return { id: r.id, name: r.name, game: r.game as Game, ramUsedMb: st?.memUsedMb ?? null };
+      }),
+    );
   }
 
   private async doStart(id: string): Promise<void> {

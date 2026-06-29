@@ -50,6 +50,24 @@ export interface ServerStats {
 /** Batch stats keyed by server id (for the servers list). */
 export type ServerStatsById = ServerStats & { id: string };
 
+/** A currently-running server + its live RAM, shown in the start-guard dialog. */
+export interface RunningServerRam {
+  id: string;
+  name: string;
+  game: Game;
+  ramUsedMb: number | null;
+}
+
+/** 409 body when a start would exceed free host RAM. The UI offers to stop one of
+ *  the running servers (and then auto-start the original) or to start anyway. */
+export interface InsufficientRamInfo {
+  code: "INSUFFICIENT_RAM";
+  needMb: number;
+  availableMb: number;
+  totalMb: number;
+  running: RunningServerRam[];
+}
+
 /** Whole-machine resource usage (the Unraid host), for context next to a server. */
 export interface HostStats {
   cpuPercent: number | null;

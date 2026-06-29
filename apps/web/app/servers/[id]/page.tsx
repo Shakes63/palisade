@@ -18,6 +18,7 @@ import { LogsTab } from "@/components/logs-tab";
 import { ScheduleList } from "@/components/schedule-list";
 import { ModsTab } from "@/components/mods-tab";
 import { PalworldModsTab } from "@/components/palworld-mods-tab";
+import { useStartGuard } from "@/components/start-guard";
 import { BackupsTab } from "@/components/backups-tab";
 
 const TABS = ["Overview", "Settings", "Mods", "Console", "Logs", "Schedules", "Backups"] as const;
@@ -95,7 +96,14 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
     }
   };
 
+  const { start: guardedStart, dialog: startDialog, starting } = useStartGuard(refresh);
+
   const act = async (action: "install" | "start" | "stop" | "restart") => {
+    if (action === "start") {
+      // RAM-guarded start (surfaces a "stop one to free RAM" dialog if needed).
+      if (server) await guardedStart(id, server.name);
+      return;
+    }
     setPending(action);
     try {
       await apiPost(`/servers/${id}/${action}`);
@@ -112,17 +120,18 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
   // Button availability follows the server state machine; `pending` covers the
   // click→response gap so a button can't be re-clicked before its state lands.
   const st = server.state;
-  const canStart = (st === ServerState.Stopped || st === ServerState.Crashed) && !pending;
+  const canStart = (st === ServerState.Stopped || st === ServerState.Crashed) && !pending && !starting;
   const canStop = (st === ServerState.Running || st === ServerState.Starting) && !pending;
   const canRestart = st === ServerState.Running && !pending;
   const canInstall = (st === ServerState.Stopped || st === ServerState.Crashed) && !pending;
-  const showStarting = pending === "start" || st === ServerState.Starting;
+  const showStarting = pending === "start" || starting || st === ServerState.Starting;
   const showStopping = pending === "stop" || st === ServerState.Stopping;
   const showInstalling =
     pending === "install" || st === ServerState.Installing || st === ServerState.Updating;
 
   return (
     <div className="space-y-6">
+      {startDialog}
       <Link href="/" className="inline-flex items-center gap-1 text-sm text-slate-400 hover:text-slate-200">
         <ArrowLeft className="h-4 w-4" /> All servers
       </Link>

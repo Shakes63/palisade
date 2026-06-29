@@ -53,6 +53,19 @@ export const GAME_ICONS: Record<Game, string> = {
 /** CurseForge numeric game id for ASA (used by the mod browser). */
 export const ASA_CURSEFORGE_GAME_ID = 83374;
 
+/**
+ * Rough expected RAM (MB) for a populated server of each game — used by the start
+ * guard to warn before a start would exceed free host RAM. Grounded in real usage
+ * (ASA is by far the heaviest; two of them OOM'd a 32 GB box). A server's own
+ * ramLimitMb, when set, overrides this estimate.
+ */
+export const RAM_ESTIMATE_MB: Record<Game, number> = {
+  [Game.ASA]: 16000,
+  [Game.ASE]: 7000,
+  [Game.CONAN]: 7000,
+  [Game.PALWORLD]: 8000,
+};
+
 /** Default port offsets within a per-server allocation block. */
 export interface PortSet {
   game: number; // UDP, players connect here
