@@ -110,6 +110,32 @@ export function ConnectCommand({
     );
   }
 
+  if (game === Game.PALWORLD) {
+    return (
+      <div className={className}>
+        <div className="mb-1 flex items-center gap-1.5 text-xs font-medium text-slate-400">
+          <Terminal className="h-3.5 w-3.5" /> Connect by IP (in-game)
+        </div>
+        <CopyRow value={`${hostOr}:${gamePort}`} title="Paste into Palworld's Join with IP" />
+        <p className="mt-1 text-[11px] leading-snug text-slate-500">
+          In Palworld: <span className="font-mono">Join Multiplayer Game (Dedicated) → Connect with IP</span>,
+          paste this. Online, friends use your public IP with the same port.
+        </p>
+        {joinPassword && (
+          <div className="mt-3">
+            <div className="mb-1 flex items-center gap-1.5 text-xs font-medium text-slate-400">
+              <Lock className="h-3.5 w-3.5" /> Join password
+            </div>
+            <CopyRow value={joinPassword} title="Copy the join password" />
+            <p className="mt-1 text-[11px] leading-snug text-slate-500">
+              Enter this when Palworld prompts for the server password.
+            </p>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   // ARK (ASA / ASE)
   if (joinPassword) {
     return (

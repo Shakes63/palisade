@@ -32,6 +32,7 @@ export function UnofficialListHelp({
 }) {
   const [open, setOpen] = useState(defaultOpen);
   const conan = game === Game.CONAN;
+  const palworld = game === Game.PALWORLD;
   const passwordHint = hasJoinPassword
     ? "your server has a join password"
     : "ON only if you set a join password";
@@ -46,7 +47,9 @@ export function UnofficialListHelp({
       >
         <span className="flex items-center gap-1.5">
           <Search className="h-3.5 w-3.5" />
-          {conan ? "Find it in the in-game server browser" : "Find it on the in-game Unofficial list"}
+          {conan || palworld
+            ? "Find it in the in-game server browser"
+            : "Find it on the in-game Unofficial list"}
         </span>
         <ChevronDown className={`h-3.5 w-3.5 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
@@ -72,6 +75,22 @@ export function UnofficialListHelp({
               ) : (
                 " and query port."
               )}
+            </p>
+          </div>
+        ) : palworld ? (
+          <div className="space-y-1.5 border-t border-ark-border px-2.5 py-2 text-xs">
+            <p className="text-slate-400">
+              In <span className="text-slate-200">Join Multiplayer Game → Community Servers</span>:
+            </p>
+            <FilterRow state="on" label="Search by name (community list)" />
+            <FilterRow
+              state={hasJoinPassword ? "on" : "off"}
+              label="Password-protected servers are still listed"
+              hint={passwordHint}
+            />
+            <p className="pt-1 leading-snug text-slate-400">
+              Search the name <span className="font-mono text-slate-200">{serverName}</span>, or use{" "}
+              <span className="text-slate-200">Connect with IP</span> (the address shown above).
             </p>
           </div>
         ) : (

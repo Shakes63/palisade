@@ -115,6 +115,14 @@ const CONAN_GROUPS: SettingGroup[] = [
   { id: "schedules", label: "Schedules", Icon: Clock, cats: ["Schedules"] },
 ];
 
+// Palworld's catalog categories → their own tabs.
+const PALWORLD_GROUPS: SettingGroup[] = [
+  { id: "general", label: "General", Icon: SlidersHorizontal, cats: ["General", "PvP & Rules"] },
+  { id: "rates", label: "Rates & World", Icon: Gauge, cats: ["Progression", "World"] },
+  { id: "combat", label: "Combat & Survival", Icon: Swords, cats: ["Combat", "Survival"] },
+  { id: "building", label: "Building & Items", Icon: Building2, cats: ["Building", "Items", "Guild"] },
+];
+
 /**
  * Map-specific categories → fragments of the server's map name they apply to.
  * A setting in one of these only shows when the managed server's map matches,
@@ -152,7 +160,8 @@ export function SettingsForm({
   initial: ServerConfigValues;
 }) {
   // Tabs + their category membership are game-specific.
-  const GROUPS = game === Game.CONAN ? CONAN_GROUPS : ARK_GROUPS;
+  const GROUPS =
+    game === Game.CONAN ? CONAN_GROUPS : game === Game.PALWORLD ? PALWORLD_GROUPS : ARK_GROUPS;
   const MAPPED_CATS = new Set(GROUPS.flatMap((g) => g.cats));
 
   // A map-specific category is shown only when the server's map matches it.

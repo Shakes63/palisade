@@ -37,7 +37,12 @@ export const LocalPaths = {
    * Backup, restore, and import all operate on this; the wrong path finds nothing.
    */
   savedDir(serverId: string, game: Game): string {
-    const sub = game === Game.CONAN ? "server/ConanSandbox/Saved" : "ShooterGame/Saved";
+    const sub =
+      game === Game.CONAN
+        ? "server/ConanSandbox/Saved"
+        : game === Game.PALWORLD
+          ? "Pal/Saved"
+          : "ShooterGame/Saved";
     return `${this.instanceRoot(serverId)}/${sub}`;
   },
   /** Warmed golden copy of a game's files, reflink-cloned into each instance. */

@@ -6,6 +6,8 @@ export enum Game {
   ASE = "ASE",
   /** Conan Exiles (Enhanced) — native Linux, Steam Workshop mods. */
   CONAN = "CONAN",
+  /** Palworld — native Linux, env-driven; RCON (no Workshop mods). */
+  PALWORLD = "PALWORLD",
 }
 
 /** Friendly game names for the UI. */
@@ -13,6 +15,7 @@ export const GAME_LABELS: Record<Game, string> = {
   [Game.ASA]: "ARK: Survival Ascended",
   [Game.ASE]: "ARK: Survival Evolved",
   [Game.CONAN]: "Conan Exiles",
+  [Game.PALWORLD]: "Palworld",
 };
 
 /** SteamCMD app IDs for the dedicated server (anonymous login). */
@@ -20,6 +23,7 @@ export const STEAM_APP_ID: Record<Game, number> = {
   [Game.ASA]: 2430930,
   [Game.ASE]: 376030,
   [Game.CONAN]: 443030,
+  [Game.PALWORLD]: 2394010,
 };
 
 /** Steam Workshop "consumer" app ids for mod downloads (ARK: Survival Evolved /
@@ -43,6 +47,7 @@ export const GAME_ICONS: Record<Game, string> = {
   [Game.ASA]: "https://cdn.cloudflare.steamstatic.com/steam/apps/2399830/header.jpg",
   [Game.ASE]: "https://cdn.cloudflare.steamstatic.com/steam/apps/346110/header.jpg",
   [Game.CONAN]: "https://cdn.cloudflare.steamstatic.com/steam/apps/440900/header.jpg",
+  [Game.PALWORLD]: "https://cdn.cloudflare.steamstatic.com/steam/apps/1623730/header.jpg",
 };
 
 /** CurseForge numeric game id for ASA (used by the mod browser). */
@@ -95,10 +100,15 @@ export const ASE_OFFICIAL_MAPS = [
 /** Conan Exiles maps. Exiled Lands is the base game; Isle of Siptah is a DLC map. */
 export const CONAN_OFFICIAL_MAPS = ["ConanSandbox"] as const;
 
+/** Palworld has a single world (no map selection). */
+export const PALWORLD_OFFICIAL_MAPS = ["Palworld"] as const;
+
 /** Friendly display names for known level names (raw level → label). */
 export const MAP_LABELS: Record<string, string> = {
   // Conan Exiles
   ConanSandbox: "Exiled Lands",
+  // Palworld
+  Palworld: "Palpagos Islands",
   // ASA (World Partition — *_WP)
   TheIsland_WP: "The Island",
   TheCenter_WP: "The Center",

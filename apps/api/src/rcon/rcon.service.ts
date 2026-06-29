@@ -69,7 +69,11 @@ export class RconService {
     // succeeds). Route Conan through our lenient SourceRcon; ARK/ASE keep
     // rcon-client, which they work with. (See source-rcon.ts.)
     const opts = { host, port: server.rconPort, password, timeout: 10_000 };
-    const rcon: RconConn = server.game === Game.CONAN ? new SourceRcon(opts) : new Rcon(opts);
+    // Conan AND Palworld reply with non-matching packet ids that time out
+    // rcon-client's strict matching — route both through the lenient SourceRcon.
+    const game = server.game as Game;
+    const lenient = game === Game.CONAN || game === Game.PALWORLD;
+    const rcon: RconConn = lenient ? new SourceRcon(opts) : new Rcon(opts);
     rcon.on("error", () => this.pool.delete(serverId));
     rcon.on("end", () => this.pool.delete(serverId));
     await rcon.connect();
@@ -115,17 +119,19 @@ export class RconService {
   }
 
   async broadcast(serverId: string, message: string): Promise<string> {
-    // ARK: ServerChat. Conan: broadcast.
+    // ARK: ServerChat. Conan: broadcast. Palworld: Broadcast.
     const game = await this.gameOf(serverId);
-    return this.exec(serverId, game === Game.CONAN ? `broadcast ${message}` : `ServerChat ${message}`);
+    if (game === Game.CONAN) return this.exec(serverId, `broadcast ${message}`);
+    if (game === Game.PALWORLD) return this.exec(serverId, `Broadcast ${message}`);
+    return this.exec(serverId, `ServerChat ${message}`);
   }
 
   async saveWorld(serverId: string): Promise<string> {
-    // ARK saves the world to .ark files (SaveWorld). Conan has no manual-save RCON
-    // command — it persists continuously to a SQLite DB (and flushes on shutdown),
-    // so there's nothing to issue (verified against the live server's `help`).
+    // ARK: SaveWorld. Palworld: Save. Conan has no manual-save RCON command — it
+    // persists continuously to a SQLite DB (and flushes on shutdown).
     const game = await this.gameOf(serverId);
     if (game === Game.CONAN) return "Conan saves continuously to its database — no manual save needed.";
+    if (game === Game.PALWORLD) return this.exec(serverId, "Save");
     return this.exec(serverId, "SaveWorld");
   }
 

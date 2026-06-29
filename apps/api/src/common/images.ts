@@ -14,6 +14,9 @@ export const IMAGES: Record<Game, string> = {
   // POK family (same author as ASA): native Linux Conan Enhanced server. Installs
   // app 443030 via SteamCMD on boot; writes its own INIs from env vars.
   [Game.CONAN]: "acekorneya/conan_enhanced_server:latest",
+  // thijsvanloef/palworld-server-docker — env-driven; installs app 2394010 via
+  // SteamCMD on boot, compiles PalWorldSettings.ini from env, has RCON.
+  [Game.PALWORLD]: "thijsvanloef/palworld-server-docker:latest",
 };
 
 /** POK keeps all instance data (install + saves + config) under this path. */
@@ -26,6 +29,9 @@ export const HERMSI_VOLUME = "/app";
  *  so we bind the whole instance dir here. Saves live at server/ConanSandbox/Saved. */
 export const CONAN_DATA_DIR = "/data";
 
+/** Palworld image installs the game + saves under /palworld (saves at Pal/Saved). */
+export const PALWORLD_DATA_DIR = "/palworld";
+
 /**
  * The uid/gid each image runs the server as. Neither chowns its mounts fully
  * (POK never does; hermsi only chowns the volume root), so the manager makes the
@@ -35,9 +41,11 @@ export const SERVER_UID: Record<Game, number> = {
   [Game.ASA]: 7777, // POK's fixed "pok" user (also in group 100/users)
   [Game.ASE]: 1000, // hermsi's "steam" user
   [Game.CONAN]: 1000, // Conan image's "pokuser"
+  [Game.PALWORLD]: 1000, // palworld image's "steam" user
 };
 export const SERVER_GID: Record<Game, number> = {
   [Game.ASA]: 7777,
   [Game.ASE]: 1000,
   [Game.CONAN]: 1000,
+  [Game.PALWORLD]: 1000,
 };

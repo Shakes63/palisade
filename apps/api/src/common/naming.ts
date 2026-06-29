@@ -9,6 +9,7 @@ const CONTAINER_PREFIX: Record<Game, string> = {
   [Game.ASA]: "ark",
   [Game.ASE]: "ark",
   [Game.CONAN]: "conan",
+  [Game.PALWORLD]: "palworld",
 };
 
 function slug(s: string): string {

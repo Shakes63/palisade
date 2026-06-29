@@ -10,7 +10,7 @@ import {
 } from "@ark/shared";
 import { buildCustomArgs, isBattlEyeDisabled } from "../catalog/command-line";
 import { HostPaths, ContainerPaths } from "../common/paths";
-import { IMAGES, POK_DATA_DIR, HERMSI_VOLUME, CONAN_DATA_DIR } from "../common/images";
+import { IMAGES, POK_DATA_DIR, HERMSI_VOLUME, CONAN_DATA_DIR, PALWORLD_DATA_DIR } from "../common/images";
 import { ARK_NETWORK, containerName } from "../common/naming";
 import { loadEnv } from "../config/env";
 
@@ -38,6 +38,7 @@ export interface RuntimeSpecInput {
 export function buildContainerSpec(input: RuntimeSpecInput): Docker.ContainerCreateOptions {
   if (input.game === Game.ASA) return buildPokSpec(input);
   if (input.game === Game.CONAN) return buildConanSpec(input);
+  if (input.game === Game.PALWORLD) return buildPalworldSpec(input);
   return buildAseSpec(input);
 }
 
@@ -357,4 +358,82 @@ function buildConanSpec(input: RuntimeSpecInput): Docker.ContainerCreateOptions 
     },
     ...(hostNet ? {} : { NetworkingConfig: { EndpointsConfig: { [ARK_NETWORK]: {} } } }),
   };
+}
+
+/** Palworld (thijsvanloef/palworld-server-docker): env-driven, RCON via ADMIN_PASSWORD. */
+function buildPalworldSpec(input: RuntimeSpecInput): Docker.ContainerCreateOptions {
+  const env = loadEnv();
+  const { ports } = input;
+
+  const palEnv = [
+    `TZ=${input.timezone || env.TZ}`,
+    `PUID=${env.PUID}`, // image refuses to run as root; PUID/PGID must be non-zero
+    `PGID=${env.PGID}`,
+    `SERVER_NAME=${input.sessionName}`,
+    `SERVER_PASSWORD=${serverPassword(input)}`,
+    `ADMIN_PASSWORD=${input.adminPassword}`, // also the RCON password (rcon.yaml uses ADMIN_PASSWORD)
+    `RCON_ENABLED=true`,
+    `RCON_PORT=${ports.rcon}`,
+    `PORT=${ports.game}`,
+    `QUERY_PORT=${ports.query}`,
+    `PLAYERS=${input.maxPlayers}`,
+    `MULTITHREADING=true`,
+    // The manager owns updates/backups/restarts — turn off the image's own loops.
+    // (A fresh instance still installs on first boot regardless of UPDATE_ON_BOOT.)
+    `UPDATE_ON_BOOT=false`,
+    `BACKUP_ENABLED=false`,
+    `AUTO_REBOOT_ENABLED=false`,
+    ...palworldCatalogEnv(input),
+  ];
+
+  // No VOLUME declarations in the image, so one bind covers the whole install +
+  // saves (saves at Pal/Saved/SaveGames beneath the instance dir).
+  const binds = [`${HostPaths.instanceRoot(input.serverId)}:${PALWORLD_DATA_DIR}`];
+
+  const hostNet = env.GAME_HOST_NETWORK;
+  return {
+    name: containerName(input.serverId, input.game, input.sessionName),
+    Image: IMAGES[Game.PALWORLD],
+    Hostname: containerName(input.serverId, input.game, input.sessionName),
+    Env: palEnv,
+    Labels: serverLabels(input, env.PUBLIC_BASE_URL),
+    ...(hostNet
+      ? {}
+      : {
+          ExposedPorts: {
+            [portKey(ports.game, "udp")]: {},
+            [portKey(ports.query, "udp")]: {},
+            [portKey(ports.rcon, "tcp")]: {},
+          },
+        }),
+    HostConfig: {
+      Binds: binds,
+      ...(hostNet
+        ? { NetworkMode: "host" }
+        : {
+            PortBindings: {
+              [portKey(ports.game, "udp")]: [{ HostPort: String(ports.game) }],
+              [portKey(ports.query, "udp")]: [{ HostPort: String(ports.query) }],
+              [portKey(ports.rcon, "tcp")]: [{ HostPort: String(ports.rcon) }],
+            },
+          }),
+      RestartPolicy: { Name: "no" }, // manager watchdog owns restarts
+      Memory: input.ramLimitMb ? input.ramLimitMb * 1024 * 1024 : undefined,
+      NanoCpus: input.cpuLimit ? Math.round(input.cpuLimit * 1e9) : undefined,
+    },
+    ...(hostNet ? {} : { NetworkingConfig: { EndpointsConfig: { [ARK_NETWORK]: {} } } }),
+  };
+}
+
+/** Palworld settings -> env vars. Booleans become PalWorldSettings.ini's True/False. */
+function palworldCatalogEnv(input: RuntimeSpecInput): string[] {
+  const out: string[] = [];
+  for (const def of input.catalog.settings) {
+    if (def.target !== SettingTarget.Env) continue;
+    const raw = input.config.values?.[def.key] ?? def.default;
+    if (raw === undefined || raw === null) continue;
+    const val = typeof raw === "boolean" ? (raw ? "True" : "False") : String(raw);
+    out.push(`${def.emitAs ?? def.key}=${val}`);
+  }
+  return out;
 }
