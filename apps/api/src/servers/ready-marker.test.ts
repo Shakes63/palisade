@@ -50,6 +50,10 @@ describe("READY_RE startup marker", () => {
     ).toBe(false);
   });
 
+  it("matches the real Palworld 'Running ... dedicated server' line", () => {
+    expect(READY_RE.test("Running Palworld dedicated server on :7777")).toBe(true);
+  });
+
   it("on a multi-line blob, is ready only once the advertising line appears", () => {
     const earlyBlob = `${WAITING}\nServer has successfully started!\nFull Startup: 112.34 seconds`;
     expect(READY_RE.test(earlyBlob)).toBe(false);

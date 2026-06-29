@@ -70,8 +70,11 @@ type ServerRow = Awaited<ReturnType<PrismaService["server"]["findUnique"]>> & {
 // joinable moment (verified against a real Conan boot); the earlier RCON/engine-init
 // lines fire ~30s too soon. The `StartupTime=` format is Conan-specific, so it
 // won't misfire on ARK.
+//
+// Palworld (thijsvanloef): logs `Running Palworld dedicated server on :<port>` once,
+// when the server starts listening — its joinable marker (verified against a real boot).
 export const READY_RE =
-  /(advertising for join(?!')|server is up|Startup report\. StartupTime=)/i;
+  /(advertising for join(?!')|server is up|Startup report\. StartupTime=|Running Palworld dedicated server)/i;
 const CRASH_WINDOW_MS = 5 * 60_000;
 const CRASH_LIMIT = 3;
 
