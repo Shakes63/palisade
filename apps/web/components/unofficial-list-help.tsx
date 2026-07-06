@@ -35,6 +35,7 @@ export function UnofficialListHelp({
   const palworld = game === Game.PALWORLD;
   const minecraft = game === Game.MINECRAFT;
   const icarus = game === Game.ICARUS;
+  const bedrock = game === Game.BEDROCK;
   const passwordHint = hasJoinPassword
     ? "your server has a join password"
     : "ON only if you set a join password";
@@ -49,7 +50,7 @@ export function UnofficialListHelp({
       >
         <span className="flex items-center gap-1.5">
           <Search className="h-3.5 w-3.5" />
-          {minecraft
+          {minecraft || bedrock
             ? "Add it to your Minecraft server list"
             : conan || palworld || icarus
               ? "Find it in the in-game server browser"
@@ -59,7 +60,23 @@ export function UnofficialListHelp({
       </button>
 
       {open &&
-        (icarus ? (
+        (bedrock ? (
+          <div className="space-y-1.5 border-t border-ark-border px-2.5 py-2 text-xs">
+            <p className="text-slate-400">
+              Bedrock has no public browser — add the server by IP:
+            </p>
+            <FilterRow state="on" label="Play → Servers → Add Server, set address + port" />
+            <FilterRow
+              state={hasJoinPassword ? "on" : "off"}
+              label="Allow-list — add each player's gamertag"
+              hint={hasJoinPassword ? "you enabled the allow-list" : "ON only if you enable the allow-list"}
+            />
+            <p className="pt-1 leading-snug text-slate-400">
+              The server name <span className="font-mono text-slate-200">{serverName}</span> shows in your
+              server list. Online, friends use your public IP (forward UDP {queryPort ?? 19132}).
+            </p>
+          </div>
+        ) : icarus ? (
           <div className="space-y-1.5 border-t border-ark-border px-2.5 py-2 text-xs">
             <p className="text-slate-400">
               In <span className="text-slate-200">Play → Join Server</span>:

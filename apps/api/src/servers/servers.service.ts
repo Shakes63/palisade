@@ -98,6 +98,9 @@ export const READY_RE_BY_GAME: Record<Game, RegExp> = {
   [Game.PALWORLD]: /Running Palworld dedicated server/i,
   [Game.MINECRAFT]: /Done \([\d.]+s\)! For help/i,
   [Game.ICARUS]: /Match State Changed from EnteringMap to WaitingToStart|SteamNetDriver_\w+ bound to port/i,
+  // Bedrock's dedicated server prints "Server started." once it's up (no RCON to
+  // lean on). PROVISIONAL — confirm against a real boot.
+  [Game.BEDROCK]: /Server started\./i,
 };
 
 /** The "server is now joinable" log-marker regex for a game. */
@@ -825,10 +828,10 @@ export class ServersService implements OnApplicationBootstrap {
     // Conan persists to SQLite and Minecraft never logs ARK's "World Save Complete"
     // — issue their save (save-all for Minecraft, via the game-aware wrapper) and
     // return; the container's SIGTERM handler flushes the rest on shutdown. Waiting
-    // for the ARK log here would just burn the timeout. Icarus has NO RCON at all —
-    // it autosaves its prospect and flushes on the container's graceful shutdown, so
+    // for the ARK log here would just burn the timeout. Icarus and Bedrock have NO
+    // RCON at all — they autosave and flush on the container's graceful shutdown, so
     // there's nothing to issue; just return and let SIGTERM handle it.
-    if (game === Game.ICARUS) return;
+    if (game === Game.ICARUS || game === Game.BEDROCK) return;
     if (!containerId || game === Game.CONAN || game === Game.MINECRAFT) {
       await this.rcon.saveWorld(id).catch(() => undefined);
       return;
@@ -967,10 +970,10 @@ export class ServersService implements OnApplicationBootstrap {
     if (!server) return;
     const env = loadEnv();
     const game = server.game as Game;
-    // Env-driven images build their own config: Minecraft (itzg) writes
-    // server.properties, Icarus (mornedhels) writes ServerSettings.ini — neither
-    // has ARK-style INI files for us to render. Nothing to write.
-    if (game === Game.MINECRAFT || game === Game.ICARUS) return;
+    // Env-driven images build their own config: Minecraft (itzg) + Bedrock write
+    // server.properties, Icarus (mornedhels) writes ServerSettings.ini — none have
+    // ARK-style INI files for us to render. Nothing to write.
+    if (game === Game.MINECRAFT || game === Game.ICARUS || game === Game.BEDROCK) return;
     const base = join(env.DATA_DIR, "instances", server.id);
     // Both images bind the instance dir as their data root. ASA (POK) installs
     // at the root → config under ShooterGame/Saved/Config/WindowsServer; ASE

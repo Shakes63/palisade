@@ -162,6 +162,22 @@ export function ConnectCommand({
     );
   }
 
+  if (game === Game.BEDROCK) {
+    return (
+      <div className={className}>
+        <div className="mb-1 flex items-center gap-1.5 text-xs font-medium text-slate-400">
+          <Terminal className="h-3.5 w-3.5" /> Add server (in-game)
+        </div>
+        <CopyRow value={hostOr} title="Server address for Bedrock's Add Server" />
+        <p className="mt-1 text-[11px] leading-snug text-slate-500">
+          In Minecraft Bedrock: <span className="font-mono">Play → Servers → Add Server</span> — set the address
+          to this and the port to <span className="font-mono">{gamePort}</span>. Works from phones, consoles,
+          and Win10/11. Online, friends use your public IP (forward UDP {gamePort}).
+        </p>
+      </div>
+    );
+  }
+
   if (game === Game.MINECRAFT) {
     // Our server runs on the default port (25565), so players can type just the IP.
     return (

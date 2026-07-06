@@ -19,6 +19,7 @@ import {
   MINECRAFT_DATA_DIR,
   ICARUS_CONFIG_DIR,
   ICARUS_GAME_DIR,
+  BEDROCK_DATA_DIR,
 } from "../common/images";
 import { ARK_NETWORK, containerName } from "../common/naming";
 import { loadEnv } from "../config/env";
@@ -52,6 +53,7 @@ export function buildContainerSpec(input: RuntimeSpecInput): Docker.ContainerCre
   if (input.game === Game.PALWORLD) return buildPalworldSpec(input);
   if (input.game === Game.MINECRAFT) return buildMinecraftSpec(input);
   if (input.game === Game.ICARUS) return buildIcarusSpec(input);
+  if (input.game === Game.BEDROCK) return buildBedrockSpec(input);
   return buildAseSpec(input);
 }
 
@@ -638,6 +640,80 @@ function icarusCatalogEnv(input: RuntimeSpecInput): string[] {
     const raw = input.config.values?.[def.key] ?? def.default;
     if (raw === undefined || raw === null) continue;
     const val = typeof raw === "boolean" ? (raw ? "True" : "False") : String(raw);
+    out.push(`${def.emitAs ?? def.key}=${val}`);
+  }
+  return out;
+}
+
+/**
+ * Minecraft Bedrock (itzg/minecraft-bedrock-server): env-driven, like the Java image
+ * but the native Bedrock server — UDP on 19132 (IPv4) + 19133 (IPv6) and NO RCON
+ * (console is stdin-only), so nothing RCON-related is wired. The "map" field carries
+ * the world-generation type (LEVEL_TYPE); the world folder is always "world".
+ */
+function buildBedrockSpec(input: RuntimeSpecInput): Docker.ContainerCreateOptions {
+  const env = loadEnv();
+  const { ports } = input;
+
+  const bedrockEnv = [
+    `TZ=${input.timezone || env.TZ}`,
+    `UID=${env.PUID}`,
+    `GID=${env.PGID}`,
+    `EULA=TRUE`, // accepted by creating the server through the manager
+    `SERVER_NAME=${input.sessionName}`,
+    `SERVER_PORT=${ports.game}`, // IPv4 UDP
+    `SERVER_PORT_V6=${ports.rawSocket}`, // IPv6 UDP
+    `MAX_PLAYERS=${input.maxPlayers}`,
+    `LEVEL_NAME=world`,
+    `LEVEL_TYPE=${input.map}`, // DEFAULT / FLAT / LEGACY
+    ...bedrockCatalogEnv(input),
+  ];
+
+  // One bind covers the server + config + worlds (worlds at /data/worlds).
+  const binds = [`${HostPaths.instanceRoot(input.serverId)}:${BEDROCK_DATA_DIR}`];
+
+  const hostNet = env.GAME_HOST_NETWORK;
+  return {
+    name: containerName(input.serverId, input.game, input.sessionName),
+    Image: IMAGES[Game.BEDROCK],
+    Hostname: containerName(input.serverId, input.game, input.sessionName),
+    Env: bedrockEnv,
+    Labels: serverLabels(input, env.PUBLIC_BASE_URL),
+    ...(hostNet
+      ? {}
+      : {
+          ExposedPorts: {
+            [portKey(ports.game, "udp")]: {},
+            [portKey(ports.rawSocket, "udp")]: {},
+          },
+        }),
+    HostConfig: {
+      Binds: binds,
+      ...(hostNet
+        ? { NetworkMode: "host" }
+        : {
+            PortBindings: {
+              [portKey(ports.game, "udp")]: [{ HostPort: String(ports.game) }],
+              [portKey(ports.rawSocket, "udp")]: [{ HostPort: String(ports.rawSocket) }],
+            },
+          }),
+      RestartPolicy: { Name: "no" }, // manager watchdog owns restarts
+      Memory: input.ramLimitMb ? input.ramLimitMb * 1024 * 1024 : undefined,
+      NanoCpus: input.cpuLimit ? Math.round(input.cpuLimit * 1e9) : undefined,
+    },
+    ...(hostNet ? {} : { NetworkingConfig: { EndpointsConfig: { [ARK_NETWORK]: {} } } }),
+  };
+}
+
+/** Bedrock settings -> itzg env vars. Booleans become true/false; empty strings are
+ *  dropped so an unset LEVEL_SEED leaves the image's own default. */
+function bedrockCatalogEnv(input: RuntimeSpecInput): string[] {
+  const out: string[] = [];
+  for (const def of input.catalog.settings) {
+    if (def.target !== SettingTarget.Env) continue;
+    const raw = input.config.values?.[def.key] ?? def.default;
+    if (raw === undefined || raw === null || raw === "") continue;
+    const val = typeof raw === "boolean" ? (raw ? "true" : "false") : String(raw);
     out.push(`${def.emitAs ?? def.key}=${val}`);
   }
   return out;

@@ -46,7 +46,9 @@ export const LocalPaths = {
             ? "world" // itzg writes the overworld to /data/world (+ world_nether, world_the_end)
             : game === Game.ICARUS
               ? "config" // Icarus config + prospects live under the Wine-drive bind (not the 15 GB game files)
-              : "ShooterGame/Saved";
+              : game === Game.BEDROCK
+                ? "worlds" // itzg bedrock stores worlds under /data/worlds
+                : "ShooterGame/Saved";
     return `${this.instanceRoot(serverId)}/${sub}`;
   },
   /** Warmed golden copy of a game's files, reflink-cloned into each instance. */

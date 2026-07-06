@@ -309,3 +309,49 @@ describe("buildContainerSpec (Icarus / mornedhels)", () => {
     expect(env).toContain("SERVER_SHUTDOWN_IF_EMPTY=120");
   });
 });
+
+async function buildBedrock(config: ServerConfigValues) {
+  const { buildContainerSpec } = await import("./runtime-spec");
+  const { BEDROCK_CATALOG } = await import("../catalog/bedrock.catalog");
+  return buildContainerSpec({
+    serverId: "srv1",
+    game: Game.BEDROCK,
+    map: "FLAT",
+    sessionName: "My Bedrock Server",
+    ports: { game: 19132, rawSocket: 19133, query: 19132, rcon: 0 },
+    maxPlayers: 10,
+    adminPassword: "secret",
+    serverPassword: "pw",
+    modIds: [],
+    cluster: null,
+    config,
+    catalog: BEDROCK_CATALOG,
+  });
+}
+
+describe("buildContainerSpec (Bedrock / itzg)", () => {
+  it("uses the bedrock image, accepts EULA, and publishes both UDP ports (no RCON)", async () => {
+    const spec = await buildBedrock({ values: {} });
+    expect(spec.Image).toBe("itzg/minecraft-bedrock-server:latest");
+    const env = envOf(spec);
+    expect(env).toContain("EULA=TRUE");
+    expect(env).toContain("SERVER_NAME=My Bedrock Server");
+    expect(env).toContain("SERVER_PORT=19132");
+    expect(env).toContain("SERVER_PORT_V6=19133");
+    expect(env).toContain("MAX_PLAYERS=10");
+    expect(env).toContain("LEVEL_TYPE=FLAT"); // the map field carries the world type
+    expect(env).toContain("LEVEL_NAME=world");
+    // IPv4 + IPv6 UDP; no TCP / RCON port
+    expect(spec.HostConfig?.PortBindings?.["19132/udp"]).toEqual([{ HostPort: "19132" }]);
+    expect(spec.HostConfig?.PortBindings?.["19133/udp"]).toEqual([{ HostPort: "19133" }]);
+    expect(Object.keys(spec.HostConfig?.PortBindings ?? {}).some((k) => k.endsWith("/tcp"))).toBe(false);
+    expect((spec.HostConfig?.Binds ?? []).some((b) => b.endsWith(":/data"))).toBe(true);
+  });
+
+  it("passes catalog settings through (bools as true/false), dropping an empty seed", async () => {
+    const env = envOf(await buildBedrock({ values: { GAMEMODE: "creative", ALLOW_CHEATS: true, LEVEL_SEED: "" } }));
+    expect(env).toContain("GAMEMODE=creative");
+    expect(env).toContain("ALLOW_CHEATS=true");
+    expect(env.some((e) => e.startsWith("LEVEL_SEED="))).toBe(false);
+  });
+});

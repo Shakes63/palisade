@@ -139,6 +139,13 @@ const ICARUS_GROUPS: SettingGroup[] = [
   { id: "permissions", label: "Permissions", Icon: User, cats: ["Permissions"] },
 ];
 
+// Bedrock's env-driven catalog → its own tabs.
+const BEDROCK_GROUPS: SettingGroup[] = [
+  { id: "server", label: "Server", Icon: SlidersHorizontal, cats: ["Server"] },
+  { id: "gameplay", label: "Gameplay", Icon: Swords, cats: ["Gameplay"] },
+  { id: "world", label: "World", Icon: MapIcon, cats: ["World"] },
+];
+
 /**
  * Map-specific categories → fragments of the server's map name they apply to.
  * A setting in one of these only shows when the managed server's map matches,
@@ -185,7 +192,9 @@ export function SettingsForm({
           ? MINECRAFT_GROUPS
           : game === Game.ICARUS
             ? ICARUS_GROUPS
-            : ARK_GROUPS;
+            : game === Game.BEDROCK
+              ? BEDROCK_GROUPS
+              : ARK_GROUPS;
   const MAPPED_CATS = new Set(GROUPS.flatMap((g) => g.cats));
 
   // A map-specific category is shown only when the server's map matches it.

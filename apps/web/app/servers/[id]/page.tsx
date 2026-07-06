@@ -131,9 +131,14 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
   const showInstalling =
     pending === "install" || st === ServerState.Installing || st === ServerState.Updating;
 
-  // Icarus has no network RCON (admin is in-game chat), so hide the Console tab. Its
-  // Mods tab stays — it's a .pak uploader (Icarus mods aren't browsable).
-  const hiddenTabs = server.game === Game.ICARUS ? new Set<Tab>(["Console"]) : new Set<Tab>();
+  // No-RCON games hide the Console tab. Icarus keeps a .pak-uploader Mods tab;
+  // Bedrock has neither RCON nor a mod browser (addon packs TBD), so it hides both.
+  const hiddenTabs =
+    server.game === Game.ICARUS
+      ? new Set<Tab>(["Console"])
+      : server.game === Game.BEDROCK
+        ? new Set<Tab>(["Console", "Mods"])
+        : new Set<Tab>();
   const visibleTabs = TABS.filter((t) => !hiddenTabs.has(t));
 
   return (
@@ -243,18 +248,23 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
 }
 
 function Overview({ server, onChanged }: { server: ServerSummary; onChanged: () => void }) {
-  // Minecraft's game port is TCP and has no separate Steam query; Icarus has no RCON.
+  // Minecraft Java's game port is TCP + has no Steam query; Bedrock is UDP with no
+  // query either; Icarus + Bedrock have no RCON and no numeric mod list.
   const isMc = server.game === Game.MINECRAFT;
   const isIcarus = server.game === Game.ICARUS;
+  const isBedrock = server.game === Game.BEDROCK;
+  const noQuery = isMc || isBedrock;
+  const noRcon = isIcarus || isBedrock;
+  const noMods = isIcarus || isBedrock;
   const row = (k: string, v: string): [string, string] => [k, v];
   const rows: [string, string][] = [
     row("Game", server.game),
     row("Map", mapLabel(server.map)),
     row("Game port", `${server.ports.game}/${isMc ? "tcp" : "udp"}`),
-    ...(isMc ? [] : [row("Query port", `${server.ports.query}/udp`)]),
-    ...(isIcarus ? [] : [row("RCON port", `${server.ports.rcon}/tcp`)]),
+    ...(noQuery ? [] : [row("Query port", `${server.ports.query}/udp`)]),
+    ...(noRcon ? [] : [row("RCON port", `${server.ports.rcon}/tcp`)]),
     row("Max players", String(server.maxPlayers)),
-    ...(isIcarus ? [] : [row("Mods", server.modIds.length ? server.modIds.join(", ") : "none")]),
+    ...(noMods ? [] : [row("Mods", server.modIds.length ? server.modIds.join(", ") : "none")]),
     row("Cluster", server.clusterId ?? "—"),
     row("RAM limit", server.ramLimitMb ? `${server.ramLimitMb} MB` : "unset"),
   ];

@@ -45,9 +45,16 @@ export const MINECRAFT_PORTS: PortSet = { game: 25565, rawSocket: 25566, query: 
  */
 export const ICARUS_PORTS: PortSet = { game: 17777, rawSocket: 17778, query: 27015, rcon: 0 };
 
+/**
+ * Bedrock listens on UDP 19132 (IPv4) + 19133 (IPv6) and has NO RCON. The rawSocket
+ * slot carries the IPv6 port; query is unused and rcon is 0 (Console UI hidden).
+ */
+export const BEDROCK_PORTS: PortSet = { game: 19132, rawSocket: 19133, query: 19132, rcon: 0 };
+
 /** The fixed port block a new server gets, by game. */
 export function portsFor(game: Game): PortSet {
   if (game === Game.MINECRAFT) return MINECRAFT_PORTS;
   if (game === Game.ICARUS) return ICARUS_PORTS;
+  if (game === Game.BEDROCK) return BEDROCK_PORTS;
   return FIXED_PORTS;
 }

@@ -12,6 +12,8 @@ export enum Game {
   MINECRAFT = "MINECRAFT",
   /** Icarus — mornedhels image (SteamCMD under Wine), env-driven; NO network RCON. */
   ICARUS = "ICARUS",
+  /** Minecraft (Bedrock) — itzg bedrock image, env-driven; UDP; NO network RCON. */
+  BEDROCK = "BEDROCK",
 }
 
 /** Friendly game names for the UI. */
@@ -22,6 +24,7 @@ export const GAME_LABELS: Record<Game, string> = {
   [Game.PALWORLD]: "Palworld",
   [Game.MINECRAFT]: "Minecraft (Java)",
   [Game.ICARUS]: "Icarus",
+  [Game.BEDROCK]: "Minecraft (Bedrock)",
 };
 
 /** SteamCMD app IDs for the dedicated server (anonymous login). */
@@ -36,6 +39,8 @@ export const STEAM_APP_ID: Record<Game, number> = {
   [Game.MINECRAFT]: 0,
   // Icarus dedicated server (the image installs it via SteamCMD under Wine).
   [Game.ICARUS]: 2089300,
+  // Bedrock isn't on Steam — the itzg image downloads Mojang's Bedrock server. Unused.
+  [Game.BEDROCK]: 0,
 };
 
 /** Steam Workshop "consumer" app ids for mod downloads (ARK: Survival Evolved /
@@ -65,6 +70,9 @@ export const GAME_ICONS: Record<Game, string> = {
   [Game.MINECRAFT]:
     "https://upload.wikimedia.org/wikipedia/commons/thumb/8/85/Minecraft_2024_logo.svg/512px-Minecraft_2024_logo.svg.png",
   [Game.ICARUS]: "https://cdn.cloudflare.steamstatic.com/steam/apps/1149460/header.jpg",
+  // Same Minecraft logo as the Java edition (cosmetic; a 404 just falls back).
+  [Game.BEDROCK]:
+    "https://upload.wikimedia.org/wikipedia/commons/thumb/8/85/Minecraft_2024_logo.svg/512px-Minecraft_2024_logo.svg.png",
 };
 
 /** CurseForge numeric game id for ASA (used by the mod browser). */
@@ -101,6 +109,8 @@ export const RAM_ESTIMATE_MB: Record<Game, number> = {
   // Icarus is heavy (RocketWerkz recommend 16 GB); 12 GB is a realistic populated
   // estimate for the start guard.
   [Game.ICARUS]: 12000,
+  // Bedrock is a lightweight native server (~1-2 GB even populated).
+  [Game.BEDROCK]: 2000,
 };
 
 /** Default port offsets within a per-server allocation block. */
@@ -168,6 +178,10 @@ export const MINECRAFT_OFFICIAL_MAPS = [
  *  in-game across the game's maps. Single placeholder for the create form. */
 export const ICARUS_OFFICIAL_MAPS = ["Prospect"] as const;
 
+/** Bedrock, like Java, repurposes the map field as the world-generation type
+ *  (itzg's LEVEL_TYPE — Bedrock uses these bare keywords, not the namespaced ids). */
+export const BEDROCK_OFFICIAL_MAPS = ["DEFAULT", "FLAT", "LEGACY"] as const;
+
 /** Friendly display names for known level names (raw level → label). */
 export const MAP_LABELS: Record<string, string> = {
   // Conan Exiles
@@ -181,6 +195,10 @@ export const MAP_LABELS: Record<string, string> = {
   "minecraft:amplified": "Amplified",
   // Icarus (world is a prospect chosen in-game)
   Prospect: "Prospect (chosen in-game)",
+  // Bedrock world-generation types (LEVEL_TYPE)
+  DEFAULT: "Default",
+  FLAT: "Flat",
+  LEGACY: "Legacy (small finite world)",
   // ASA (World Partition — *_WP)
   TheIsland_WP: "The Island",
   TheCenter_WP: "The Center",
