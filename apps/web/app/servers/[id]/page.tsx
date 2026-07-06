@@ -20,6 +20,7 @@ import { ModsTab } from "@/components/mods-tab";
 import { PalworldModsTab } from "@/components/palworld-mods-tab";
 import { MinecraftModsTab } from "@/components/minecraft-mods-tab";
 import { IcarusModsTab } from "@/components/icarus-mods-tab";
+import { BedrockModsTab } from "@/components/bedrock-mods-tab";
 import { useStartGuard } from "@/components/start-guard";
 import { BackupsTab } from "@/components/backups-tab";
 
@@ -131,14 +132,12 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
   const showInstalling =
     pending === "install" || st === ServerState.Installing || st === ServerState.Updating;
 
-  // No-RCON games hide the Console tab. Icarus keeps a .pak-uploader Mods tab;
-  // Bedrock has neither RCON nor a mod browser (addon packs TBD), so it hides both.
+  // No-RCON games hide the Console tab. Icarus + Bedrock keep an uploader Mods tab
+  // (.pak files / add-on packs — neither game has a browsable catalog).
   const hiddenTabs =
-    server.game === Game.ICARUS
+    server.game === Game.ICARUS || server.game === Game.BEDROCK
       ? new Set<Tab>(["Console"])
-      : server.game === Game.BEDROCK
-        ? new Set<Tab>(["Console", "Mods"])
-        : new Set<Tab>();
+      : new Set<Tab>();
   const visibleTabs = TABS.filter((t) => !hiddenTabs.has(t));
 
   return (
@@ -234,6 +233,8 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
           <MinecraftModsTab serverId={id} />
         ) : server.game === Game.ICARUS ? (
           <IcarusModsTab serverId={id} />
+        ) : server.game === Game.BEDROCK ? (
+          <BedrockModsTab serverId={id} />
         ) : (
           <ModsTab serverId={id} game={server.game} />
         ))}
