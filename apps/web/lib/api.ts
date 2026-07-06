@@ -23,6 +23,22 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * When an authenticated request comes back 401, the stored token is expired/invalid
+ * — clear it and bounce to the login screen so the user re-authenticates cleanly
+ * (rather than getting a raw "invalid or expired token" alert on every action). We
+ * only do this when a token was actually sent: a 401 with no token is a login
+ * attempt (bad credentials), which the login form should surface itself. Auth routes
+ * are exempt so a failed /auth/login doesn't trigger a redirect loop.
+ */
+function handleAuthFailure(status: number, path: string): void {
+  if (status !== 401 || !getToken() || path.startsWith("/auth/")) return;
+  clearToken();
+  if (typeof window !== "undefined" && window.location.pathname !== "/login") {
+    window.location.href = "/login";
+  }
+}
+
 export async function api<T = unknown>(path: string, init: RequestInit = {}): Promise<T> {
   const token = getToken();
   const res = await fetch(`/api${path}`, {
@@ -34,6 +50,7 @@ export async function api<T = unknown>(path: string, init: RequestInit = {}): Pr
     },
   });
   if (!res.ok) {
+    handleAuthFailure(res.status, path);
     let message = res.statusText;
     let body: unknown;
     try {
@@ -72,6 +89,7 @@ export async function apiUpload<T = unknown>(path: string, file: File): Promise<
     body: form,
   });
   if (!res.ok) {
+    handleAuthFailure(res.status, path);
     let message = res.statusText;
     try {
       const body = await res.json();
