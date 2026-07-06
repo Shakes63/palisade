@@ -3,6 +3,7 @@ import { Game, EventType, type ServerConfigValues, type MinecraftModpack } from 
 import { PrismaService } from "../prisma/prisma.service";
 import { EventsService } from "../events/events.service";
 import { ManagerSettingsService, SettingKeys } from "../manager-settings/manager-settings.service";
+import { CurseForgeService } from "./curseforge.service";
 
 export interface AddModInput {
   remoteId: number;
@@ -21,6 +22,7 @@ export class ModsService {
     private readonly prisma: PrismaService,
     private readonly events: EventsService,
     private readonly settings: ManagerSettingsService,
+    private readonly curseforge: CurseForgeService,
   ) {}
 
   async listInstalled(serverId: string) {
@@ -135,6 +137,10 @@ export class ModsService {
       throw new BadRequestException(
         "Add your CurseForge API key in Settings before installing a modpack.",
       );
+    // Reject packs whose author blocked third-party downloads up front, so the user
+    // gets a clear message now instead of a mysterious Crashed when itzg can't fetch it.
+    const dist = await this.curseforge.checkDistributable(pack.projectId);
+    if (!dist.ok) throw new BadRequestException(dist.reason);
     await this.writeModpackValues(server.id, server.configJson, {
       _mcModpackSlug: pack.slug,
       _mcModpackProjectId: pack.projectId,

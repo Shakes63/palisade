@@ -93,6 +93,30 @@ export class CurseForgeService {
     };
   }
 
+  /**
+   * Whether a project can be auto-installed. CurseForge lets authors forbid
+   * third-party/API downloads (allowModDistribution=false); itzg then can't fetch
+   * the pack and the server just crashes with "not allowed for project
+   * distribution". Checked up front so a modpack install can be rejected with a
+   * clear message. Only returns a DEFINITIVE no — a failed lookup doesn't block
+   * (let the install attempt proceed rather than false-reject on an API hiccup).
+   */
+  async checkDistributable(projectId: number): Promise<{ ok: boolean; reason?: string }> {
+    try {
+      const body = await this.request<{ data: CfMod }>(`/v1/mods/${projectId}`);
+      if (body.data.allowModDistribution === false) {
+        return {
+          ok: false,
+          reason:
+            "This pack's author disabled third-party downloads on CurseForge, so it can't be auto-installed. Pick another — most popular packs (e.g. All the Mods) allow it.",
+        };
+      }
+      return { ok: true };
+    } catch {
+      return { ok: true }; // lookup failed — don't block; let itzg try
+    }
+  }
+
   /** Mod categories for the game (for the browser's category filter). */
   async categories(gameId: number = ASA_CURSEFORGE_GAME_ID): Promise<ModCategory[]> {
     const body = await this.request<{
@@ -116,6 +140,7 @@ interface CfMod {
   links?: { websiteUrl?: string };
   dateModified?: string;
   isFeatured?: boolean;
+  allowModDistribution?: boolean;
   categories?: Array<{ name: string }>;
   latestFiles?: Array<{ displayName?: string; fileLength?: number }>;
   screenshots?: Array<{ url?: string }>;
