@@ -19,6 +19,7 @@ import { ScheduleList } from "@/components/schedule-list";
 import { ModsTab } from "@/components/mods-tab";
 import { PalworldModsTab } from "@/components/palworld-mods-tab";
 import { MinecraftModsTab } from "@/components/minecraft-mods-tab";
+import { IcarusModsTab } from "@/components/icarus-mods-tab";
 import { useStartGuard } from "@/components/start-guard";
 import { BackupsTab } from "@/components/backups-tab";
 
@@ -130,10 +131,9 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
   const showInstalling =
     pending === "install" || st === ServerState.Installing || st === ServerState.Updating;
 
-  // Icarus has no network RCON (admin is in-game chat) and no mod browser, so hide
-  // the Console + Mods tabs for it.
-  const hiddenTabs =
-    server.game === Game.ICARUS ? new Set<Tab>(["Console", "Mods"]) : new Set<Tab>();
+  // Icarus has no network RCON (admin is in-game chat), so hide the Console tab. Its
+  // Mods tab stays — it's a .pak uploader (Icarus mods aren't browsable).
+  const hiddenTabs = server.game === Game.ICARUS ? new Set<Tab>(["Console"]) : new Set<Tab>();
   const visibleTabs = TABS.filter((t) => !hiddenTabs.has(t));
 
   return (
@@ -223,11 +223,12 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
           <div className="text-slate-400">Loading settings…</div>
         ))}
       {tab === "Mods" &&
-        server.game !== Game.ICARUS &&
         (server.game === Game.PALWORLD ? (
           <PalworldModsTab serverId={id} />
         ) : server.game === Game.MINECRAFT ? (
           <MinecraftModsTab serverId={id} />
+        ) : server.game === Game.ICARUS ? (
+          <IcarusModsTab serverId={id} />
         ) : (
           <ModsTab serverId={id} game={server.game} />
         ))}
