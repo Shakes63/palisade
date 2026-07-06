@@ -34,6 +34,7 @@ export function UnofficialListHelp({
   const conan = game === Game.CONAN;
   const palworld = game === Game.PALWORLD;
   const minecraft = game === Game.MINECRAFT;
+  const icarus = game === Game.ICARUS;
   const passwordHint = hasJoinPassword
     ? "your server has a join password"
     : "ON only if you set a join password";
@@ -50,7 +51,7 @@ export function UnofficialListHelp({
           <Search className="h-3.5 w-3.5" />
           {minecraft
             ? "Add it to your Minecraft server list"
-            : conan || palworld
+            : conan || palworld || icarus
               ? "Find it in the in-game server browser"
               : "Find it on the in-game Unofficial list"}
         </span>
@@ -58,7 +59,24 @@ export function UnofficialListHelp({
       </button>
 
       {open &&
-        (minecraft ? (
+        (icarus ? (
+          <div className="space-y-1.5 border-t border-ark-border px-2.5 py-2 text-xs">
+            <p className="text-slate-400">
+              In <span className="text-slate-200">Play → Join Server</span>:
+            </p>
+            <FilterRow state="on" label="Search the server list by name" />
+            <FilterRow
+              state={hasJoinPassword ? "on" : "off"}
+              label="Password-protected servers are still listed"
+              hint={passwordHint}
+            />
+            <p className="pt-1 leading-snug text-slate-400">
+              Search the name <span className="font-mono text-slate-200">{serverName}</span>, or use{" "}
+              <span className="text-slate-200">Join IP</span> (the address shown above). Admin is via in-game
+              chat (<span className="font-mono">/AdminLogin</span>) — Icarus has no separate console.
+            </p>
+          </div>
+        ) : minecraft ? (
           <div className="space-y-1.5 border-t border-ark-border px-2.5 py-2 text-xs">
             <p className="text-slate-400">
               Minecraft has no public browser — players add the server by IP:

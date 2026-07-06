@@ -260,3 +260,52 @@ describe("buildContainerSpec (Minecraft / itzg)", () => {
     expect(env).not.toContain("TYPE=AUTO_CURSEFORGE");
   });
 });
+
+async function buildIcarus(config: ServerConfigValues) {
+  const { buildContainerSpec } = await import("./runtime-spec");
+  const { ICARUS_CATALOG } = await import("../catalog/icarus.catalog");
+  return buildContainerSpec({
+    serverId: "srv1",
+    game: Game.ICARUS,
+    map: "Prospect",
+    sessionName: "My Icarus Server",
+    ports: { game: 17777, rawSocket: 17778, query: 27015, rcon: 0 },
+    maxPlayers: 8,
+    adminPassword: "secret",
+    serverPassword: "pw",
+    modIds: [],
+    cluster: null,
+    config,
+    catalog: ICARUS_CATALOG,
+  });
+}
+
+describe("buildContainerSpec (Icarus / mornedhels)", () => {
+  it("maps the config to the image's env contract (2 UDP ports, no RCON)", async () => {
+    const spec = await buildIcarus({ values: {} });
+    expect(spec.Image).toBe("mornedhels/icarus-server:latest");
+    const env = envOf(spec);
+    expect(env).toContain("SERVER_NAME=My Icarus Server");
+    expect(env).toContain("SERVER_ADMIN_PASSWORD=secret");
+    expect(env).toContain("SERVER_PASSWORD=pw");
+    expect(env).toContain("SERVER_MAX_PLAYERS=8");
+    expect(env).toContain("SERVER_PORT=17777");
+    expect(env).toContain("SERVER_QUERYPORT=27015");
+    // game + query are UDP; no RCON port is published
+    expect(spec.HostConfig?.PortBindings?.["17777/udp"]).toEqual([{ HostPort: "17777" }]);
+    expect(spec.HostConfig?.PortBindings?.["27015/udp"]).toEqual([{ HostPort: "27015" }]);
+    expect(Object.keys(spec.HostConfig?.PortBindings ?? {}).some((k) => k.endsWith("/tcp"))).toBe(false);
+    // config+saves and game files bound separately
+    const binds = spec.HostConfig?.Binds ?? [];
+    expect(binds.some((b) => b.endsWith(":/home/icarus/drive_c/icarus"))).toBe(true);
+    expect(binds.some((b) => b.endsWith(":/opt/icarus"))).toBe(true);
+  });
+
+  it("passes catalog settings through as env vars (bools as True/False)", async () => {
+    const env = envOf(
+      await buildIcarus({ values: { SERVER_ALLOW_NON_ADMINS_DELETE: true, SERVER_SHUTDOWN_IF_EMPTY: 120 } }),
+    );
+    expect(env).toContain("SERVER_ALLOW_NON_ADMINS_DELETE=True");
+    expect(env).toContain("SERVER_SHUTDOWN_IF_EMPTY=120");
+  });
+});

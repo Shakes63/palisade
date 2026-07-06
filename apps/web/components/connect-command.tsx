@@ -136,6 +136,32 @@ export function ConnectCommand({
     );
   }
 
+  if (game === Game.ICARUS) {
+    return (
+      <div className={className}>
+        <div className="mb-1 flex items-center gap-1.5 text-xs font-medium text-slate-400">
+          <Terminal className="h-3.5 w-3.5" /> Join by IP (in-game)
+        </div>
+        <CopyRow value={`${hostOr}:${gamePort}`} title="Paste into Icarus's Join IP" />
+        <p className="mt-1 text-[11px] leading-snug text-slate-500">
+          In Icarus: <span className="font-mono">Play → Join IP</span>, paste this. Or find it in the in-game
+          server browser by name. Online, friends use your public IP with the same port.
+        </p>
+        {joinPassword && (
+          <div className="mt-3">
+            <div className="mb-1 flex items-center gap-1.5 text-xs font-medium text-slate-400">
+              <Lock className="h-3.5 w-3.5" /> Join password
+            </div>
+            <CopyRow value={joinPassword} title="Copy the join password" />
+            <p className="mt-1 text-[11px] leading-snug text-slate-500">
+              Enter this when Icarus prompts for the server password.
+            </p>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   if (game === Game.MINECRAFT) {
     // Our server runs on the default port (25565), so players can type just the IP.
     return (

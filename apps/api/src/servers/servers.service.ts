@@ -81,8 +81,13 @@ type ServerRow = Awaited<ReturnType<PrismaService["server"]["findUnique"]>> & {
 // Minecraft (itzg): the server logs `Done (12.345s)! For help, type "help"` exactly
 // once when the world has finished loading and it accepts joins (and RCON). The
 // `Done (...s)!` shape is Minecraft-specific, so it won't misfire on the others.
+//
+// Icarus: has no RCON to lean on, so readiness is log-based. This clause requires
+// the literal "Icarus" near a ready/listening word so it can't false-fire on the
+// other games (whose logs never mention Icarus). PROVISIONAL — confirm the exact
+// line against a real boot and tighten it (the server is stuck "Starting" if wrong).
 export const READY_RE =
-  /(advertising for join(?!')|server is up|Startup report\. StartupTime=|Running Palworld dedicated server|Done \([\d.]+s\)! For help)/i;
+  /(advertising for join(?!')|server is up|Startup report\. StartupTime=|Running Palworld dedicated server|Done \([\d.]+s\)! For help|Icarus.{0,60}\b(?:ready|listening|up and running)\b)/i;
 const CRASH_WINDOW_MS = 5 * 60_000;
 const CRASH_LIMIT = 3;
 
@@ -803,7 +808,10 @@ export class ServersService implements OnApplicationBootstrap {
     // Conan persists to SQLite and Minecraft never logs ARK's "World Save Complete"
     // — issue their save (save-all for Minecraft, via the game-aware wrapper) and
     // return; the container's SIGTERM handler flushes the rest on shutdown. Waiting
-    // for the ARK log here would just burn the timeout.
+    // for the ARK log here would just burn the timeout. Icarus has NO RCON at all —
+    // it autosaves its prospect and flushes on the container's graceful shutdown, so
+    // there's nothing to issue; just return and let SIGTERM handle it.
+    if (game === Game.ICARUS) return;
     if (!containerId || game === Game.CONAN || game === Game.MINECRAFT) {
       await this.rcon.saveWorld(id).catch(() => undefined);
       return;
@@ -937,9 +945,10 @@ export class ServersService implements OnApplicationBootstrap {
     if (!server) return;
     const env = loadEnv();
     const game = server.game as Game;
-    // Minecraft (itzg) builds server.properties from env vars — it has no INI files
-    // to render, and its data dir layout is nothing like ARK's. Nothing to write.
-    if (game === Game.MINECRAFT) return;
+    // Env-driven images build their own config: Minecraft (itzg) writes
+    // server.properties, Icarus (mornedhels) writes ServerSettings.ini — neither
+    // has ARK-style INI files for us to render. Nothing to write.
+    if (game === Game.MINECRAFT || game === Game.ICARUS) return;
     const base = join(env.DATA_DIR, "instances", server.id);
     // Both images bind the instance dir as their data root. ASA (POK) installs
     // at the root → config under ShooterGame/Saved/Config/WindowsServer; ASE

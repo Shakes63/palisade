@@ -133,6 +133,12 @@ const MINECRAFT_GROUPS: SettingGroup[] = [
   { id: "players", label: "Players", Icon: User, cats: ["Players"] },
 ];
 
+// Icarus has a small env-driven catalog (session + permissions).
+const ICARUS_GROUPS: SettingGroup[] = [
+  { id: "session", label: "Session", Icon: SlidersHorizontal, cats: ["Session"] },
+  { id: "permissions", label: "Permissions", Icon: User, cats: ["Permissions"] },
+];
+
 /**
  * Map-specific categories → fragments of the server's map name they apply to.
  * A setting in one of these only shows when the managed server's map matches,
@@ -177,7 +183,9 @@ export function SettingsForm({
         ? PALWORLD_GROUPS
         : game === Game.MINECRAFT
           ? MINECRAFT_GROUPS
-          : ARK_GROUPS;
+          : game === Game.ICARUS
+            ? ICARUS_GROUPS
+            : ARK_GROUPS;
   const MAPPED_CATS = new Set(GROUPS.flatMap((g) => g.cats));
 
   // A map-specific category is shown only when the server's map matches it.

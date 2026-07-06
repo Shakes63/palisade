@@ -17,6 +17,8 @@ import {
   CONAN_DATA_DIR,
   PALWORLD_DATA_DIR,
   MINECRAFT_DATA_DIR,
+  ICARUS_CONFIG_DIR,
+  ICARUS_GAME_DIR,
 } from "../common/images";
 import { ARK_NETWORK, containerName } from "../common/naming";
 import { loadEnv } from "../config/env";
@@ -49,6 +51,7 @@ export function buildContainerSpec(input: RuntimeSpecInput): Docker.ContainerCre
   if (input.game === Game.CONAN) return buildConanSpec(input);
   if (input.game === Game.PALWORLD) return buildPalworldSpec(input);
   if (input.game === Game.MINECRAFT) return buildMinecraftSpec(input);
+  if (input.game === Game.ICARUS) return buildIcarusSpec(input);
   return buildAseSpec(input);
 }
 
@@ -558,6 +561,83 @@ function minecraftCatalogEnv(input: RuntimeSpecInput): string[] {
     const raw = input.config.values?.[def.key] ?? def.default;
     if (raw === undefined || raw === null || raw === "") continue;
     const val = typeof raw === "boolean" ? (raw ? "true" : "false") : String(raw);
+    out.push(`${def.emitAs ?? def.key}=${val}`);
+  }
+  return out;
+}
+
+/**
+ * Icarus (mornedhels/icarus-server): env-driven, run under Wine. The image installs
+ * the Icarus server via SteamCMD on boot and writes ServerSettings.ini from these
+ * env vars. Two UDP ports (game + Steam query); NO network RCON (admin is in-game
+ * chat), so nothing RCON-related is wired. The world is a "prospect" players pick
+ * in-game. Config + saves and the ~15 GB game files are bound separately.
+ */
+function buildIcarusSpec(input: RuntimeSpecInput): Docker.ContainerCreateOptions {
+  const env = loadEnv();
+  const { ports } = input;
+
+  const icarusEnv = [
+    `TZ=${input.timezone || env.TZ}`,
+    `PUID=${env.PUID}`,
+    `PGID=${env.PGID}`,
+    `SERVER_NAME=${input.sessionName}`,
+    `SERVER_PASSWORD=${serverPassword(input)}`,
+    `SERVER_ADMIN_PASSWORD=${input.adminPassword}`, // gates the in-game /AdminLogin
+    `SERVER_MAX_PLAYERS=${input.maxPlayers}`,
+    `SERVER_PORT=${ports.game}`,
+    `SERVER_QUERYPORT=${ports.query}`,
+    `UPDATE_SKIP=false`, // install/validate the game files on (first) boot
+    ...icarusCatalogEnv(input),
+  ];
+
+  // Bind config + saves and the game files to their own instance subdirs — so the
+  // small config+saves dir (backups/disk stats target it) is separate from the big
+  // SteamCMD install. (savedDir(ICARUS) points at the "config" subdir.)
+  const root = HostPaths.instanceRoot(input.serverId);
+  const binds = [`${root}/config:${ICARUS_CONFIG_DIR}`, `${root}/gamefiles:${ICARUS_GAME_DIR}`];
+
+  const hostNet = env.GAME_HOST_NETWORK;
+  return {
+    name: containerName(input.serverId, input.game, input.sessionName),
+    Image: IMAGES[Game.ICARUS],
+    Hostname: containerName(input.serverId, input.game, input.sessionName),
+    Env: icarusEnv,
+    Labels: serverLabels(input, env.PUBLIC_BASE_URL),
+    ...(hostNet
+      ? {}
+      : {
+          ExposedPorts: {
+            [portKey(ports.game, "udp")]: {},
+            [portKey(ports.query, "udp")]: {},
+          },
+        }),
+    HostConfig: {
+      Binds: binds,
+      ...(hostNet
+        ? { NetworkMode: "host" }
+        : {
+            PortBindings: {
+              [portKey(ports.game, "udp")]: [{ HostPort: String(ports.game) }],
+              [portKey(ports.query, "udp")]: [{ HostPort: String(ports.query) }],
+            },
+          }),
+      RestartPolicy: { Name: "no" }, // manager watchdog owns restarts
+      Memory: input.ramLimitMb ? input.ramLimitMb * 1024 * 1024 : undefined,
+      NanoCpus: input.cpuLimit ? Math.round(input.cpuLimit * 1e9) : undefined,
+    },
+    ...(hostNet ? {} : { NetworkingConfig: { EndpointsConfig: { [ARK_NETWORK]: {} } } }),
+  };
+}
+
+/** Icarus settings -> mornedhels env vars. Booleans become ServerSettings' True/False. */
+function icarusCatalogEnv(input: RuntimeSpecInput): string[] {
+  const out: string[] = [];
+  for (const def of input.catalog.settings) {
+    if (def.target !== SettingTarget.Env) continue;
+    const raw = input.config.values?.[def.key] ?? def.default;
+    if (raw === undefined || raw === null) continue;
+    const val = typeof raw === "boolean" ? (raw ? "True" : "False") : String(raw);
     out.push(`${def.emitAs ?? def.key}=${val}`);
   }
   return out;

@@ -39,7 +39,15 @@ export const FIXED_PORTS: PortSet = derivePorts(PORT_POOL_START);
  */
 export const MINECRAFT_PORTS: PortSet = { game: 25565, rawSocket: 25566, query: 25565, rcon: 25575 };
 
+/**
+ * Icarus uses two UDP ports — game (17777) + Steam query (27015) — and has NO
+ * network RCON, so rcon is 0 (unused; the Console UI is hidden for Icarus).
+ */
+export const ICARUS_PORTS: PortSet = { game: 17777, rawSocket: 17778, query: 27015, rcon: 0 };
+
 /** The fixed port block a new server gets, by game. */
 export function portsFor(game: Game): PortSet {
-  return game === Game.MINECRAFT ? MINECRAFT_PORTS : FIXED_PORTS;
+  if (game === Game.MINECRAFT) return MINECRAFT_PORTS;
+  if (game === Game.ICARUS) return ICARUS_PORTS;
+  return FIXED_PORTS;
 }

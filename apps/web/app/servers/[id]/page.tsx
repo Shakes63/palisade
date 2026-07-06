@@ -130,6 +130,12 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
   const showInstalling =
     pending === "install" || st === ServerState.Installing || st === ServerState.Updating;
 
+  // Icarus has no network RCON (admin is in-game chat) and no mod browser, so hide
+  // the Console + Mods tabs for it.
+  const hiddenTabs =
+    server.game === Game.ICARUS ? new Set<Tab>(["Console", "Mods"]) : new Set<Tab>();
+  const visibleTabs = TABS.filter((t) => !hiddenTabs.has(t));
+
   return (
     <div className="space-y-6">
       {startDialog}
@@ -196,7 +202,7 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
       </div>
 
       <div className="flex gap-1 border-b border-ark-border">
-        {TABS.map((t) => (
+        {visibleTabs.map((t) => (
           <button
             key={t}
             onClick={() => changeTab(t)}
@@ -217,6 +223,7 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
           <div className="text-slate-400">Loading settings…</div>
         ))}
       {tab === "Mods" &&
+        server.game !== Game.ICARUS &&
         (server.game === Game.PALWORLD ? (
           <PalworldModsTab serverId={id} />
         ) : server.game === Game.MINECRAFT ? (
@@ -224,7 +231,9 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
         ) : (
           <ModsTab serverId={id} game={server.game} />
         ))}
-      {tab === "Console" && <RconConsole serverId={id} game={server.game} state={server.state} />}
+      {tab === "Console" && server.game !== Game.ICARUS && (
+        <RconConsole serverId={id} game={server.game} state={server.state} />
+      )}
       {tab === "Logs" && <LogsTab serverId={id} />}
       {tab === "Schedules" && <ScheduleList serverId={id} />}
       {tab === "Backups" && <BackupsTab serverId={id} />}
@@ -233,16 +242,20 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
 }
 
 function Overview({ server, onChanged }: { server: ServerSummary; onChanged: () => void }) {
+  // Minecraft's game port is TCP and has no separate Steam query; Icarus has no RCON.
+  const isMc = server.game === Game.MINECRAFT;
+  const isIcarus = server.game === Game.ICARUS;
+  const row = (k: string, v: string): [string, string] => [k, v];
   const rows: [string, string][] = [
-    ["Game", server.game],
-    ["Map", mapLabel(server.map)],
-    ["Game port", `${server.ports.game}/udp`],
-    ["Query port", `${server.ports.query}/udp`],
-    ["RCON port", `${server.ports.rcon}/tcp`],
-    ["Max players", String(server.maxPlayers)],
-    ["Mods", server.modIds.length ? server.modIds.join(", ") : "none"],
-    ["Cluster", server.clusterId ?? "—"],
-    ["RAM limit", server.ramLimitMb ? `${server.ramLimitMb} MB` : "unset"],
+    row("Game", server.game),
+    row("Map", mapLabel(server.map)),
+    row("Game port", `${server.ports.game}/${isMc ? "tcp" : "udp"}`),
+    ...(isMc ? [] : [row("Query port", `${server.ports.query}/udp`)]),
+    ...(isIcarus ? [] : [row("RCON port", `${server.ports.rcon}/tcp`)]),
+    row("Max players", String(server.maxPlayers)),
+    ...(isIcarus ? [] : [row("Mods", server.modIds.length ? server.modIds.join(", ") : "none")]),
+    row("Cluster", server.clusterId ?? "—"),
+    row("RAM limit", server.ramLimitMb ? `${server.ramLimitMb} MB` : "unset"),
   ];
   return (
     <div className="space-y-6">

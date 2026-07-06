@@ -10,6 +10,8 @@ export enum Game {
   PALWORLD = "PALWORLD",
   /** Minecraft (Java) — itzg image, downloads the server jar itself; TCP, RCON. */
   MINECRAFT = "MINECRAFT",
+  /** Icarus — mornedhels image (SteamCMD under Wine), env-driven; NO network RCON. */
+  ICARUS = "ICARUS",
 }
 
 /** Friendly game names for the UI. */
@@ -19,6 +21,7 @@ export const GAME_LABELS: Record<Game, string> = {
   [Game.CONAN]: "Conan Exiles",
   [Game.PALWORLD]: "Palworld",
   [Game.MINECRAFT]: "Minecraft (Java)",
+  [Game.ICARUS]: "Icarus",
 };
 
 /** SteamCMD app IDs for the dedicated server (anonymous login). */
@@ -31,6 +34,8 @@ export const STEAM_APP_ID: Record<Game, number> = {
   // Mojang/its build sources. This is only read by the ASA-only game-file cache,
   // so the value is unused for Minecraft.
   [Game.MINECRAFT]: 0,
+  // Icarus dedicated server (the image installs it via SteamCMD under Wine).
+  [Game.ICARUS]: 2089300,
 };
 
 /** Steam Workshop "consumer" app ids for mod downloads (ARK: Survival Evolved /
@@ -59,6 +64,7 @@ export const GAME_ICONS: Record<Game, string> = {
   // 404 just falls back to Unraid's default container icon).
   [Game.MINECRAFT]:
     "https://upload.wikimedia.org/wikipedia/commons/thumb/8/85/Minecraft_2024_logo.svg/512px-Minecraft_2024_logo.svg.png",
+  [Game.ICARUS]: "https://cdn.cloudflare.steamstatic.com/steam/apps/1149460/header.jpg",
 };
 
 /** CurseForge numeric game id for ASA (used by the mod browser). */
@@ -92,6 +98,9 @@ export const RAM_ESTIMATE_MB: Record<Game, number> = {
   // Vanilla Java is light (~2-3 GB); modpacks run heavier. 4 GB is a safe headroom
   // estimate for the start guard — a server's own ramLimitMb overrides it.
   [Game.MINECRAFT]: 4000,
+  // Icarus is heavy (RocketWerkz recommend 16 GB); 12 GB is a realistic populated
+  // estimate for the start guard.
+  [Game.ICARUS]: 12000,
 };
 
 /** Default port offsets within a per-server allocation block. */
@@ -155,6 +164,10 @@ export const MINECRAFT_OFFICIAL_MAPS = [
   "minecraft:amplified",
 ] as const;
 
+/** Icarus has no map at launch — the world is a "prospect" players create/select
+ *  in-game across the game's maps. Single placeholder for the create form. */
+export const ICARUS_OFFICIAL_MAPS = ["Prospect"] as const;
+
 /** Friendly display names for known level names (raw level → label). */
 export const MAP_LABELS: Record<string, string> = {
   // Conan Exiles
@@ -166,6 +179,8 @@ export const MAP_LABELS: Record<string, string> = {
   "minecraft:flat": "Superflat",
   "minecraft:large_biomes": "Large Biomes",
   "minecraft:amplified": "Amplified",
+  // Icarus (world is a prospect chosen in-game)
+  Prospect: "Prospect (chosen in-game)",
   // ASA (World Partition — *_WP)
   TheIsland_WP: "The Island",
   TheCenter_WP: "The Center",

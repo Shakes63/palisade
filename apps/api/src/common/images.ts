@@ -21,6 +21,9 @@ export const IMAGES: Record<Game, string> = {
   // jar (vanilla/Paper/Forge/Fabric) itself on first boot into /data, writes
   // server.properties from env vars, and has built-in RCON.
   [Game.MINECRAFT]: "itzg/minecraft-server:latest",
+  // mornedhels/icarus-server — installs the Icarus Windows server via SteamCMD and
+  // runs it under Wine. Env-driven (writes ServerSettings.ini itself). No RCON.
+  [Game.ICARUS]: "mornedhels/icarus-server:latest",
 };
 
 /** POK keeps all instance data (install + saves + config) under this path. */
@@ -39,6 +42,12 @@ export const PALWORLD_DATA_DIR = "/palworld";
 /** itzg/minecraft-server keeps the jar + worlds + config under /data (world at /data/world). */
 export const MINECRAFT_DATA_DIR = "/data";
 
+/** Icarus (mornedhels) splits its data: config + saves (prospects) under the Wine
+ *  drive, the ~15 GB game files under /opt/icarus. Bound separately so backups /
+ *  disk stats can target the small config+saves dir, not the big game install. */
+export const ICARUS_CONFIG_DIR = "/home/icarus/drive_c/icarus"; // ServerSettings.ini + Saved/prospects
+export const ICARUS_GAME_DIR = "/opt/icarus"; // SteamCMD-installed game files
+
 /**
  * The uid/gid each image runs the server as. Neither chowns its mounts fully
  * (POK never does; hermsi only chowns the volume root), so the manager makes the
@@ -50,6 +59,7 @@ export const SERVER_UID: Record<Game, number> = {
   [Game.CONAN]: 1000, // Conan image's "pokuser"
   [Game.PALWORLD]: 1000, // palworld image's "steam" user
   [Game.MINECRAFT]: 1000, // itzg's default UID (overridable via UID/GID env)
+  [Game.ICARUS]: 4711, // mornedhels default (overridable via PUID/PGID); unused — env-driven, no INI injection
 };
 export const SERVER_GID: Record<Game, number> = {
   [Game.ASA]: 7777,
@@ -57,4 +67,5 @@ export const SERVER_GID: Record<Game, number> = {
   [Game.CONAN]: 1000,
   [Game.PALWORLD]: 1000,
   [Game.MINECRAFT]: 1000,
+  [Game.ICARUS]: 4711,
 };
