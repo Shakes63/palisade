@@ -105,9 +105,13 @@ export const READY_RE_BY_GAME: Record<Game, RegExp> = {
   // Valheim logs "Game server connected" when it registers + is joinable (no RCON).
   // PROVISIONAL — confirm against a real boot.
   [Game.VALHEIM]: /Game server connected/i,
-  // 7 Days to Die logs "StartGame done" (and starts telnet) when the world is up.
-  // PROVISIONAL — confirm against a real boot.
-  [Game.SEVEN_DAYS]: /StartGame done|GameServer\.LogOn successful|Started Telnet on/i,
+  // 7 Days to Die: "StartGame done" (immediately followed by "GameServer.LogOn
+  // successful") is the truly-joinable line — CONFIRMED live. NOT "Started Telnet
+  // on 8081", which fires ~60 s earlier while the world is still loading.
+  [Game.SEVEN_DAYS]: /StartGame done|GameServer\.LogOn successful/i,
+  // Enshrouded logs "'HostOnline' (up)!" once the session is registered + joinable
+  // (no RCON to lean on). PROVISIONAL — confirm against a real boot.
+  [Game.ENSHROUDED]: /'HostOnline' \(up\)/i,
 };
 
 /** The "server is now joinable" log-marker regex for a game. */
@@ -363,6 +367,11 @@ export class ServersService implements OnApplicationBootstrap {
     // Valheim's server refuses to boot without a join password of >= 5 characters.
     if (dto.game === Game.VALHEIM && (dto.serverPassword ?? "").length < 5) {
       throw new BadRequestException("Valheim requires a server password of at least 5 characters.");
+    }
+    // Enshrouded's join password is role-based; we derive the roles from it and it
+    // must be present + non-trivial (>= 5 chars, matching Valheim's rule).
+    if (dto.game === Game.ENSHROUDED && (dto.serverPassword ?? "").length < 5) {
+      throw new BadRequestException("Enshrouded requires a server password of at least 5 characters.");
     }
     // Every server of a given family shares one fixed port block so a single set of
     // port-forwards covers whichever is running — only one runs at a time, so the
@@ -866,7 +875,8 @@ export class ServersService implements OnApplicationBootstrap {
       game === Game.ICARUS ||
       game === Game.BEDROCK ||
       game === Game.VALHEIM ||
-      game === Game.SEVEN_DAYS
+      game === Game.SEVEN_DAYS ||
+      game === Game.ENSHROUDED
     )
       return;
     if (!containerId || game === Game.CONAN || game === Game.MINECRAFT) {
@@ -1008,13 +1018,14 @@ export class ServersService implements OnApplicationBootstrap {
     const env = loadEnv();
     const game = server.game as Game;
     // Env-driven images build their own config (Minecraft/Bedrock → server.properties,
-    // Icarus → ServerSettings.ini, Valheim → launch args) — none have ARK-style INI
-    // files for us to render. Nothing to write.
+    // Icarus → ServerSettings.ini, Valheim → launch args, Enshrouded → enshrouded_server.json)
+    // — none have ARK-style INI files for us to render. Nothing to write.
     if (
       game === Game.MINECRAFT ||
       game === Game.ICARUS ||
       game === Game.BEDROCK ||
-      game === Game.VALHEIM
+      game === Game.VALHEIM ||
+      game === Game.ENSHROUDED
     )
       return;
 

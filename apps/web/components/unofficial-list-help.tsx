@@ -38,6 +38,7 @@ export function UnofficialListHelp({
   const bedrock = game === Game.BEDROCK;
   const valheim = game === Game.VALHEIM;
   const sdtd = game === Game.SEVEN_DAYS;
+  const enshrouded = game === Game.ENSHROUDED;
   const passwordHint = hasJoinPassword
     ? "your server has a join password"
     : "ON only if you set a join password";
@@ -54,7 +55,7 @@ export function UnofficialListHelp({
           <Search className="h-3.5 w-3.5" />
           {minecraft || bedrock
             ? "Add it to your Minecraft server list"
-            : conan || palworld || icarus || valheim || sdtd
+            : conan || palworld || icarus || valheim || sdtd || enshrouded
               ? "Find it in the in-game server browser"
               : "Find it on the in-game Unofficial list"}
         </span>
@@ -76,6 +77,20 @@ export function UnofficialListHelp({
             <p className="pt-1 leading-snug text-slate-400">
               Search the name <span className="font-mono text-slate-200">{serverName}</span>, or use{" "}
               <span className="text-slate-200">Connect to Server</span> with the address shown above.
+            </p>
+          </div>
+        ) : enshrouded ? (
+          <div className="space-y-1.5 border-t border-ark-border px-2.5 py-2 text-xs">
+            <p className="text-slate-400">
+              In <span className="text-slate-200">Play → Server List</span>:
+            </p>
+            <FilterRow state="on" label="Search the server list by name" />
+            <FilterRow state="on" label="Enter the join password when prompted" hint="required — the server is role-protected" />
+            <p className="pt-1 leading-snug text-slate-400">
+              Search the name <span className="font-mono text-slate-200">{serverName}</span>, or use{" "}
+              <span className="text-slate-200">Join IP</span> (the address shown above). The join password logs
+              you in as <span className="text-slate-300">Guest</span>; append{" "}
+              <span className="font-mono">-admin</span> for admin rights.
             </p>
           </div>
         ) : valheim ? (

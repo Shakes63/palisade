@@ -215,7 +215,8 @@ export class BackupsService {
       game === Game.MINECRAFT ||
       game === Game.BEDROCK ||
       game === Game.ICARUS ||
-      game === Game.SEVEN_DAYS
+      game === Game.SEVEN_DAYS ||
+      game === Game.ENSHROUDED
     ) {
       const env = loadEnv();
       return [Number(env.PUID), Number(env.PGID)];

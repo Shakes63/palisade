@@ -18,6 +18,8 @@ export enum Game {
   VALHEIM = "VALHEIM",
   /** 7 Days to Die — vinanrra/LinuxGSM image; we render sdtdserver.xml; telnet console. */
   SEVEN_DAYS = "SEVEN_DAYS",
+  /** Enshrouded — mornedhels image (SteamCMD under Proton), env-driven; UDP; NO RCON. */
+  ENSHROUDED = "ENSHROUDED",
 }
 
 /** Friendly game names for the UI. */
@@ -31,6 +33,7 @@ export const GAME_LABELS: Record<Game, string> = {
   [Game.BEDROCK]: "Minecraft (Bedrock)",
   [Game.VALHEIM]: "Valheim",
   [Game.SEVEN_DAYS]: "7 Days to Die",
+  [Game.ENSHROUDED]: "Enshrouded",
 };
 
 /** SteamCMD app IDs for the dedicated server (anonymous login). */
@@ -51,6 +54,8 @@ export const STEAM_APP_ID: Record<Game, number> = {
   [Game.VALHEIM]: 896660,
   // 7 Days to Die dedicated server (LinuxGSM installs it via SteamCMD on boot).
   [Game.SEVEN_DAYS]: 294420,
+  // Enshrouded dedicated server (the mornedhels image installs it via SteamCMD).
+  [Game.ENSHROUDED]: 2278520,
 };
 
 /** Steam Workshop "consumer" app ids for mod downloads (ARK: Survival Evolved /
@@ -85,6 +90,7 @@ export const GAME_ICONS: Record<Game, string> = {
     "https://upload.wikimedia.org/wikipedia/commons/thumb/8/85/Minecraft_2024_logo.svg/512px-Minecraft_2024_logo.svg.png",
   [Game.VALHEIM]: "https://cdn.cloudflare.steamstatic.com/steam/apps/892970/header.jpg",
   [Game.SEVEN_DAYS]: "https://cdn.cloudflare.steamstatic.com/steam/apps/251570/header.jpg",
+  [Game.ENSHROUDED]: "https://cdn.cloudflare.steamstatic.com/steam/apps/1203620/header.jpg",
 };
 
 /** CurseForge numeric game id for ASA (used by the mod browser). */
@@ -127,6 +133,8 @@ export const RAM_ESTIMATE_MB: Record<Game, number> = {
   [Game.VALHEIM]: 3000,
   // 7 Days to Die is fairly heavy (Unity + RWG) — ~5-8 GB populated.
   [Game.SEVEN_DAYS]: 6000,
+  // Enshrouded is heavy (mornedhels recommend 16 GB) — 8 GB is a realistic estimate.
+  [Game.ENSHROUDED]: 8000,
 };
 
 /** Default port offsets within a per-server allocation block. */
@@ -204,6 +212,9 @@ export const VALHEIM_OFFICIAL_MAPS = ["Valheim"] as const;
 /** 7 Days to Die: the handcrafted Navezgane map or a Random World Generation seed. */
 export const SEVEN_DAYS_OFFICIAL_MAPS = ["Navezgane", "RWG"] as const;
 
+/** Enshrouded has a single procedurally-generated world — no map choice. */
+export const ENSHROUDED_OFFICIAL_MAPS = ["Enshrouded"] as const;
+
 /** Friendly display names for known level names (raw level → label). */
 export const MAP_LABELS: Record<string, string> = {
   // Conan Exiles
@@ -226,6 +237,8 @@ export const MAP_LABELS: Record<string, string> = {
   // 7 Days to Die
   Navezgane: "Navezgane (handcrafted)",
   RWG: "Random world (RWG)",
+  // Enshrouded (single procedural world)
+  Enshrouded: "Procedural world",
   // ASA (World Partition — *_WP)
   TheIsland_WP: "The Island",
   TheCenter_WP: "The Center",

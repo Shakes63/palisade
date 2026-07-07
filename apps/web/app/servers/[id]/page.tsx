@@ -138,8 +138,10 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
   const hiddenTabs =
     server.game === Game.ICARUS || server.game === Game.BEDROCK
       ? new Set<Tab>(["Console"])
-      : server.game === Game.VALHEIM || server.game === Game.SEVEN_DAYS
-        ? new Set<Tab>(["Console", "Mods"]) // 7DTD's console is telnet (not wired yet); no mod browser
+      : server.game === Game.VALHEIM ||
+          server.game === Game.SEVEN_DAYS ||
+          server.game === Game.ENSHROUDED
+        ? new Set<Tab>(["Console", "Mods"]) // 7DTD's console is telnet (not wired yet); Enshrouded has no RCON/mod browser
         : new Set<Tab>();
   const visibleTabs = TABS.filter((t) => !hiddenTabs.has(t));
 
@@ -259,9 +261,10 @@ function Overview({ server, onChanged }: { server: ServerSummary; onChanged: () 
   const isBedrock = server.game === Game.BEDROCK;
   const isValheim = server.game === Game.VALHEIM;
   const isSdtd = server.game === Game.SEVEN_DAYS;
-  const noQuery = isMc || isBedrock || isSdtd; // Valheim has a real query port (2457)
-  const noRcon = isIcarus || isBedrock || isValheim || isSdtd; // 7DTD's console is telnet
-  const noMods = isIcarus || isBedrock || isValheim || isSdtd;
+  const isEnshrouded = server.game === Game.ENSHROUDED;
+  const noQuery = isMc || isBedrock || isSdtd; // Valheim + Enshrouded have a real query port
+  const noRcon = isIcarus || isBedrock || isValheim || isSdtd || isEnshrouded; // 7DTD's console is telnet
+  const noMods = isIcarus || isBedrock || isValheim || isSdtd || isEnshrouded;
   const row = (k: string, v: string): [string, string] => [k, v];
   const rows: [string, string][] = [
     row("Game", server.game),

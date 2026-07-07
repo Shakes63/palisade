@@ -63,6 +63,12 @@ export const VALHEIM_PORTS: PortSet = { game: 2456, rawSocket: 2458, query: 2457
  */
 export const SEVEN_DAYS_PORTS: PortSet = { game: 26900, rawSocket: 26901, query: 26902, rcon: 8081 };
 
+/**
+ * Enshrouded uses two UDP ports — game (15636) + Steam query (15637) — and has NO
+ * RCON. rawSocket carries the query port and rcon is 0 (Console UI hidden).
+ */
+export const ENSHROUDED_PORTS: PortSet = { game: 15636, rawSocket: 15637, query: 15637, rcon: 0 };
+
 /** The fixed port block a new server gets, by game. */
 export function portsFor(game: Game): PortSet {
   if (game === Game.MINECRAFT) return MINECRAFT_PORTS;
@@ -70,5 +76,6 @@ export function portsFor(game: Game): PortSet {
   if (game === Game.BEDROCK) return BEDROCK_PORTS;
   if (game === Game.VALHEIM) return VALHEIM_PORTS;
   if (game === Game.SEVEN_DAYS) return SEVEN_DAYS_PORTS;
+  if (game === Game.ENSHROUDED) return ENSHROUDED_PORTS;
   return FIXED_PORTS;
 }

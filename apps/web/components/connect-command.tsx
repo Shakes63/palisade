@@ -214,6 +214,33 @@ export function ConnectCommand({
     );
   }
 
+  if (game === Game.ENSHROUDED) {
+    return (
+      <div className={className}>
+        <div className="mb-1 flex items-center gap-1.5 text-xs font-medium text-slate-400">
+          <Terminal className="h-3.5 w-3.5" /> Join by IP (in-game)
+        </div>
+        <CopyRow value={`${hostOr}:${gamePort}`} title="Paste into Enshrouded's Join IP" />
+        <p className="mt-1 text-[11px] leading-snug text-slate-500">
+          In Enshrouded: <span className="font-mono">Play → Server List → Join IP</span>, paste this. Or search
+          the server list by name. Online, friends use your public IP with the same port.
+        </p>
+        {joinPassword && (
+          <div className="mt-3">
+            <div className="mb-1 flex items-center gap-1.5 text-xs font-medium text-slate-400">
+              <Lock className="h-3.5 w-3.5" /> Join password
+            </div>
+            <CopyRow value={joinPassword} title="Copy the join password" />
+            <p className="mt-1 text-[11px] leading-snug text-slate-500">
+              Enter this to join as <span className="text-slate-300">Guest</span>. For admin rights, append{" "}
+              <span className="font-mono">-admin</span> to it.
+            </p>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   if (game === Game.BEDROCK) {
     return (
       <div className={className}>

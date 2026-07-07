@@ -438,6 +438,84 @@ describe("buildContainerSpec (7 Days to Die / vinanrra)", () => {
   });
 });
 
+async function buildEnshrouded(config: ServerConfigValues) {
+  const { buildContainerSpec } = await import("./runtime-spec");
+  const { ENSHROUDED_CATALOG } = await import("../catalog/enshrouded.catalog");
+  return buildContainerSpec({
+    serverId: "srv1",
+    game: Game.ENSHROUDED,
+    map: "Enshrouded",
+    sessionName: "My Enshrouded Server",
+    ports: { game: 15636, rawSocket: 15637, query: 15637, rcon: 0 },
+    maxPlayers: 8,
+    adminPassword: "secret",
+    serverPassword: "hunter2",
+    modIds: [],
+    cluster: null,
+    config,
+    catalog: ENSHROUDED_CATALOG,
+  });
+}
+
+describe("buildContainerSpec (Enshrouded / mornedhels)", () => {
+  it("maps to the mornedhels env contract (2 UDP ports, no RCON, PUID)", async () => {
+    const spec = await buildEnshrouded({ values: {} });
+    expect(spec.Image).toBe("mornedhels/enshrouded-server:latest");
+    const env = envOf(spec);
+    expect(env).toContain("SERVER_NAME=My Enshrouded Server");
+    expect(env).toContain("SERVER_SLOT_COUNT=8");
+    expect(env).toContain("SERVER_QUERYPORT=15637");
+    expect(env).toContain("GAME_BRANCH=public");
+    // game + query are UDP; no RCON/TCP
+    expect(spec.HostConfig?.PortBindings?.["15636/udp"]).toEqual([{ HostPort: "15636" }]);
+    expect(spec.HostConfig?.PortBindings?.["15637/udp"]).toEqual([{ HostPort: "15637" }]);
+    expect(Object.keys(spec.HostConfig?.PortBindings ?? {}).some((k) => k.endsWith("/tcp"))).toBe(false);
+    // the game install + savegame bound at /opt/enshrouded
+    const binds = spec.HostConfig?.Binds ?? [];
+    expect(binds.some((b) => b.endsWith(":/opt/enshrouded"))).toBe(true);
+  });
+
+  it("derives three role passwords from the join password (unique, suffixed)", async () => {
+    const env = envOf(await buildEnshrouded({ values: {} }));
+    // Guest = plain join password; Admin/Friend suffixed so all three are unique.
+    expect(env).toContain("SERVER_ROLE_2_NAME=Guest");
+    expect(env).toContain("SERVER_ROLE_2_PASSWORD=hunter2");
+    expect(env).toContain("SERVER_ROLE_0_NAME=Admin");
+    expect(env).toContain("SERVER_ROLE_0_PASSWORD=hunter2-admin");
+    expect(env).toContain("SERVER_ROLE_1_PASSWORD=hunter2-friend");
+    expect(env).toContain("SERVER_ROLE_0_CAN_KICK_BAN=true");
+    expect(env).toContain("SERVER_ROLE_2_CAN_KICK_BAN=false");
+  });
+
+  it("caps SERVER_SLOT_COUNT at Enshrouded's max of 16", async () => {
+    const { buildContainerSpec } = await import("./runtime-spec");
+    const { ENSHROUDED_CATALOG } = await import("../catalog/enshrouded.catalog");
+    const spec = buildContainerSpec({
+      serverId: "srv1",
+      game: Game.ENSHROUDED,
+      map: "Enshrouded",
+      sessionName: "Big",
+      ports: { game: 15636, rawSocket: 15637, query: 15637, rcon: 0 },
+      maxPlayers: 64,
+      adminPassword: "secret",
+      serverPassword: "hunter2",
+      modIds: [],
+      cluster: null,
+      config: { values: {} },
+      catalog: ENSHROUDED_CATALOG,
+    });
+    expect(envOf(spec)).toContain("SERVER_SLOT_COUNT=16");
+  });
+
+  it("passes catalog chat settings through (bools as true/false)", async () => {
+    const env = envOf(
+      await buildEnshrouded({ values: { SERVER_ENABLE_TEXT_CHAT: true, SERVER_VOICE_CHAT_MODE: "Global" } }),
+    );
+    expect(env).toContain("SERVER_ENABLE_TEXT_CHAT=true");
+    expect(env).toContain("SERVER_VOICE_CHAT_MODE=Global");
+  });
+});
+
 describe("renderSdtdServerXml", () => {
   it("renders first-class fields + telnet + catalog props, escaping values", async () => {
     const { renderSdtdServerXml } = await import("./runtime-spec");

@@ -24,6 +24,7 @@ import {
   VALHEIM_GAME_DIR,
   SEVEN_DAYS_SERVERFILES_DIR,
   SEVEN_DAYS_SAVES_DIR,
+  ENSHROUDED_GAME_DIR,
 } from "../common/images";
 import { ARK_NETWORK, containerName } from "../common/naming";
 import { loadEnv } from "../config/env";
@@ -60,6 +61,7 @@ export function buildContainerSpec(input: RuntimeSpecInput): Docker.ContainerCre
   if (input.game === Game.BEDROCK) return buildBedrockSpec(input);
   if (input.game === Game.VALHEIM) return buildValheimSpec(input);
   if (input.game === Game.SEVEN_DAYS) return buildSevenDaysSpec(input);
+  if (input.game === Game.ENSHROUDED) return buildEnshroudedSpec(input);
   return buildAseSpec(input);
 }
 
@@ -856,6 +858,112 @@ function buildSevenDaysSpec(input: RuntimeSpecInput): Docker.ContainerCreateOpti
     },
     ...(hostNet ? {} : { NetworkingConfig: { EndpointsConfig: { [ARK_NETWORK]: {} } } }),
   };
+}
+
+/**
+ * Enshrouded (mornedhels/enshrouded-server): env-driven, runs the Windows server under
+ * Proton (same family as Icarus). The image installs the game via SteamCMD on boot and
+ * translates env vars into enshrouded_server.json. UDP on 15636 (game) + 15637 (query);
+ * NO RCON. Runs as PUID/PGID (the image chowns its mounts on startup, so the root-owned
+ * instance binds work without a manager-side chown). SERVER_PASSWORD is deprecated — the
+ * join password is role-based, so we define three roles (Admin/Friend/Guest) with unique
+ * passwords derived from the join password (validated >= 5 chars at create).
+ */
+function buildEnshroudedSpec(input: RuntimeSpecInput): Docker.ContainerCreateOptions {
+  const env = loadEnv();
+  const { ports } = input;
+  // Enshrouded caps concurrent players at 16.
+  const slots = Math.min(Math.max(input.maxPlayers, 1), 16);
+
+  const enshroudedEnv = [
+    `TZ=${input.timezone || env.TZ}`,
+    `PUID=${env.PUID}`,
+    `PGID=${env.PGID}`,
+    `SERVER_NAME=${input.sessionName}`,
+    `SERVER_SLOT_COUNT=${slots}`,
+    `SERVER_GAME_PORT=${ports.game}`, // 15636 (also the image default)
+    `SERVER_QUERYPORT=${ports.query}`, // 15637
+    `GAME_BRANCH=public`,
+    ...enshroudedRoleEnv(input),
+    ...enshroudedCatalogEnv(input),
+  ];
+
+  // One bind covers the game install + enshrouded_server.json + the savegame dir
+  // (savegame at /opt/enshrouded/savegame; savedDir(ENSHROUDED) -> gamefiles/savegame).
+  const binds = [`${HostPaths.instanceRoot(input.serverId)}/gamefiles:${ENSHROUDED_GAME_DIR}`];
+
+  const hostNet = env.GAME_HOST_NETWORK;
+  return {
+    name: containerName(input.serverId, input.game, input.sessionName),
+    Image: IMAGES[Game.ENSHROUDED],
+    Hostname: containerName(input.serverId, input.game, input.sessionName),
+    Env: enshroudedEnv,
+    Labels: serverLabels(input, env.PUBLIC_BASE_URL),
+    ...(hostNet
+      ? {}
+      : {
+          ExposedPorts: {
+            [portKey(ports.game, "udp")]: {},
+            [portKey(ports.query, "udp")]: {},
+          },
+        }),
+    HostConfig: {
+      Binds: binds,
+      ...(hostNet
+        ? { NetworkMode: "host" }
+        : {
+            PortBindings: {
+              [portKey(ports.game, "udp")]: [{ HostPort: String(ports.game) }],
+              [portKey(ports.query, "udp")]: [{ HostPort: String(ports.query) }],
+            },
+          }),
+      RestartPolicy: { Name: "no" }, // manager watchdog owns restarts
+      Memory: input.ramLimitMb ? input.ramLimitMb * 1024 * 1024 : undefined,
+      NanoCpus: input.cpuLimit ? Math.round(input.cpuLimit * 1e9) : undefined,
+    },
+    ...(hostNet ? {} : { NetworkingConfig: { EndpointsConfig: { [ARK_NETWORK]: {} } } }),
+  };
+}
+
+/**
+ * Enshrouded's join password is role-based (userGroups in enshrouded_server.json).
+ * The default config ships three password-protected roles, so we overwrite all three
+ * (indices 0/1/2) via the image's SERVER_ROLE_<i>_* env vars with unique passwords
+ * derived from the single join password — leaving no unknown shipped default:
+ *   Guest  (<pw>)        — the everyone password; full co-op build perms.
+ *   Friend (<pw>-friend) — same perms; distinct password.
+ *   Admin  (<pw>-admin)  — the elevated password; can also kick/ban.
+ * Passwords must be unique per role or the server crashes on boot; the suffixes
+ * guarantee that. Booleans emit as true/false.
+ */
+function enshroudedRoleEnv(input: RuntimeSpecInput): string[] {
+  const pw = serverPassword(input);
+  const role = (i: number, name: string, password: string, kickBan: boolean): string[] => [
+    `SERVER_ROLE_${i}_NAME=${name}`,
+    `SERVER_ROLE_${i}_PASSWORD=${password}`,
+    `SERVER_ROLE_${i}_CAN_KICK_BAN=${kickBan ? "true" : "false"}`,
+    `SERVER_ROLE_${i}_CAN_ACCESS_INVENTORIES=true`,
+    `SERVER_ROLE_${i}_CAN_EDIT_BASE=true`,
+    `SERVER_ROLE_${i}_CAN_EXTEND_BASE=true`,
+  ];
+  return [
+    ...role(0, "Admin", `${pw}-admin`, true),
+    ...role(1, "Friend", `${pw}-friend`, false),
+    ...role(2, "Guest", pw, false),
+  ];
+}
+
+/** Enshrouded settings -> mornedhels env vars. Booleans become true/false; empty dropped. */
+function enshroudedCatalogEnv(input: RuntimeSpecInput): string[] {
+  const out: string[] = [];
+  for (const def of input.catalog.settings) {
+    if (def.target !== SettingTarget.Env) continue;
+    const raw = input.config.values?.[def.key] ?? def.default;
+    if (raw === undefined || raw === null || raw === "") continue;
+    const val = typeof raw === "boolean" ? (raw ? "true" : "false") : String(raw);
+    out.push(`${def.emitAs ?? def.key}=${val}`);
+  }
+  return out;
 }
 
 /**

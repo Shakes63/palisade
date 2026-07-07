@@ -21,6 +21,7 @@ import {
   Wrench,
   Sparkles,
   Clock,
+  MessageSquare,
   Map as MapIcon,
   type LucideIcon,
 } from "lucide-react";
@@ -159,6 +160,11 @@ const SEVEN_DAYS_GROUPS: SettingGroup[] = [
   { id: "rates", label: "Rates", Icon: Gauge, cats: ["Rates"] },
 ];
 
+// Enshrouded's small env-driven catalog (difficulty is set in-game) → one tab.
+const ENSHROUDED_GROUPS: SettingGroup[] = [
+  { id: "chat", label: "Chat", Icon: MessageSquare, cats: ["Chat"] },
+];
+
 /**
  * Map-specific categories → fragments of the server's map name they apply to.
  * A setting in one of these only shows when the managed server's map matches,
@@ -211,7 +217,9 @@ export function SettingsForm({
                 ? VALHEIM_GROUPS
                 : game === Game.SEVEN_DAYS
                   ? SEVEN_DAYS_GROUPS
-                  : ARK_GROUPS;
+                  : game === Game.ENSHROUDED
+                    ? ENSHROUDED_GROUPS
+                    : ARK_GROUPS;
   const MAPPED_CATS = new Set(GROUPS.flatMap((g) => g.cats));
 
   // A map-specific category is shown only when the server's map matches it.
