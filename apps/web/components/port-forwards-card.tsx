@@ -16,6 +16,7 @@ interface ForwardStatus {
 interface View {
   configured: boolean;
   targetIp: string | null;
+  wanIp: string | null;
   forwards: ForwardStatus[];
 }
 
@@ -160,7 +161,9 @@ export function PortForwardsCard({ serverId }: { serverId: string }) {
             })}
           </ul>
           <p className="text-[11px] text-slate-500">
-            WAN → {view.targetIp}. Admin ports (RCON/telnet) are deliberately never forwarded.
+            Internet{view.wanIp ? <> (WAN <span className="font-mono text-slate-400">{view.wanIp}</span>)</> : ""} →{" "}
+            <span className="font-mono text-slate-400">{view.targetIp}</span> on your LAN. Friends connect to the
+            WAN address. Admin ports (RCON/telnet) are deliberately never forwarded.
             {fixable === 0 && " All player-facing ports are forwarded."}
           </p>
         </>

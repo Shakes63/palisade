@@ -24,6 +24,8 @@ export interface PortForwardsView {
   /** pfSense host + API key + target IP are all configured. */
   configured: boolean;
   targetIp: string | null;
+  /** The router's public (WAN) address — what friends connect to. */
+  wanIp: string | null;
   forwards: ForwardStatus[];
 }
 
@@ -143,6 +145,27 @@ export class PortForwardsService {
     return res.data ?? [];
   }
 
+  private wanIpCache: { ip: string | null; at: number } | null = null;
+
+  /** The WAN interface's public address (cached 5 min; null on lookup failure). */
+  private async wanIp(cfg: { host: string; apiKey: string }): Promise<string | null> {
+    if (this.wanIpCache && Date.now() - this.wanIpCache.at < 300_000) return this.wanIpCache.ip;
+    let ip: string | null = null;
+    try {
+      const res = await this.api<{ data?: Array<{ name?: string; hwif?: string; ipaddr?: string }> }>(
+        cfg,
+        "GET",
+        "/status/interfaces?limit=0",
+      );
+      const wan = (res.data ?? []).find((i) => (i.name ?? "").toLowerCase() === "wan") ?? res.data?.[0];
+      ip = wan?.ipaddr ?? null;
+    } catch {
+      /* status endpoint unavailable — just omit the WAN ip */
+    }
+    this.wanIpCache = { ip, at: Date.now() };
+    return ip;
+  }
+
   /** The WAN rule matching a forward's port/proto — target-matching rules first. */
   private matchRule(rules: NatRule[], f: ForwardPort, targetIp: string): NatRule | undefined {
     const candidates = rules.filter(
@@ -169,13 +192,15 @@ export class PortForwardsService {
       return {
         configured: false,
         targetIp: null,
+        wanIp: null,
         forwards: spec.map((f) => ({ ...f, state: "missing" as const, ruleId: null })),
       };
     }
-    const rules = await this.rules(cfg);
+    const [rules, wanIp] = await Promise.all([this.rules(cfg), this.wanIp(cfg)]);
     return {
       configured: true,
       targetIp: cfg.targetIp,
+      wanIp,
       forwards: spec.map((f) => {
         const rule = this.matchRule(rules, f, cfg.targetIp);
         const state = this.classify(rule, cfg.targetIp);

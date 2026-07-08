@@ -30,8 +30,9 @@ import { SevenDaysModsTab } from "@/components/sevendays-mods-tab";
 import { ValheimModsTab } from "@/components/valheim-mods-tab";
 import { useStartGuard } from "@/components/start-guard";
 import { BackupsTab } from "@/components/backups-tab";
+import { PlayersTab } from "@/components/players-tab";
 
-const TABS = ["Overview", "Settings", "Mods", "Console", "Logs", "Schedules", "Backups"] as const;
+const TABS = ["Overview", "Settings", "Mods", "Players", "Console", "Logs", "Schedules", "Backups"] as const;
 type Tab = (typeof TABS)[number];
 
 export default function ServerDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -291,6 +292,7 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
       {tab === "Console" && server.game !== Game.ICARUS && (
         <RconConsole serverId={id} game={server.game} state={server.state} />
       )}
+      {tab === "Players" && <PlayersTab serverId={id} />}
       {tab === "Logs" && <LogsTab serverId={id} />}
       {tab === "Schedules" && <ScheduleList serverId={id} />}
       {tab === "Backups" && <BackupsTab serverId={id} />}

@@ -79,6 +79,7 @@ model Server {
   modInstalls ModInstall[]
   schedules   Schedule[]
   snapshots   Snapshot[]
+  sightings   PlayerSighting[]
 
   @@index([clusterId])
 }
@@ -176,4 +177,20 @@ model EventLog {
 
   @@index([serverId])
   @@index([createdAt])
+}
+
+// A player seen on a server (via RCON player lists or join-log parsing). Powers
+// the Players tab: whitelist/ban/admin actions per game.
+model PlayerSighting {
+  id          String   @id @default(cuid())
+  serverId    String
+  server      Server   @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  name        String
+  // Platform id when known: SteamID64, EOS id, Bedrock XUID… (needed for the
+  // id-based access lists; some games only expose names).
+  playerId    String?
+  firstSeenAt DateTime @default(now())
+  lastSeenAt  DateTime @default(now())
+
+  @@unique([serverId, name])
 }

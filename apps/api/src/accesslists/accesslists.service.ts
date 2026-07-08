@@ -121,31 +121,54 @@ export class AccessListsService {
     return join(LocalPaths.instanceRoot(id), "allowlist.json");
   }
 
+  private bedrockPermissions(id: string): string {
+    return join(LocalPaths.instanceRoot(id), "permissions.json");
+  }
+
   private async getBedrock(id: string): Promise<AccessLists> {
-    let entries: string[] = [];
+    let allow: string[] = [];
     try {
-      const raw = JSON.parse(await readFile(this.bedrockAllowlist(id), "utf8")) as {
-        name?: string;
+      const raw = JSON.parse(await readFile(this.bedrockAllowlist(id), "utf8")) as { name?: string }[];
+      allow = raw.map((e) => e.name ?? "").filter(Boolean);
+    } catch {
+      /* missing/invalid — empty */
+    }
+    let ops: string[] = [];
+    try {
+      const raw = JSON.parse(await readFile(this.bedrockPermissions(id), "utf8")) as {
+        permission?: string;
+        xuid?: string;
       }[];
-      entries = raw.map((e) => e.name ?? "").filter(Boolean);
+      ops = raw.filter((e) => e.permission === "operator").map((e) => e.xuid ?? "").filter(Boolean);
     } catch {
       /* missing/invalid — empty */
     }
     return {
       lists: [
         {
+          key: "admins",
+          label: "Operators",
+          hint: "XUIDs (captured automatically when a player joins). Operator = full command access.",
+          entries: ops,
+        },
+        {
           key: "whitelist",
           label: "Allow-list",
-          hint: "Gamertags. Only enforced when the “Use allow-list” server setting is on.",
-          entries,
+          hint: "Gamertags. Only enforced when the \u201cUse allow-list\u201d server setting is on.",
+          entries: allow,
         },
       ],
-      applyNote: "Bedrock reloads allowlist.json live (or on restart on older versions).",
+      applyNote: "Bedrock reloads allowlist.json live; permissions.json applies on restart (or /permission reload).",
     };
   }
 
   private async putBedrock(id: string, key: AccessListKey, entries: string[]): Promise<void> {
-    if (key !== "whitelist") throw new BadRequestException("Bedrock only has the allow-list here");
+    if (key === "admins") {
+      const body = entries.map((xuid) => ({ permission: "operator", xuid }));
+      await writeFile(this.bedrockPermissions(id), JSON.stringify(body, null, 2) + "\n", "utf8");
+      return;
+    }
+    if (key !== "whitelist") throw new BadRequestException("Bedrock has the allow-list and operators here");
     const body = entries.map((name) => ({ ignoresPlayerLimit: false, name }));
     await writeFile(this.bedrockAllowlist(id), JSON.stringify(body, null, 2) + "\n", "utf8");
   }

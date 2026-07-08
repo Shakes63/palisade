@@ -15,6 +15,13 @@ export const LOG_CAPTURE_MAX = 5000;
 export class LogCaptureService {
   private readonly logs = new Map<string, string[]>();
   private readonly console = new Map<string, string[]>();
+  private readonly lineListeners = new Set<(serverId: string, line: string) => void>();
+
+  /** Subscribe to every captured container log line (e.g. join-message parsing).
+   *  Listener errors are swallowed — this sits on the hot log path. */
+  onLine(cb: (serverId: string, line: string) => void): void {
+    this.lineListeners.add(cb);
+  }
 
   private push(map: Map<string, string[]>, id: string, lines: string[]): void {
     const cur = map.get(id) ?? [];
@@ -23,10 +30,17 @@ export class LogCaptureService {
     map.set(id, cur);
   }
 
-  /** A container log line → both the log and console channels. */
+  /** A container log line → both the log and console channels + line listeners. */
   recordLog(id: string, line: string): void {
     this.push(this.logs, id, [line]);
     this.push(this.console, id, [line]);
+    for (const cb of this.lineListeners) {
+      try {
+        cb(id, line);
+      } catch {
+        /* listeners must not break log capture */
+      }
+    }
   }
 
   /** RCON I/O (commands + responses) → the console channel only. */
