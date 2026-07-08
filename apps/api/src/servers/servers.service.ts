@@ -42,7 +42,7 @@ import { LogCaptureService, LOG_CAPTURE_MAX } from "../logs/log-capture.service"
 import { BackupsService } from "../backups/backups.service";
 import { PlayersService } from "../players/players.service";
 import { buildContainerSpec, renderSdtdServerXml } from "./runtime-spec";
-import { portsFor } from "../catalog/ports";
+import { portsFor, serverPortSet } from "../catalog/ports";
 import { LocalPaths } from "../common/paths";
 import { containerName } from "../common/naming";
 import { hostStats } from "../common/host-stats";
@@ -769,6 +769,29 @@ export class ServersService implements OnApplicationBootstrap {
     );
   }
 
+  /**
+   * Throw a 409 if any of this server's host ports are already bound by another
+   * live server (Running/Starting/Stopping — its ports are still held until the
+   * teardown finishes). Compares full port sets, so it catches same-game servers
+   * sharing the fixed block AND cross-game collisions from manual port edits.
+   */
+  private async assertPortsFree(server: ServerRow): Promise<void> {
+    const mine = serverPortSet(server.game as Game, this.portsOf(server) ?? DEFAULT_PORTS);
+    const live = await this.prisma.server.findMany({
+      where: { state: { in: LIVE_STATES }, id: { not: server.id } },
+    });
+    for (const other of live) {
+      const theirs = serverPortSet(other.game as Game, this.portsOf(other) ?? DEFAULT_PORTS);
+      const clash = [...mine].filter((p) => theirs.has(p));
+      if (clash.length > 0) {
+        throw new ConflictException(
+          `Port conflict: ${clash.join(", ")} ${clash.length === 1 ? "is" : "are"} already in use by ` +
+            `running server "${other.name}". Stop it first, or change one server's ports (Overview → Ports).`,
+        );
+      }
+    }
+  }
+
   private async doStart(id: string): Promise<void> {
     const server = (await this.prisma.server.findUnique({
       where: { id },
@@ -779,6 +802,12 @@ export class ServersService implements OnApplicationBootstrap {
     if (![ServerState.Stopped, ServerState.Crashed].includes(state)) {
       throw new BadRequestException(`Cannot start from state ${state}`);
     }
+    // Same-family servers share one fixed port block by design ("one at a time"),
+    // so starting a second one while the first is up would fail with a cryptic
+    // Docker bind error (bridge) or clash on the host (host networking). Catch it
+    // up front with a clear message instead. Not bypassed by force — that flag is
+    // for the RAM guard; a port clash can never work.
+    await this.assertPortsFree(server);
 
     await this.sm.transition(id, ServerState.Starting);
     try {

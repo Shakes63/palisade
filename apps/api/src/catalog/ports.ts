@@ -69,6 +69,19 @@ export const SEVEN_DAYS_PORTS: PortSet = { game: 26900, rawSocket: 26901, query:
  */
 export const ENSHROUDED_PORTS: PortSet = { game: 15636, rawSocket: 15637, query: 15637, rcon: 0 };
 
+/**
+ * Every host port a server binds (skipping unused 0 slots — e.g. rcon on no-RCON
+ * games). Valheim also binds its HTTP status endpoint on game + 3, and Minecraft's
+ * query column mirrors the game port (the set dedupes it). Used by the start-time
+ * port-conflict guard.
+ */
+export function serverPortSet(game: Game, ports: PortSet): Set<number> {
+  const set = new Set<number>();
+  for (const p of [ports.game, ports.rawSocket, ports.query, ports.rcon]) if (p > 0) set.add(p);
+  if (game === Game.VALHEIM) set.add(ports.game + 3); // STATUS_HTTP (player counts)
+  return set;
+}
+
 /** The fixed port block a new server gets, by game. */
 export function portsFor(game: Game): PortSet {
   if (game === Game.MINECRAFT) return MINECRAFT_PORTS;
