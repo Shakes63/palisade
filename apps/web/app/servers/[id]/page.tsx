@@ -322,7 +322,9 @@ function DeleteConfirm({
   const [downloading, setDownloading] = useState(false);
   const [downloaded, setDownloaded] = useState(false);
   const [dlError, setDlError] = useState<string | null>(null);
-  const armed = typed.trim() === server.name.trim();
+  // Case-insensitive: the confirm is friction against accidents, not a password —
+  // and label styling must never be able to make the shown name untypeable again.
+  const armed = typed.trim().toLowerCase() === server.name.trim().toLowerCase();
   const isLive = server.state === ServerState.Running || server.state === ServerState.Starting;
 
   const download = async () => {
@@ -398,7 +400,8 @@ function DeleteConfirm({
         {dlError && <p className="mt-1.5 text-xs text-rose-400">{dlError}</p>}
 
         <label className="label mt-4">
-          Type <span className="font-mono text-slate-200">{server.name}</span> to confirm
+          {/* normal-case: .label is uppercase, which would render the name wrong */}
+          Type <span className="font-mono normal-case text-slate-200">{server.name}</span> to confirm
         </label>
         <input
           autoFocus
