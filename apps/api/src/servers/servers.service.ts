@@ -40,6 +40,7 @@ import { StateMachineService } from "./state-machine.service";
 import { ManagerSettingsService, SettingKeys } from "../manager-settings/manager-settings.service";
 import { LogCaptureService, LOG_CAPTURE_MAX } from "../logs/log-capture.service";
 import { BackupsService } from "../backups/backups.service";
+import { PlayersService } from "../players/players.service";
 import { buildContainerSpec, renderSdtdServerXml } from "./runtime-spec";
 import { portsFor } from "../catalog/ports";
 import { LocalPaths } from "../common/paths";
@@ -153,6 +154,7 @@ export class ServersService implements OnApplicationBootstrap {
     private readonly settings: ManagerSettingsService,
     private readonly logCapture: LogCaptureService,
     private readonly backups: BackupsService,
+    private readonly players: PlayersService,
   ) {}
 
   /** The captured log / console for the current run (survives refresh + tab
@@ -307,6 +309,11 @@ export class ServersService implements OnApplicationBootstrap {
     return { ...serverStats, host };
   }
 
+  /** Whole-machine stats (dashboard disk-space warning). */
+  hostStats() {
+    return hostStats(loadEnv().DATA_DIR);
+  }
+
   /** Stats for every server, keyed by id (for the servers list). */
   async statsAll(): Promise<ServerStatsById[]> {
     const servers = await this.prisma.server.findMany({ select: { id: true, containerId: true } });
@@ -320,12 +327,17 @@ export class ServersService implements OnApplicationBootstrap {
    *  returns null when the container isn't actually up. */
   private async statsFor(serverId: string, containerId: string | null): Promise<ServerStats> {
     const live = containerId ? await this.docker.stats(containerId) : null;
+    // Player counts come from PlayersService's short-TTL cache, so polling every 5 s
+    // only actually queries the game server every ~20 s.
+    const players = live ? await this.players.count(serverId) : null;
     return {
       live: !!live,
       cpuPercent: live?.cpuPercent ?? null,
       memUsedMb: live?.memUsedMb ?? null,
       memLimitMb: live?.memLimitMb ?? null,
       diskUsedMb: this.diskUsedMb(serverId),
+      playersOnline: players?.online ?? null,
+      playersMax: players?.max ?? null,
     };
   }
 
@@ -465,6 +477,43 @@ export class ServersService implements OnApplicationBootstrap {
     if (dto.maxPlayers !== undefined && dto.maxPlayers !== existing.maxPlayers) {
       data.maxPlayers = dto.maxPlayers;
       launchChanged = true;
+    }
+    // Ports: editable only while the server is down (they're baked into the container
+    // port bindings + rendered configs). Changing the game port also moves its
+    // derived siblings — the raw-socket slot, and the query port on games where the
+    // engine fixes it relative to the game port (Valheim +1, 7DTD +2).
+    {
+      const ports: Record<string, number> = {};
+      if (dto.gamePort !== undefined && dto.gamePort !== existing.gamePort) {
+        const g = dto.gamePort;
+        ports.gamePort = g;
+        const game = existing.game as Game;
+        if (game === Game.VALHEIM) {
+          ports.queryPort = g + 1;
+          ports.rawSocketPort = g + 2; // crossplay backend
+        } else if (game === Game.SEVEN_DAYS) {
+          ports.rawSocketPort = g + 1;
+          ports.queryPort = g + 2;
+        } else if (game === Game.MINECRAFT) {
+          ports.queryPort = g; // Java has no separate query; column mirrors the game port
+          ports.rawSocketPort = g + 1;
+        } else {
+          ports.rawSocketPort = g + 1;
+        }
+      }
+      // Explicit query/rcon edits override any derived value above.
+      if (dto.queryPort !== undefined && dto.queryPort !== existing.queryPort) ports.queryPort = dto.queryPort;
+      if (dto.rconPort !== undefined && dto.rconPort !== existing.rconPort) ports.rconPort = dto.rconPort;
+      if (Object.keys(ports).length > 0) {
+        if (![ServerState.Stopped, ServerState.Crashed].includes(existing.state as ServerState)) {
+          throw new BadRequestException("Stop the server before changing its ports.");
+        }
+        for (const v of Object.values(ports)) {
+          if (v < 1024 || v > 65535) throw new BadRequestException(`Port ${v} is out of range (1024–65535).`);
+        }
+        Object.assign(data, ports);
+        launchChanged = true;
+      }
     }
     if (dto.clusterId !== undefined && dto.clusterId !== existing.clusterId) {
       data.clusterId = dto.clusterId;
@@ -701,13 +750,21 @@ export class ServersService implements OnApplicationBootstrap {
     } satisfies InsufficientRamInfo);
   }
 
-  /** Currently-running servers with their live RAM, for the start-guard dialog. */
+  /** Currently-running servers with their live RAM + players, for the start-guard
+   *  dialog (so stopping one shows who'd be interrupted). */
   private async runningServersRam(): Promise<RunningServerRam[]> {
     const rows = await this.prisma.server.findMany({ where: { state: { in: LIVE_STATES } } });
     return Promise.all(
       rows.map(async (r) => {
         const st = r.containerId ? await this.docker.stats(r.containerId).catch(() => null) : null;
-        return { id: r.id, name: r.name, game: r.game as Game, ramUsedMb: st?.memUsedMb ?? null };
+        const players = await this.players.count(r.id).catch(() => null);
+        return {
+          id: r.id,
+          name: r.name,
+          game: r.game as Game,
+          ramUsedMb: st?.memUsedMb ?? null,
+          playersOnline: players?.online ?? null,
+        };
       }),
     );
   }
@@ -1167,7 +1224,8 @@ export class ServersService implements OnApplicationBootstrap {
       configDirty: row.configDirty,
       joinPassword,
       hasAdminPassword: Boolean(row.adminPasswordEnc),
-      playersOnline: null,
+      // Cached only — summaries are hot; the stats poll keeps the cache warm.
+      playersOnline: this.players.cached(row.id)?.online ?? null,
       maxPlayers: row.maxPlayers,
       modIds: JSON.parse(row.modIds) as number[],
       ramLimitMb: row.ramLimitMb,

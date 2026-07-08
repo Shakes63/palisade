@@ -118,6 +118,8 @@ model Schedule {
   action      String // restart | update | backup | stop | start
   warnMinutes Int       @default(10)
   enabled     Boolean   @default(true)
+  // Skip disruptive actions (restart/update/stop) while players are online.
+  skipIfPlayersOnline Boolean @default(false)
   lastRunAt   DateTime?
   // Set for ONE-TIME schedules: the absolute instant to fire once. When non-null,
   // `cron` is ignored for scheduling — a poll fires it (and catches up if the

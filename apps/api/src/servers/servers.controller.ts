@@ -52,6 +52,13 @@ export class ServersController {
     return this.servers.statsAll();
   }
 
+  /** Whole-machine stats (for the dashboard disk-space warning). Must also
+   *  precede @Get(":id"). */
+  @Get("host")
+  host() {
+    return this.servers.hostStats();
+  }
+
   @Get(":id")
   get(@Param("id") id: string) {
     return this.servers.get(id);

@@ -11,6 +11,7 @@ interface Schedule {
   action: string;
   warnMinutes: number;
   enabled: boolean;
+  skipIfPlayersOnline: boolean;
   lastRunAt: string | null;
   runAt: string | null;
 }
@@ -42,6 +43,7 @@ export function ScheduleList({ serverId }: { serverId: string }) {
   const [intervalHours, setIntervalHours] = useState(6);
   const [minute, setMinute] = useState(0);
   const [warnMinutes, setWarnMinutes] = useState(10);
+  const [skipIfPlayersOnline, setSkipIfPlayersOnline] = useState(false);
   const [name, setName] = useState("");
   const [onceAt, setOnceAt] = useState("");
 
@@ -88,6 +90,7 @@ export function ScheduleList({ serverId }: { serverId: string }) {
         action,
         warnMinutes: disruptive ? Number(warnMinutes) : 0,
         enabled: true,
+        skipIfPlayersOnline: disruptive ? skipIfPlayersOnline : false,
         ...(runAt ? { runAt } : {}),
       });
       setName("");
@@ -215,20 +218,36 @@ export function ScheduleList({ serverId }: { serverId: string }) {
         </div>
 
         {disruptive && (
-          <div className="max-w-xs">
-            <label className="label">Warn players (minutes)</label>
-            <input
-              type="number"
-              min={0}
-              max={60}
-              className="input w-24"
-              value={warnMinutes}
-              onChange={(e) => setWarnMinutes(Math.max(0, Number(e.target.value)))}
-            />
-            <p className="mt-1 text-xs text-slate-500">
-              In-game countdown chat to players before it runs (one message per minute). A backup is
-              also taken first. 0 = no warning.
-            </p>
+          <div className="space-y-3">
+            <div className="max-w-xs">
+              <label className="label">Warn players (minutes)</label>
+              <input
+                type="number"
+                min={0}
+                max={60}
+                className="input w-24"
+                value={warnMinutes}
+                onChange={(e) => setWarnMinutes(Math.max(0, Number(e.target.value)))}
+              />
+              <p className="mt-1 text-xs text-slate-500">
+                In-game countdown chat to players before it runs (one message per minute). A backup is
+                also taken first. 0 = no warning.
+              </p>
+            </div>
+            <label className="flex cursor-pointer items-start gap-2">
+              <input
+                type="checkbox"
+                className="mt-0.5 h-4 w-4 accent-ark-accent"
+                checked={skipIfPlayersOnline}
+                onChange={(e) => setSkipIfPlayersOnline(e.target.checked)}
+              />
+              <span className="text-sm text-slate-300">
+                Skip while players are online
+                <span className="block text-xs text-slate-500">
+                  A recurring schedule just tries again next time; a one-time schedule is consumed.
+                </span>
+              </span>
+            </label>
           </div>
         )}
 
@@ -269,6 +288,7 @@ export function ScheduleList({ serverId }: { serverId: string }) {
                     {actionLabel(s.action)} ·{" "}
                     {s.runAt ? `Once · ${fmtLocal(s.runAt)}` : describeCron(s.cron)}
                     {s.warnMinutes ? ` · warn ${s.warnMinutes}m` : ""}
+                    {s.skipIfPlayersOnline ? " · skips if players online" : ""}
                     {s.lastRunAt ? ` · last ${new Date(s.lastRunAt).toLocaleString()}` : ""}
                   </div>
                 </div>

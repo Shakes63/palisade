@@ -8,6 +8,7 @@ import { RconService } from "../rcon/rcon.service";
 import { InstallerService } from "../installer/installer.service";
 import { BackupsService } from "../backups/backups.service";
 import { ManagerSettingsService } from "../manager-settings/manager-settings.service";
+import { PlayersService } from "../players/players.service";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -29,6 +30,7 @@ export class SchedulerService implements OnModuleInit {
     private readonly installer: InstallerService,
     private readonly backups: BackupsService,
     private readonly settings: ManagerSettingsService,
+    private readonly players: PlayersService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -123,6 +125,19 @@ export class SchedulerService implements OnModuleInit {
 
     const disruptive = ["restart", "update", "stop"].includes(sched.action);
     try {
+      if (disruptive && sched.skipIfPlayersOnline) {
+        // Don't interrupt a live session: skip this firing when anyone is online.
+        // Recurring schedules just try again next time; a one-shot is consumed.
+        const players = await this.players.count(sched.serverId).catch(() => null);
+        if ((players?.online ?? 0) > 0) {
+          await this.events.emit({
+            type: EventType.ScheduleFired,
+            message: `Schedule "${sched.name}" skipped — ${players!.online} player${players!.online === 1 ? "" : "s"} online`,
+            serverId: sched.serverId,
+          });
+          return;
+        }
+      }
       if (disruptive) {
         await this.warnCountdown(sched.serverId, sched.warnMinutes);
         await this.backups.create(sched.serverId, `pre-${sched.action}`).catch(() => undefined);

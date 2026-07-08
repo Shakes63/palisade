@@ -15,6 +15,8 @@ import { CopyMenu } from "@/components/copy-menu";
 import { RconConsole } from "@/components/rcon-console";
 import { ResourcesPanel } from "@/components/resources-panel";
 import { ServerAccessCard } from "@/components/server-access-card";
+import { AccessListsCard } from "@/components/access-lists-card";
+import { PortsCard } from "@/components/ports-card";
 import { LogsTab } from "@/components/logs-tab";
 import { ScheduleList } from "@/components/schedule-list";
 import { ModsTab } from "@/components/mods-tab";
@@ -484,6 +486,9 @@ function Overview({ server, onChanged }: { server: ServerSummary; onChanged: () 
         />
       </div>
       <ServerAccessCard server={server} onSaved={onChanged} />
+      <PortsCard server={server} onSaved={onChanged} />
+      {/* File-managed access lists (Valheim/Bedrock/7DTD); RCON games use the Console. */}
+      {(isValheim || isBedrock || isSdtd) && <AccessListsCard serverId={server.id} />}
     </div>
   );
 }

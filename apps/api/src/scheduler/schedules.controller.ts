@@ -10,6 +10,8 @@ class ScheduleBody {
   @IsIn(["restart", "update", "backup", "stop", "start"]) action!: string;
   @IsOptional() @IsInt() @Min(0) warnMinutes?: number;
   @IsOptional() @IsBoolean() enabled?: boolean;
+  /** Skip disruptive actions (restart/update/stop) while players are online. */
+  @IsOptional() @IsBoolean() skipIfPlayersOnline?: boolean;
   /** Set for a ONE-TIME schedule: ISO instant to fire once (cron then ignored). */
   @IsOptional() @IsDateString() runAt?: string;
 }
@@ -39,6 +41,7 @@ export class SchedulesController {
         action: body.action,
         warnMinutes: body.warnMinutes ?? 10,
         enabled: body.enabled ?? true,
+        skipIfPlayersOnline: body.skipIfPlayersOnline ?? false,
         runAt: body.runAt ? new Date(body.runAt) : null,
       },
     });

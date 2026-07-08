@@ -1,8 +1,9 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { cp, mkdir, readdir, rm, stat } from "node:fs/promises";
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
+import type { Readable } from "node:stream";
 import { promisify } from "node:util";
-import { join, dirname, relative, sep } from "node:path";
+import { basename, join, dirname, relative, sep } from "node:path";
 import { ServerState, EventType, Game } from "@ark/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { EventsService } from "../events/events.service";
@@ -100,6 +101,77 @@ export class BackupsService {
     });
     await this.applyRetention(serverId);
     return snapshot;
+  }
+
+  /** Stream a snapshot as a tar.gz for a browser download (spawned tar; the
+   *  manager runs as root so it can read game-owned files). */
+  async download(serverId: string, snapshotId: string): Promise<{ stream: Readable; filename: string }> {
+    const snap = await this.prisma.snapshot.findUnique({ where: { id: snapshotId } });
+    if (!snap || snap.serverId !== serverId) throw new NotFoundException("Backup not found");
+    if (!(await this.exists(snap.path))) throw new NotFoundException("Backup files are missing on disk");
+    const tar = spawn("tar", ["czf", "-", "-C", snap.path, "."]);
+    tar.on("error", (e) => this.logger.warn(`Backup download tar failed: ${e.message}`));
+    tar.stderr.on("data", (d: Buffer) => this.logger.warn(`tar: ${d.toString().trim()}`));
+    return { stream: tar.stdout, filename: `${basename(snap.path)}.tar.gz` };
+  }
+
+  /**
+   * Import a saves archive uploaded through the browser (the tar.gz format our
+   * save/backup downloads produce — instance-relative subpaths like
+   * `config/worlds_local/…`). Extracts to a temp dir first, then restores ONLY the
+   * game's known save subpaths (so a crafted archive can't write outside them).
+   * Server must be stopped; the current state is snapshotted first so it's
+   * reversible.
+   */
+  async importSaves(serverId: string, filename: string, data: Buffer) {
+    const server = await this.prisma.server.findUnique({ where: { id: serverId } });
+    if (!server) throw new NotFoundException("Server not found");
+    if (![ServerState.Stopped, ServerState.Crashed].includes(server.state as ServerState)) {
+      throw new BadRequestException("Stop the server before importing saves");
+    }
+    if (!/\.(tar\.gz|tgz)$/i.test(filename)) {
+      throw new BadRequestException("Upload a .tar.gz saves archive (as produced by Download)");
+    }
+    const game = server.game as Game;
+    const root = LocalPaths.instanceRoot(serverId);
+    const tmp = join(loadEnv().DATA_DIR, `.saves-import-${serverId}-${Date.now()}`);
+    await mkdir(tmp, { recursive: true });
+    try {
+      const archive = join(tmp, "upload.tar.gz");
+      const { writeFile } = await import("node:fs/promises");
+      await writeFile(archive, data);
+      const extractDir = join(tmp, "x");
+      await mkdir(extractDir, { recursive: true });
+      await execFileP("tar", ["xzf", archive, "-C", extractDir]);
+
+      const subs = LocalPaths.saveSubpaths(game);
+      const present: string[] = [];
+      for (const sub of subs) if (await this.exists(join(extractDir, sub))) present.push(sub);
+      if (present.length === 0) {
+        throw new BadRequestException(
+          `The archive has none of this game's save folders (expected ${subs.join(", ")}).`,
+        );
+      }
+
+      // Reversible: snapshot the current saves before replacing them.
+      await this.create(serverId, "pre-import").catch(() => undefined);
+      const [uid, gid] = this.runtimeOwner(game);
+      for (const sub of present) {
+        const dest = join(root, sub);
+        await rm(dest, { recursive: true, force: true });
+        await mkdir(dirname(dest), { recursive: true });
+        await cp(join(extractDir, sub), dest, { recursive: true });
+        await execFileP("chown", ["-R", `${uid}:${gid}`, dest]).catch(() => undefined);
+      }
+      await this.events.emit({
+        type: EventType.BackupCreated,
+        message: `Imported saves from upload (${present.join(", ")})`,
+        serverId,
+      });
+      return { imported: present };
+    } finally {
+      await rm(tmp, { recursive: true, force: true }).catch(() => undefined);
+    }
   }
 
   /** Restore a backup over the instance Saved dir. Server must be stopped. */

@@ -16,6 +16,7 @@ import { IcarusModsModule } from "./icarusmods/icarusmods.module";
 import { BedrockModsModule } from "./bedrockmods/bedrockmods.module";
 import { SevenDaysModsModule } from "./sevendaysmods/sevendaysmods.module";
 import { ValheimModsModule } from "./valheimmods/valheimmods.module";
+import { AccessListsModule } from "./accesslists/accesslists.module";
 import { ClustersModule } from "./clusters/clusters.module";
 import { BackupsModule } from "./backups/backups.module";
 import { NotificationsModule } from "./notifications/notifications.module";
@@ -46,6 +47,7 @@ import { HealthController } from "./health/health.controller";
     BedrockModsModule,
     SevenDaysModsModule,
     ValheimModsModule,
+    AccessListsModule,
     ClustersModule,
     BackupsModule,
     NotificationsModule,

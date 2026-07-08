@@ -45,6 +45,9 @@ export interface ServerStats {
   memUsedMb: number | null;
   memLimitMb: number | null;
   diskUsedMb: number | null;
+  /** Live player count (A2S / RakNet / RCON, game-appropriate); null when unknown. */
+  playersOnline: number | null;
+  playersMax: number | null;
 }
 
 /** Batch stats keyed by server id (for the servers list). */
@@ -56,6 +59,8 @@ export interface RunningServerRam {
   name: string;
   game: Game;
   ramUsedMb: number | null;
+  /** Who'd be interrupted by stopping this server (null = unknown). */
+  playersOnline: number | null;
 }
 
 /** 409 body when a start would exceed free host RAM. The UI offers to stop one of
@@ -100,7 +105,13 @@ export interface CreateServerDto {
   config?: ServerConfigValues;
 }
 
-export type UpdateServerDto = Partial<CreateServerDto>;
+export type UpdateServerDto = Partial<CreateServerDto> & {
+  /** Editable only while the server is stopped. Sibling ports (raw socket, and the
+   *  query port on games where it's game-port-derived) follow automatically. */
+  gamePort?: number;
+  queryPort?: number;
+  rconPort?: number;
+};
 
 /** A user-defined settings preset, persisted in the manager DB and reusable
  *  across servers of the same game (alongside the built-in SETTINGS_PRESETS). */

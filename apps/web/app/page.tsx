@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
   Plus, Play, Square, Download, Settings2, Boxes, Loader2, RotateCw,
-  Cpu, MemoryStick, HardDrive,
+  Cpu, MemoryStick, HardDrive, Users,
 } from "lucide-react";
 import {
   Game,
@@ -26,6 +26,7 @@ import {
   mapLabel,
   type ServerSummary,
   type ServerStatsById,
+  type HostStats,
 } from "@ark/shared";
 import { apiGet, apiPost } from "@/lib/api";
 import { useRealtime } from "@/lib/socket";
@@ -46,6 +47,7 @@ export default function DashboardPage() {
   const [creating, setCreating] = useState(false);
   const [pending, setPending] = useState<Record<string, "install" | "start" | "stop" | "restart">>({});
   const [stats, setStats] = useState<Record<string, ServerStatsById>>({});
+  const [host, setHost] = useState<HostStats | null>(null);
 
   const refresh = useCallback(() => {
     apiGet<ServerSummary[]>("/servers").then(setServers).catch(() => undefined);
@@ -59,6 +61,17 @@ export default function DashboardPage() {
   useRealtime((msg) => {
     if (msg.topic === "server.state" || msg.topic === "event") refresh();
   });
+
+  // Host disk-space check (backups + 17 GB installs eventually fill the pool) —
+  // a slow signal, refreshed every 60 s.
+  useEffect(() => {
+    const tick = () => apiGet<HostStats>("/servers/host").then(setHost).catch(() => undefined);
+    void tick();
+    const id = setInterval(tick, 60_000);
+    return () => clearInterval(id);
+  }, []);
+  const diskLow =
+    host && host.diskTotalMb > 0 && (host.diskFreeMb / host.diskTotalMb < 0.1 || host.diskFreeMb < 20_480);
 
   // Live per-card resource numbers; poll while the tab is visible.
   useEffect(() => {
@@ -110,6 +123,16 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       {startDialog}
+      {diskLow && host && (
+        <div className="flex items-center gap-2 rounded-md border border-amber-500/40 bg-amber-950/30 px-3 py-2 text-sm text-amber-300">
+          <HardDrive className="h-4 w-4 shrink-0" />
+          <span>
+            Low disk space: <span className="font-semibold">{(host.diskFreeMb / 1024).toFixed(1)} GB</span>{" "}
+            free of {(host.diskTotalMb / 1024).toFixed(0)} GB. Prune old backups or unused game installs
+            before installing more servers.
+          </span>
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Servers</h1>
         <button className="btn-primary" onClick={() => setCreating((v) => !v)}>
@@ -415,9 +438,19 @@ function MiniStats({ s }: { s?: ServerStatsById }) {
   const u = (mb: number | null) => (mb == null ? "" : mb >= 1024 ? `${(mb / 1024).toFixed(1)}G` : `${mb}M`);
   const cpu = s.live && s.cpuPercent != null;
   const mem = s.live && s.memUsedMb != null;
-  if (!cpu && !mem && s.diskUsedMb == null) return null;
+  const players = s.live && s.playersOnline != null;
+  if (!cpu && !mem && !players && s.diskUsedMb == null) return null;
   return (
     <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
+      {players && (
+        <span
+          className={`inline-flex items-center gap-1 ${s.playersOnline! > 0 ? "font-medium text-ark-accent" : ""}`}
+          title="Players online"
+        >
+          <Users className="h-3 w-3" /> {s.playersOnline}
+          {s.playersMax != null ? `/${s.playersMax}` : ""}
+        </span>
+      )}
       {cpu && (
         <span className="inline-flex items-center gap-1" title="CPU">
           <Cpu className="h-3 w-3" /> {s.cpuPercent}%

@@ -166,6 +166,15 @@ export class RconService {
         .map((l) => l.match(/^\s*\d+\.\s*id=\S+?,\s*([^,]+?),/i)?.[1]?.trim())
         .filter((n): n is string => Boolean(n));
     }
+    // Palworld `ShowPlayers` → CSV with a "name,playeruid,steamid" header row.
+    if (game === Game.PALWORLD) {
+      const out = await this.exec(serverId, "ShowPlayers");
+      return out
+        .split("\n")
+        .slice(1) // drop the header
+        .map((l) => l.split(",")[0]?.trim())
+        .filter((n): n is string => Boolean(n));
+    }
     const out = await this.exec(serverId, "ListPlayers");
     if (/no players/i.test(out)) return [];
     return out

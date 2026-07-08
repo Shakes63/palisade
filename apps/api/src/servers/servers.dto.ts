@@ -32,6 +32,9 @@ export class UpdateServerBody {
   @IsOptional() @IsString() name?: string;
   @IsOptional() @IsString() map?: string;
   @IsOptional() @IsInt() @Min(1) maxPlayers?: number;
+  @IsOptional() @IsInt() @Min(1024) gamePort?: number;
+  @IsOptional() @IsInt() @Min(1024) queryPort?: number;
+  @IsOptional() @IsInt() @Min(1024) rconPort?: number;
   @IsOptional() @IsString() clusterId?: string | null;
   @IsOptional() @IsArray() modIds?: number[];
   @IsOptional() @IsInt() @Min(512) ramLimitMb?: number;

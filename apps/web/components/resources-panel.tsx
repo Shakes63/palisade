@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Cpu, MemoryStick, HardDrive } from "lucide-react";
+import { Cpu, MemoryStick, HardDrive, Users } from "lucide-react";
 import { ServerState, type ServerStatsDetail } from "@ark/shared";
 import { apiGet } from "@/lib/api";
 
@@ -55,7 +55,13 @@ export function ResourcesPanel({ serverId, state }: { serverId: string; state: S
         <h3 className="text-sm font-semibold text-slate-300">Resources</h3>
         {liveState && <span className="text-xs text-slate-500">live · every {POLL_MS / 1000}s</span>}
       </div>
-      <div className="grid gap-5 sm:grid-cols-3">
+      <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+        <Metric
+          icon={<Users className="h-4 w-4" />}
+          label="Players online"
+          value={live && stats?.playersOnline != null ? String(stats.playersOnline) : "—"}
+          sub={stats?.playersMax != null ? `of ${stats.playersMax} slots` : undefined}
+        />
         <Metric
           icon={<Cpu className="h-4 w-4" />}
           label="CPU (this server)"

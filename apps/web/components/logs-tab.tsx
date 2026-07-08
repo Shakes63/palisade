@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { RefreshCw, ScrollText, Filter } from "lucide-react";
+import { RefreshCw, ScrollText, Filter, Download } from "lucide-react";
 import { apiGet } from "@/lib/api";
 import { useRealtime } from "@/lib/socket";
 import { isEngineNoise } from "@/lib/log-noise";
@@ -45,6 +45,20 @@ export function LogsTab({ serverId }: { serverId: string }) {
   };
   useEffect(load, [serverId]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Save the captured log as a text file through the browser (client-side blob —
+  // the lines are already in memory).
+  const downloadLog = () => {
+    const blob = new Blob([lines.join("\n")], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `server-${serverId.slice(-6)}-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.log`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
   // Append live lines; only auto-scroll when already at the bottom.
   useRealtime((msg) => {
     if (msg.serverId === serverId && msg.topic === "server.log") {
@@ -66,6 +80,9 @@ export function LogsTab({ serverId }: { serverId: string }) {
         >
           <Filter className="h-4 w-4" />
           {hideNoise ? `Engine noise hidden${hidden ? ` (${hidden})` : ""}` : "Hide engine noise"}
+        </button>
+        <button className="btn-secondary" onClick={downloadLog} disabled={lines.length === 0} title="Save the captured log as a .log file">
+          <Download className="h-4 w-4" /> Download
         </button>
         <span className="flex items-center gap-1 text-xs text-slate-500">
           <ScrollText className="h-3.5 w-3.5" /> Full log of the current run — kept until the next Start.
