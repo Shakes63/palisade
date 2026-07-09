@@ -66,6 +66,10 @@ export const LocalPaths = {
         // The mornedhels image installs the game under /opt/enshrouded/server, so the
         // savegame lands at server/savegame inside the gamefiles bind (verified live).
         return ["gamefiles/server/savegame"];
+      case Game.ZOMBOID:
+        // The Zomboid data bind: world saves, the server ini/sandbox configs, and the
+        // player-accounts database. (Workshop mod downloads + logs are skipped.)
+        return ["data/Saves", "data/Server", "data/db"];
       default:
         return ["ShooterGame/Saved"]; // ASA (POK)
     }

@@ -91,6 +91,7 @@ model Mod {
   remoteId     String // CurseForge project id / Workshop file id
   name         String
   thumbnailUrl String?
+  extra        String? // per-game extras JSON (e.g. Zomboid's {"pzModIds":[...]})
 
   installs ModInstall[]
 

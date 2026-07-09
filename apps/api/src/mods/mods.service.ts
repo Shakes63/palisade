@@ -4,6 +4,21 @@ import { PrismaService } from "../prisma/prisma.service";
 import { EventsService } from "../events/events.service";
 import { ManagerSettingsService, SettingKeys } from "../manager-settings/manager-settings.service";
 import { CurseForgeService } from "./curseforge.service";
+import { SteamService } from "./steam.service";
+
+/**
+ * Parse Project Zomboid's in-game "Mod ID" names out of a Workshop description
+ * (the convention is a "Mod ID: <name>" line; multi-mod items list several).
+ * PZ needs these names in Mods= alongside the WorkshopItems= file id.
+ */
+export function parsePzModIds(description: string): string[] {
+  const ids: string[] = [];
+  for (const m of description.matchAll(/\bMod\s*ID\s*:\s*([^\r\n]+)/gi)) {
+    const id = m[1]!.trim();
+    if (id && !ids.includes(id)) ids.push(id);
+  }
+  return ids;
+}
 
 export interface AddModInput {
   remoteId: number;
@@ -23,6 +38,7 @@ export class ModsService {
     private readonly events: EventsService,
     private readonly settings: ManagerSettingsService,
     private readonly curseforge: CurseForgeService,
+    private readonly steam: SteamService,
   ) {}
 
   async listInstalled(serverId: string) {
@@ -38,6 +54,20 @@ export class ModsService {
     if (!server) throw new NotFoundException("Server not found");
     const source = (server.game as Game) === Game.ASA ? "curseforge" : "workshop";
 
+    // Project Zomboid wants the in-game "Mod ID" names (Mods=) alongside the
+    // Workshop file id (WorkshopItems=). The convention is a "Mod ID: <name>"
+    // line in the Workshop description — parse it now and stash it on the Mod.
+    // Best-effort: a Steam hiccup just leaves extra unset (the server would then
+    // download but not activate the mod; re-adding it retries the parse).
+    let extra: string | undefined;
+    if ((server.game as Game) === Game.ZOMBOID) {
+      const pzModIds = await this.steam
+        .details(input.remoteId)
+        .then((d) => parsePzModIds(d.description ?? ""))
+        .catch(() => [] as string[]);
+      if (pzModIds.length) extra = JSON.stringify({ pzModIds });
+    }
+
     const mod = await this.prisma.mod.upsert({
       where: {
         game_source_remoteId: { game: server.game, source, remoteId: String(input.remoteId) },
@@ -48,8 +78,12 @@ export class ModsService {
         remoteId: String(input.remoteId),
         name: input.name ?? `Mod ${input.remoteId}`,
         thumbnailUrl: input.thumbnailUrl ?? null,
+        extra: extra ?? null,
       },
-      update: input.name ? { name: input.name, thumbnailUrl: input.thumbnailUrl ?? null } : {},
+      update: {
+        ...(input.name ? { name: input.name, thumbnailUrl: input.thumbnailUrl ?? null } : {}),
+        ...(extra ? { extra } : {}),
+      },
     });
 
     const existing = await this.prisma.modInstall.findUnique({

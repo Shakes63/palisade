@@ -103,7 +103,7 @@ export class PlayersService {
         const count = await raknetPing(host, server.gamePort);
         return { online: count.online, max: count.max ?? server.maxPlayers };
       }
-      // ASA / Palworld / Minecraft: count via RCON (needs the admin password set).
+      // ASA / Palworld / Minecraft / Zomboid: count via RCON (needs the admin password set).
       const players = await this.rcon.listPlayers(serverId);
       return { online: players.length, max: server.maxPlayers };
     } catch {

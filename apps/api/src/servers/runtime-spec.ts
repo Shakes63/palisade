@@ -27,7 +27,9 @@ import {
   SEVEN_DAYS_SERVERFILES_DIR,
   SEVEN_DAYS_SAVES_DIR,
   ENSHROUDED_GAME_DIR,
+  ZOMBOID_DATA_DIR,
 } from "../common/images";
+import { ZOMBOID_STEAM_PORTS } from "../catalog/ports";
 import { ARK_NETWORK, containerName } from "../common/naming";
 import { loadEnv } from "../config/env";
 
@@ -51,6 +53,8 @@ export interface RuntimeSpecInput {
   timezone?: string | null;
   /** CurseForge API key (Minecraft only) — lets itzg auto-install a modpack. */
   curseForgeApiKey?: string | null;
+  /** Zomboid only: the in-game "Mod ID" names (Mods=) matching modIds (WorkshopItems=). */
+  pzModNames?: string[];
 }
 
 /** Build the Docker create spec for a game-server container. */
@@ -64,6 +68,7 @@ export function buildContainerSpec(input: RuntimeSpecInput): Docker.ContainerCre
   if (input.game === Game.VALHEIM) return buildValheimSpec(input);
   if (input.game === Game.SEVEN_DAYS) return buildSevenDaysSpec(input);
   if (input.game === Game.ENSHROUDED) return buildEnshroudedSpec(input);
+  if (input.game === Game.ZOMBOID) return buildZomboidSpec(input);
   return buildAseSpec(input);
 }
 
@@ -1006,6 +1011,94 @@ function enshroudedCatalogEnv(input: RuntimeSpecInput): string[] {
     }
     const val = typeof raw === "boolean" ? (raw ? "true" : "false") : String(raw);
     out.push(`${emit}=${val}`);
+  }
+  return out;
+}
+
+/**
+ * Project Zomboid: drive the danixu86 image via env vars. The game install is
+ * baked into the image; only the Zomboid data dir (saves + server config + player
+ * db) persists via the bind. The start script patches servertest.ini from env on
+ * boot. Notes that shape this spec:
+ * - ADMINPASSWORD is mandatory on first boot and also seeds RCONPASSWORD's user.
+ * - SERVERNAME must have no spaces (it names the save); the browser-visible name
+ *   is DISPLAYNAME. We fix SERVERNAME=servertest so DISPLAYNAME can change freely.
+ * - RCON: Source protocol on the PZ ini default 27015 (no env to change it).
+ * - Steam needs its two fixed comms ports (8766/8767 UDP) besides game + direct.
+ * - Workshop mods: WORKSHOP_IDS (file ids) + MOD_IDS (in-game names) — semicolon
+ *   separated; mods download on the NEXT start after being added.
+ * - No max-players env — PZ's ini default applies; editable in-game by the admin.
+ */
+function buildZomboidSpec(input: RuntimeSpecInput): Docker.ContainerCreateOptions {
+  const env = loadEnv();
+  const { ports } = input;
+
+  const zomboidEnv = [
+    `TZ=${input.timezone || env.TZ}`,
+    `ADMINUSERNAME=admin`,
+    `ADMINPASSWORD=${input.adminPassword}`,
+    `RCONPASSWORD=${input.adminPassword}`,
+    `PASSWORD=${serverPassword(input)}`,
+    `DISPLAYNAME=${input.sessionName}`,
+    `SERVERNAME=servertest`,
+    `PORT=${ports.game}`, // 16261
+    `UDPPORT=${ports.rawSocket}`, // 16262 (direct connections)
+    `STEAMPORT1=${ZOMBOID_STEAM_PORTS[0]}`,
+    `STEAMPORT2=${ZOMBOID_STEAM_PORTS[1]}`,
+    // Leaving these empty CLEARS existing values (per the image docs), which is
+    // exactly right — the manager's mod list is the source of truth.
+    `WORKSHOP_IDS=${input.modIds.join(";")}`,
+    `MOD_IDS=${(input.pzModNames ?? []).join(";")}`,
+    ...zomboidCatalogEnv(input),
+  ];
+
+  const binds = [`${HostPaths.instanceRoot(input.serverId)}/data:${ZOMBOID_DATA_DIR}`];
+
+  const udpPorts = [ports.game, ports.rawSocket, ...ZOMBOID_STEAM_PORTS];
+  const hostNet = env.GAME_HOST_NETWORK;
+  return {
+    name: containerName(input.serverId, input.game, input.sessionName),
+    Image: IMAGES[Game.ZOMBOID],
+    Hostname: containerName(input.serverId, input.game, input.sessionName),
+    Env: zomboidEnv,
+    Labels: serverLabels(input, env.PUBLIC_BASE_URL),
+    ...(hostNet
+      ? {}
+      : {
+          ExposedPorts: {
+            ...Object.fromEntries(udpPorts.map((p) => [portKey(p, "udp"), {}])),
+            [portKey(ports.rcon, "tcp")]: {},
+          },
+        }),
+    HostConfig: {
+      Binds: binds,
+      ...(hostNet
+        ? { NetworkMode: "host" }
+        : {
+            PortBindings: {
+              ...Object.fromEntries(
+                udpPorts.map((p) => [portKey(p, "udp"), [{ HostPort: String(p) }]]),
+              ),
+              [portKey(ports.rcon, "tcp")]: [{ HostPort: String(ports.rcon) }],
+            },
+          }),
+      RestartPolicy: { Name: "no" }, // manager watchdog owns restarts
+      Memory: input.ramLimitMb ? input.ramLimitMb * 1024 * 1024 : undefined,
+      NanoCpus: input.cpuLimit ? Math.round(input.cpuLimit * 1e9) : undefined,
+    },
+    ...(hostNet ? {} : { NetworkingConfig: { EndpointsConfig: { [ARK_NETWORK]: {} } } }),
+  };
+}
+
+/** Zomboid settings -> danixu86 env vars. Booleans become true/false; empty dropped. */
+function zomboidCatalogEnv(input: RuntimeSpecInput): string[] {
+  const out: string[] = [];
+  for (const def of input.catalog.settings) {
+    if (def.target !== SettingTarget.Env) continue;
+    const raw = input.config.values?.[def.key] ?? def.default;
+    if (raw === undefined || raw === null || raw === "") continue;
+    const val = typeof raw === "boolean" ? (raw ? "true" : "false") : String(raw);
+    out.push(`${def.emitAs ?? def.key}=${val}`);
   }
   return out;
 }

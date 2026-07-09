@@ -9,6 +9,7 @@ import {
   VALHEIM_PORTS,
   BEDROCK_PORTS,
   MINECRAFT_PORTS,
+  ZOMBOID_PORTS,
 } from "./ports";
 
 describe("ports", () => {
@@ -29,6 +30,13 @@ describe("serverPortSet (start-time port-conflict guard)", () => {
   it("skips unused rcon slots and adds Valheim's HTTP status port", () => {
     // Valheim: 2456-2458 UDP, rcon=0 (skipped), + 2459 status.
     expect(serverPortSet(Game.VALHEIM, VALHEIM_PORTS)).toEqual(new Set([2456, 2457, 2458, 2459]));
+  });
+
+  it("adds Zomboid's Steam comms ports and dedupes its mirrored query column", () => {
+    // PZ: game 16261 (query mirrors it), direct 16262, rcon 27015, + steam 8766/8767.
+    expect(serverPortSet(Game.ZOMBOID, ZOMBOID_PORTS)).toEqual(
+      new Set([16261, 16262, 27015, 8766, 8767]),
+    );
   });
 
   it("dedupes Minecraft's mirrored query column", () => {

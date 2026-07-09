@@ -70,6 +70,18 @@ export const SEVEN_DAYS_PORTS: PortSet = { game: 26900, rawSocket: 26901, query:
 export const ENSHROUDED_PORTS: PortSet = { game: 15636, rawSocket: 15637, query: 15637, rcon: 0 };
 
 /**
+ * Project Zomboid: game on UDP 16261, direct-connection on UDP 16262; the Steam
+ * query answers on the game port itself. Source RCON on TCP 27015 — the PZ ini
+ * default (the danixu86 image has no RCON-port env var) — carried in the rcon
+ * slot. rawSocket carries the direct port. Steam also needs its two fixed
+ * comms ports (8766/8767 UDP, ZOMBOID_STEAM_PORTS below).
+ */
+export const ZOMBOID_PORTS: PortSet = { game: 16261, rawSocket: 16262, query: 16261, rcon: 27015 };
+
+/** PZ's Steam comms ports (STEAMPORT1/STEAMPORT2) — fixed, UDP, player-facing. */
+export const ZOMBOID_STEAM_PORTS = [8766, 8767] as const;
+
+/**
  * Every host port a server binds (skipping unused 0 slots — e.g. rcon on no-RCON
  * games). Valheim also binds its HTTP status endpoint on game + 3, and Minecraft's
  * query column mirrors the game port (the set dedupes it). Used by the start-time
@@ -79,6 +91,7 @@ export function serverPortSet(game: Game, ports: PortSet): Set<number> {
   const set = new Set<number>();
   for (const p of [ports.game, ports.rawSocket, ports.query, ports.rcon]) if (p > 0) set.add(p);
   if (game === Game.VALHEIM) set.add(ports.game + 3); // STATUS_HTTP (player counts)
+  if (game === Game.ZOMBOID) for (const p of ZOMBOID_STEAM_PORTS) set.add(p); // Steam comms
   return set;
 }
 
@@ -123,6 +136,13 @@ export function forwardSpec(game: Game, ports: PortSet): ForwardPort[] {
       ];
     case Game.PALWORLD:
       return [{ port: ports.game, proto: "udp", label: "game" }];
+    case Game.ZOMBOID:
+      return [
+        { port: ports.game, proto: "udp", label: "game (+ query)" },
+        { port: ports.rawSocket, proto: "udp", label: "direct connection" },
+        { port: ZOMBOID_STEAM_PORTS[0], proto: "udp", label: "steam comms 1" },
+        { port: ZOMBOID_STEAM_PORTS[1], proto: "udp", label: "steam comms 2" },
+      ];
     default:
       // ARK family + Conan: game + raw socket + query, all UDP.
       return [
@@ -141,5 +161,6 @@ export function portsFor(game: Game): PortSet {
   if (game === Game.VALHEIM) return VALHEIM_PORTS;
   if (game === Game.SEVEN_DAYS) return SEVEN_DAYS_PORTS;
   if (game === Game.ENSHROUDED) return ENSHROUDED_PORTS;
+  if (game === Game.ZOMBOID) return ZOMBOID_PORTS;
   return FIXED_PORTS;
 }

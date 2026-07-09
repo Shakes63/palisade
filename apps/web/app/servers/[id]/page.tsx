@@ -441,7 +441,8 @@ function Overview({ server, onChanged }: { server: ServerSummary; onChanged: () 
   const isValheim = server.game === Game.VALHEIM;
   const isSdtd = server.game === Game.SEVEN_DAYS;
   const isEnshrouded = server.game === Game.ENSHROUDED;
-  const noQuery = isMc || isBedrock || isSdtd; // Valheim + Enshrouded have a real query port
+  const isZomboid = server.game === Game.ZOMBOID;
+  const noQuery = isMc || isBedrock || isSdtd || isZomboid; // Valheim + Enshrouded have a real query port; Zomboid's mirrors the game port
   const noRcon = isIcarus || isBedrock || isValheim || isSdtd || isEnshrouded; // 7DTD's console is telnet
   const noMods = isIcarus || isBedrock || isValheim || isSdtd || isEnshrouded;
   const row = (k: string, v: string): [string, string] => [k, v];

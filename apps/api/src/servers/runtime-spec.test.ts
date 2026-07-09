@@ -551,6 +551,83 @@ describe("buildContainerSpec (Enshrouded / mornedhels)", () => {
   });
 });
 
+async function buildZomboid(config: ServerConfigValues, extra: { modIds?: number[]; pzModNames?: string[] } = {}) {
+  const { buildContainerSpec } = await import("./runtime-spec");
+  const { ZOMBOID_CATALOG } = await import("../catalog/zomboid.catalog");
+  return buildContainerSpec({
+    serverId: "srv1",
+    game: Game.ZOMBOID,
+    map: "Muldraugh, KY",
+    sessionName: "Knox County",
+    ports: { game: 16261, rawSocket: 16262, query: 16261, rcon: 27015 },
+    maxPlayers: 16,
+    adminPassword: "adminpw",
+    serverPassword: "hunter2",
+    modIds: extra.modIds ?? [],
+    pzModNames: extra.pzModNames,
+    cluster: null,
+    config,
+    catalog: ZOMBOID_CATALOG,
+  });
+}
+
+describe("buildContainerSpec (Project Zomboid / danixu86)", () => {
+  it("maps to the danixu86 env contract (game/direct/steam UDP + RCON tcp)", async () => {
+    const spec = await buildZomboid({ values: {} });
+    expect(spec.Image).toBe("danixu86/project-zomboid-dedicated-server:latest");
+    const env = envOf(spec);
+    expect(env).toContain("ADMINUSERNAME=admin");
+    expect(env).toContain("ADMINPASSWORD=adminpw");
+    expect(env).toContain("RCONPASSWORD=adminpw");
+    expect(env).toContain("PASSWORD=hunter2");
+    expect(env).toContain("DISPLAYNAME=Knox County");
+    expect(env).toContain("SERVERNAME=servertest"); // fixed — no spaces allowed
+    expect(env).toContain("PORT=16261");
+    expect(env).toContain("UDPPORT=16262");
+    expect(env).toContain("STEAMPORT1=8766");
+    expect(env).toContain("STEAMPORT2=8767");
+    for (const p of ["16261/udp", "16262/udp", "8766/udp", "8767/udp"]) {
+      expect(spec.HostConfig?.PortBindings?.[p]).toEqual([{ HostPort: p.split("/")[0] }]);
+    }
+    expect(spec.HostConfig?.PortBindings?.["27015/tcp"]).toEqual([{ HostPort: "27015" }]);
+    const binds = spec.HostConfig?.Binds ?? [];
+    expect(binds.some((b) => b.endsWith(":/home/steam/Zomboid"))).toBe(true);
+  });
+
+  it("emits WORKSHOP_IDS + MOD_IDS semicolon-separated (empty clears)", async () => {
+    const env = envOf(
+      await buildZomboid({ values: {} }, { modIds: [111, 222], pzModNames: ["ModA", "ModB"] }),
+    );
+    expect(env).toContain("WORKSHOP_IDS=111;222");
+    expect(env).toContain("MOD_IDS=ModA;ModB");
+    const empty = envOf(await buildZomboid({ values: {} }));
+    expect(empty).toContain("WORKSHOP_IDS=");
+    expect(empty).toContain("MOD_IDS=");
+  });
+
+  it("passes catalog settings through (bools as true/false)", async () => {
+    const env = envOf(
+      await buildZomboid({ values: { PUBLIC: true, SERVERPRESET: "Builder", MEMORY: "6g" } }),
+    );
+    expect(env).toContain("PUBLIC=true");
+    expect(env).toContain("SERVERPRESET=Builder");
+    expect(env).toContain("MEMORY=6g");
+    expect(env).toContain("STEAMVAC=true"); // catalog default
+  });
+});
+
+describe("parsePzModIds", () => {
+  it("parses 'Mod ID:' lines from a Workshop description (deduped, in order)", async () => {
+    const { parsePzModIds } = await import("../mods/mods.service");
+    const desc = "Great mod.\nWorkshop ID: 2392709985\nMod ID: BetterSorting\nMod ID: BetterSorting\nmod id: SecondModule\n";
+    expect(parsePzModIds(desc)).toEqual(["BetterSorting", "SecondModule"]);
+  });
+  it("returns empty when the description has no Mod ID line", async () => {
+    const { parsePzModIds } = await import("../mods/mods.service");
+    expect(parsePzModIds("just a description")).toEqual([]);
+  });
+});
+
 describe("renderSdtdServerXml", () => {
   it("renders first-class fields + telnet + catalog props, escaping values", async () => {
     const { renderSdtdServerXml } = await import("./runtime-spec");

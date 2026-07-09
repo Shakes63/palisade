@@ -114,6 +114,9 @@ export const READY_RE_BY_GAME: Record<Game, RegExp> = {
   // Enshrouded logs "'HostOnline' (up)!" once the session is registered + joinable
   // (no RCON to lean on). PROVISIONAL — confirm against a real boot.
   [Game.ENSHROUDED]: /'HostOnline' \(up\)/i,
+  // Project Zomboid prints "SERVER STARTED" once the world is loaded + joinable.
+  // PROVISIONAL — confirm against a real boot.
+  [Game.ZOMBOID]: /SERVER STARTED/i,
 };
 
 /** The "server is now joinable" log-marker regex for a game. */
@@ -385,6 +388,10 @@ export class ServersService implements OnApplicationBootstrap {
     // must be present + non-trivial (>= 5 chars, matching Valheim's rule).
     if (dto.game === Game.ENSHROUDED && (dto.serverPassword ?? "").length < 5) {
       throw new BadRequestException("Enshrouded requires a server password of at least 5 characters.");
+    }
+    // Project Zomboid refuses first boot without an admin password (it also gates RCON).
+    if (dto.game === Game.ZOMBOID && (dto.adminPassword ?? "").length < 5) {
+      throw new BadRequestException("Project Zomboid requires an admin password of at least 5 characters.");
     }
     // Every server of a given family shares one fixed port block so a single set of
     // port-forwards covers whichever is running — only one runs at a time, so the
@@ -844,9 +851,37 @@ export class ServersService implements OnApplicationBootstrap {
         await chown(root, Number(env.PUID), Number(env.PGID)).catch(() => undefined);
       }
 
+      // Same failure mode for Zomboid: the danixu86 image runs as its fixed "steam"
+      // user (1000) and writes throughout the Zomboid data bind, but Docker creates a
+      // missing bind dir root-owned. Pre-create + own it as the runtime user.
+      if (game === Game.ZOMBOID) {
+        const dataDir = join(LocalPaths.instanceRoot(id), "data");
+        await mkdir(dataDir, { recursive: true });
+        await chown(LocalPaths.instanceRoot(id), SERVER_UID[game], SERVER_GID[game]).catch(() => undefined);
+        await chown(dataDir, SERVER_UID[game], SERVER_GID[game]).catch(() => undefined);
+      }
+
       // Both images install their own mods on first boot (POK via MOD_IDS,
       // hermsi via `arkmanager installmod`), so nothing to pre-download here.
       const modIds = JSON.parse(server.modIds) as number[];
+
+      // Project Zomboid activates mods by their in-game "Mod ID" names (Mods=),
+      // parsed from each Workshop description at install and stored on Mod.extra.
+      let pzModNames: string[] | undefined;
+      if (game === Game.ZOMBOID) {
+        const installs = await this.prisma.modInstall.findMany({
+          where: { serverId: id, enabled: true },
+          include: { mod: true },
+          orderBy: { loadOrder: "asc" },
+        });
+        pzModNames = installs.flatMap((i) => {
+          try {
+            return (JSON.parse(i.mod.extra ?? "{}") as { pzModIds?: string[] }).pzModIds ?? [];
+          } catch {
+            return [];
+          }
+        });
+      }
 
       const spec = buildContainerSpec({
         serverId: server.id,
@@ -876,6 +911,7 @@ export class ServersService implements OnApplicationBootstrap {
           (server.game as Game) === Game.MINECRAFT
             ? await this.settings.get(SettingKeys.CurseForgeApiKey)
             : null,
+        pzModNames,
       });
 
       // Fresh run → wipe the captured log/console so it starts clean.
@@ -1013,7 +1049,7 @@ export class ServersService implements OnApplicationBootstrap {
       game === Game.ENSHROUDED
     )
       return;
-    if (!containerId || game === Game.CONAN || game === Game.MINECRAFT) {
+    if (!containerId || game === Game.CONAN || game === Game.MINECRAFT || game === Game.ZOMBOID) {
       await this.rcon.saveWorld(id).catch(() => undefined);
       return;
     }
@@ -1152,14 +1188,15 @@ export class ServersService implements OnApplicationBootstrap {
     const env = loadEnv();
     const game = server.game as Game;
     // Env-driven images build their own config (Minecraft/Bedrock → server.properties,
-    // Icarus → ServerSettings.ini, Valheim → launch args, Enshrouded → enshrouded_server.json)
-    // — none have ARK-style INI files for us to render. Nothing to write.
+    // Icarus → ServerSettings.ini, Valheim → launch args, Enshrouded → enshrouded_server.json,
+    // Zomboid → servertest.ini from env) — no ARK-style INI files to render. Nothing to write.
     if (
       game === Game.MINECRAFT ||
       game === Game.ICARUS ||
       game === Game.BEDROCK ||
       game === Game.VALHEIM ||
-      game === Game.ENSHROUDED
+      game === Game.ENSHROUDED ||
+      game === Game.ZOMBOID
     )
       return;
 

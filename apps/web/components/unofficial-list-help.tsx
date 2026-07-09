@@ -39,6 +39,7 @@ export function UnofficialListHelp({
   const valheim = game === Game.VALHEIM;
   const sdtd = game === Game.SEVEN_DAYS;
   const enshrouded = game === Game.ENSHROUDED;
+  const zomboid = game === Game.ZOMBOID;
   const passwordHint = hasJoinPassword
     ? "your server has a join password"
     : "ON only if you set a join password";
@@ -55,7 +56,7 @@ export function UnofficialListHelp({
           <Search className="h-3.5 w-3.5" />
           {minecraft || bedrock
             ? "Add it to your Minecraft server list"
-            : conan || palworld || icarus || valheim || sdtd || enshrouded
+            : conan || palworld || icarus || valheim || sdtd || enshrouded || zomboid
               ? "Find it in the in-game server browser"
               : "Find it on the in-game Unofficial list"}
         </span>
@@ -77,6 +78,23 @@ export function UnofficialListHelp({
             <p className="pt-1 leading-snug text-slate-400">
               Search the name <span className="font-mono text-slate-200">{serverName}</span>, or use{" "}
               <span className="text-slate-200">Connect to Server</span> with the address shown above.
+            </p>
+          </div>
+        ) : zomboid ? (
+          <div className="space-y-1.5 border-t border-ark-border px-2.5 py-2 text-xs">
+            <p className="text-slate-400">
+              In <span className="text-slate-200">Join</span>:
+            </p>
+            <FilterRow
+              state="on"
+              label="Internet tab — search by name (only if the server is Public)"
+              hint="the Public server list setting is off by default"
+            />
+            <FilterRow state={hasJoinPassword ? "on" : "off"} label="Server password on the Join screen" hint={passwordHint} />
+            <p className="pt-1 leading-snug text-slate-400">
+              Most players skip the browser: use <span className="text-slate-200">Favorites</span> with the IP +
+              port shown above. The name <span className="font-mono text-slate-200">{serverName}</span> appears on
+              the Internet tab only when the Public setting is on.
             </p>
           </div>
         ) : enshrouded ? (

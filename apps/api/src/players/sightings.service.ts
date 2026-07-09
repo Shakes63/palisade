@@ -39,6 +39,7 @@ const RCON_POLL_GAMES = new Set<Game>([
   Game.PALWORLD,
   Game.MINECRAFT,
   Game.SEVEN_DAYS,
+  Game.ZOMBOID,
 ]);
 
 const ACTIONS_BY_GAME: Record<Game, PlayerAction[]> = {
@@ -52,6 +53,7 @@ const ACTIONS_BY_GAME: Record<Game, PlayerAction[]> = {
   [Game.VALHEIM]: ["ban", "whitelist", "admin"],
   [Game.SEVEN_DAYS]: ["kick", "ban", "whitelist", "admin"],
   [Game.ENSHROUDED]: [], // no console + role passwords instead of per-player perms
+  [Game.ZOMBOID]: ["kick", "ban", "admin"], // RCON: kickuser / banuser / setaccesslevel
 };
 
 const CAPTURE_NOTES: Partial<Record<Game, string>> = {
@@ -128,7 +130,8 @@ export class SightingsService implements OnModuleInit {
       }
       return players;
     }
-    if (game === Game.MINECRAFT) {
+    if (game === Game.MINECRAFT || game === Game.ZOMBOID) {
+      // Zomboid's `players` output is name-only ("-name" lines) — no platform id.
       const names = await this.rcon.listPlayers(serverId);
       return names.map((name) => ({ name }));
     }
@@ -283,6 +286,10 @@ export class SightingsService implements OnModuleInit {
     if (game === Game.MINECRAFT && action === "admin") {
       await this.rcon.exec(serverId, `op ${name}`);
       return { ok: true, detail: `${name} opped` };
+    }
+    if (game === Game.ZOMBOID && action === "admin") {
+      await this.rcon.exec(serverId, `setaccesslevel "${name}" admin`);
+      return { ok: true, detail: `${name} is now an admin` };
     }
     throw new BadRequestException(`${action} isn't supported for this game`);
   }

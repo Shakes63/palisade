@@ -36,6 +36,10 @@ export const IMAGES: Record<Game, string> = {
   // mornedhels/enshrouded-server — installs the Enshrouded Windows server via SteamCMD
   // and runs it under Proton (same family as Icarus). Env-driven. UDP. No RCON.
   [Game.ENSHROUDED]: "mornedhels/enshrouded-server:latest",
+  // danixu86 — Project Zomboid B41 stable (the server binary is baked into the
+  // image; only the Zomboid data dir persists). Env-driven; Source RCON; Workshop
+  // mods via WORKSHOP_IDS + MOD_IDS. B42 = the :latest-unstable tag when it lands.
+  [Game.ZOMBOID]: "danixu86/project-zomboid-dedicated-server:latest",
 };
 
 /** POK keeps all instance data (install + saves + config) under this path. */
@@ -81,6 +85,10 @@ export const SEVEN_DAYS_SAVES_DIR = "/home/sdtdserver/.local/share/7DaysToDie";
  *  /opt/enshrouded dir; backups target just the server/savegame subpath. */
 export const ENSHROUDED_GAME_DIR = "/opt/enshrouded";
 
+/** Project Zomboid keeps ALL its persistent data (saves, server configs, player db)
+ *  under the Zomboid home dir; the game install itself is baked into the image. */
+export const ZOMBOID_DATA_DIR = "/home/steam/Zomboid";
+
 /**
  * The uid/gid each image runs the server as. Neither chowns its mounts fully
  * (POK never does; hermsi only chowns the volume root), so the manager makes the
@@ -97,6 +105,7 @@ export const SERVER_UID: Record<Game, number> = {
   [Game.VALHEIM]: 0, // lloesche runs as root by default (we don't override PUID/PGID)
   [Game.SEVEN_DAYS]: 1000, // LinuxGSM's sdtdserver user; we pass env.PUID/PGID + chown
   [Game.ENSHROUDED]: 4711, // mornedhels default (overridable via PUID/PGID); env-driven, no INI injection
+  [Game.ZOMBOID]: 1000, // danixu86 runs as the "steam" user
 };
 export const SERVER_GID: Record<Game, number> = {
   [Game.ASA]: 7777,
@@ -109,4 +118,5 @@ export const SERVER_GID: Record<Game, number> = {
   [Game.VALHEIM]: 0,
   [Game.SEVEN_DAYS]: 1000,
   [Game.ENSHROUDED]: 4711,
+  [Game.ZOMBOID]: 1000,
 };

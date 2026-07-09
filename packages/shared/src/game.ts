@@ -20,6 +20,8 @@ export enum Game {
   SEVEN_DAYS = "SEVEN_DAYS",
   /** Enshrouded — mornedhels image (SteamCMD under Proton), env-driven; UDP; NO RCON. */
   ENSHROUDED = "ENSHROUDED",
+  /** Project Zomboid — danixu86 image (native Java server); RCON + Steam Workshop mods. */
+  ZOMBOID = "ZOMBOID",
 }
 
 /** Friendly game names for the UI. */
@@ -34,6 +36,7 @@ export const GAME_LABELS: Record<Game, string> = {
   [Game.VALHEIM]: "Valheim",
   [Game.SEVEN_DAYS]: "7 Days to Die",
   [Game.ENSHROUDED]: "Enshrouded",
+  [Game.ZOMBOID]: "Project Zomboid",
 };
 
 /** SteamCMD app IDs for the dedicated server (anonymous login). */
@@ -56,11 +59,14 @@ export const STEAM_APP_ID: Record<Game, number> = {
   [Game.SEVEN_DAYS]: 294420,
   // Enshrouded dedicated server (the mornedhels image installs it via SteamCMD).
   [Game.ENSHROUDED]: 2278520,
+  // Project Zomboid dedicated server (baked into the danixu86 image at build time).
+  [Game.ZOMBOID]: 380870,
 };
 
 /** Steam Workshop "consumer" app ids for mod downloads (ARK: Survival Evolved /
  *  Conan Exiles). ASA uses CurseForge instead, so it has no Workshop app id. */
 export const ASE_WORKSHOP_APP_ID = 346110;
+export const ZOMBOID_WORKSHOP_APP_ID = 108600;
 export const CONAN_WORKSHOP_APP_ID = 440900;
 
 /** The Steam Workshop app id for a game, or undefined for CurseForge games (ASA).
@@ -68,6 +74,7 @@ export const CONAN_WORKSHOP_APP_ID = 440900;
 export function workshopAppId(game: Game): number | undefined {
   if (game === Game.ASE) return ASE_WORKSHOP_APP_ID;
   if (game === Game.CONAN) return CONAN_WORKSHOP_APP_ID;
+  if (game === Game.ZOMBOID) return ZOMBOID_WORKSHOP_APP_ID;
   return undefined;
 }
 
@@ -91,6 +98,7 @@ export const GAME_ICONS: Record<Game, string> = {
   [Game.VALHEIM]: "https://cdn.cloudflare.steamstatic.com/steam/apps/892970/header.jpg",
   [Game.SEVEN_DAYS]: "https://cdn.cloudflare.steamstatic.com/steam/apps/251570/header.jpg",
   [Game.ENSHROUDED]: "https://cdn.cloudflare.steamstatic.com/steam/apps/1203620/header.jpg",
+  [Game.ZOMBOID]: "https://cdn.cloudflare.steamstatic.com/steam/apps/108600/header.jpg",
 };
 
 /** CurseForge numeric game id for ASA (used by the mod browser). */
@@ -135,6 +143,8 @@ export const RAM_ESTIMATE_MB: Record<Game, number> = {
   [Game.SEVEN_DAYS]: 6000,
   // Enshrouded is heavy (mornedhels recommend 16 GB) — 8 GB is a realistic estimate.
   [Game.ENSHROUDED]: 8000,
+  // Project Zomboid runs a JVM — ~2-4 GB vanilla, more with mods.
+  [Game.ZOMBOID]: 4000,
 };
 
 /**
@@ -154,6 +164,7 @@ export const MAX_PLAYERS_BY_GAME: Record<Game, number> = {
   [Game.VALHEIM]: 10, // Iron Gate design cap (P2P networking)
   [Game.SEVEN_DAYS]: 64,
   [Game.ENSHROUDED]: 16, // SERVER_SLOT_COUNT hard range 1–16
+  [Game.ZOMBOID]: 64, // no hard cap; 32+ needs serious JVM memory
 };
 
 /** The default player count the create form pre-fills per game (a sensible starting
@@ -169,6 +180,7 @@ export const DEFAULT_MAX_PLAYERS_BY_GAME: Record<Game, number> = {
   [Game.VALHEIM]: 10,
   [Game.SEVEN_DAYS]: 8,
   [Game.ENSHROUDED]: 16,
+  [Game.ZOMBOID]: 16,
 };
 
 /** A password field on the create form: whether to show it at all, its label, an
@@ -203,6 +215,13 @@ export const ADMIN_PASSWORD_META: Record<Game, PasswordFieldMeta> = {
     help: "Gates the in-app 7 Days to Die console (telnet).",
   },
   [Game.ENSHROUDED]: { show: false, label: "" },
+  [Game.ZOMBOID]: {
+    show: true,
+    label: "Admin + RCON password (required)",
+    help: "Project Zomboid requires an admin password on first boot; it also gates RCON.",
+    required: true,
+    minLength: 5,
+  },
 };
 
 /** The join (server) password field, per game. Every game can have one, but Valheim
@@ -230,6 +249,7 @@ export const JOIN_PASSWORD_META: Record<Game, PasswordFieldMeta> = {
     required: true,
     minLength: 5,
   },
+  [Game.ZOMBOID]: { show: true, label: "Server password (players need it to join)" },
 };
 
 /** Default port offsets within a per-server allocation block. */
@@ -310,6 +330,9 @@ export const SEVEN_DAYS_OFFICIAL_MAPS = ["Navezgane", "RWG"] as const;
 /** Enshrouded has a single procedurally-generated world — no map choice. */
 export const ENSHROUDED_OFFICIAL_MAPS = ["Enshrouded"] as const;
 
+/** Project Zomboid: one huge fixed world (Knox Country). */
+export const ZOMBOID_OFFICIAL_MAPS = ["Muldraugh, KY"] as const;
+
 /** Friendly display names for known level names (raw level → label). */
 export const MAP_LABELS: Record<string, string> = {
   // Conan Exiles
@@ -334,6 +357,8 @@ export const MAP_LABELS: Record<string, string> = {
   RWG: "Random world (RWG)",
   // Enshrouded (single procedural world)
   Enshrouded: "Procedural world",
+  // Project Zomboid
+  "Muldraugh, KY": "Knox Country (full map)",
   // ASA (World Partition — *_WP)
   TheIsland_WP: "The Island",
   TheCenter_WP: "The Center",

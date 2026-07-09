@@ -75,7 +75,9 @@ export class RconService {
     // 7 Days to Die has no Source RCON at all — its console is telnet on 8081, so it
     // goes through the line-based TelnetRcon adapter instead.
     const game = server.game as Game;
-    const lenient = game === Game.CONAN || game === Game.PALWORLD;
+    // Zomboid's RCON is Source-protocol but its replies also mismatch ids on some
+    // builds — the lenient adapter handles it (and everything strict would).
+    const lenient = game === Game.CONAN || game === Game.PALWORLD || game === Game.ZOMBOID;
     const rcon: RconConn =
       game === Game.SEVEN_DAYS ? new TelnetRcon(opts) : lenient ? new SourceRcon(opts) : new Rcon(opts);
     rcon.on("error", () => this.pool.delete(serverId));
@@ -129,6 +131,7 @@ export class RconService {
     if (game === Game.PALWORLD) return this.exec(serverId, `Broadcast ${message}`);
     if (game === Game.MINECRAFT) return this.exec(serverId, `say ${message}`);
     if (game === Game.SEVEN_DAYS) return this.exec(serverId, `say "${message}"`);
+    if (game === Game.ZOMBOID) return this.exec(serverId, `servermsg "${message}"`);
     return this.exec(serverId, `ServerChat ${message}`);
   }
 
@@ -140,6 +143,7 @@ export class RconService {
     if (game === Game.PALWORLD) return this.exec(serverId, "Save");
     if (game === Game.MINECRAFT) return this.exec(serverId, "save-all");
     if (game === Game.SEVEN_DAYS) return this.exec(serverId, "saveworld");
+    if (game === Game.ZOMBOID) return this.exec(serverId, "save");
     return this.exec(serverId, "SaveWorld");
   }
 
@@ -175,6 +179,14 @@ export class RconService {
         .map((l) => l.split(",")[0]?.trim())
         .filter((n): n is string => Boolean(n));
     }
+    // Zomboid `players` → "Players connected (N):" then one "-name" line each.
+    if (game === Game.ZOMBOID) {
+      const out = await this.exec(serverId, "players");
+      return out
+        .split("\n")
+        .map((l) => l.match(/^\s*-\s*(.+?)\s*$/)?.[1])
+        .filter((n): n is string => Boolean(n));
+    }
     const out = await this.exec(serverId, "ListPlayers");
     if (/no players/i.test(out)) return [];
     return out
@@ -187,6 +199,7 @@ export class RconService {
     // 7DTD: `kick <name/id>`. Minecraft: `kick`. ARK-family: `KickPlayer`.
     const game = await this.gameOf(serverId);
     if (game === Game.SEVEN_DAYS) return this.exec(serverId, `kick "${playerId}"`);
+    if (game === Game.ZOMBOID) return this.exec(serverId, `kickuser "${playerId}"`);
     if (game === Game.MINECRAFT) return this.exec(serverId, `kick ${playerId}`);
     return this.exec(serverId, `KickPlayer ${playerId}`);
   }
@@ -195,6 +208,7 @@ export class RconService {
     // 7DTD: `ban add <name/id> 365 days`. Minecraft: `ban`. ARK-family: `BanPlayer`.
     const game = await this.gameOf(serverId);
     if (game === Game.SEVEN_DAYS) return this.exec(serverId, `ban add "${playerId}" 365 days "banned"`);
+    if (game === Game.ZOMBOID) return this.exec(serverId, `banuser "${playerId}"`);
     if (game === Game.MINECRAFT) return this.exec(serverId, `ban ${playerId}`);
     return this.exec(serverId, `BanPlayer ${playerId}`);
   }
