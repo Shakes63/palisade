@@ -159,6 +159,12 @@ export const FACTORIO_PORTS: PortSet = { game: 34197, rawSocket: 34198, query: 3
 export const RUST_PORTS: PortSet = { game: 28015, rawSocket: 28082, query: 28016, rcon: 28016 };
 
 /**
+ * BeamMP: ONE port, 30814, on BOTH TCP and UDP. No RCON/query (rcon 0, Console UI
+ * hidden); query mirrors the game port, rawSocket unused.
+ */
+export const BEAMMP_PORTS: PortSet = { game: 30814, rawSocket: 30815, query: 30814, rcon: 0 };
+
+/**
  * Every host port a server binds (skipping unused 0 slots — e.g. rcon on no-RCON
  * games). Valheim also binds its HTTP status endpoint on game + 3, and Minecraft's
  * query column mirrors the game port (the set dedupes it). Used by the start-time
@@ -265,6 +271,11 @@ export function forwardSpec(game: Game, ports: PortSet): ForwardPort[] {
         { port: ports.query, proto: "udp", label: "query (server browser)" },
         { port: ports.rawSocket, proto: "tcp", label: "Rust+ companion app" },
       ]; // RCON (28016 tcp) stays LAN-only
+    case Game.BEAMMP:
+      return [
+        { port: ports.game, proto: "tcp", label: "game (tcp)" },
+        { port: ports.game, proto: "udp", label: "game (udp)" },
+      ];
     default:
       // ARK family + Conan: game + raw socket + query, all UDP.
       return [
@@ -294,5 +305,6 @@ export function portsFor(game: Game): PortSet {
   if (game === Game.TERRARIA) return TERRARIA_PORTS;
   if (game === Game.FACTORIO) return FACTORIO_PORTS;
   if (game === Game.RUST) return RUST_PORTS;
+  if (game === Game.BEAMMP) return BEAMMP_PORTS;
   return FIXED_PORTS;
 }

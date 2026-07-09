@@ -26,6 +26,7 @@ import {
   TERRARIA_OFFICIAL_MAPS,
   FACTORIO_OFFICIAL_MAPS,
   RUST_OFFICIAL_MAPS,
+  BEAMMP_OFFICIAL_MAPS,
   mapLabel,
   type ServerSummary,
 } from "@ark/shared";
@@ -53,6 +54,7 @@ const MAPS_FOR: Record<Game, readonly string[]> = {
   [Game.TERRARIA]: TERRARIA_OFFICIAL_MAPS,
   [Game.FACTORIO]: FACTORIO_OFFICIAL_MAPS,
   [Game.RUST]: RUST_OFFICIAL_MAPS,
+  [Game.BEAMMP]: BEAMMP_OFFICIAL_MAPS,
 };
 
 /**

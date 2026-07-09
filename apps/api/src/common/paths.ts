@@ -107,6 +107,9 @@ export const LocalPaths = {
         // The server identity (map save, player blueprints, cfg incl. users.cfg)
         // plus Oxide configs/plugins when enabled; the ~12 GB install is skipped.
         return ["data/server/docker", "data/oxide"];
+      case Game.BEAMMP:
+        // No world state — the client-mod zips + server Lua plugins ARE the data.
+        return ["mods-client", "mods-server"];
       default:
         return ["ShooterGame/Saved"]; // ASA (POK)
     }

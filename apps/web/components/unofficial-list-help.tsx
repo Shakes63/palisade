@@ -48,6 +48,7 @@ export function UnofficialListHelp({
   const terraria = game === Game.TERRARIA;
   const factorio = game === Game.FACTORIO;
   const rust = game === Game.RUST;
+  const beammp = game === Game.BEAMMP;
   const passwordHint = hasJoinPassword
     ? "your server has a join password"
     : "ON only if you set a join password";
@@ -66,7 +67,7 @@ export function UnofficialListHelp({
             ? "Add it to your server list"
             : satisfactory
               ? "Add it to your Server Manager"
-            : conan || palworld || icarus || valheim || sdtd || enshrouded || zomboid || vrising || sotf || lif || ats || factorio || rust
+            : conan || palworld || icarus || valheim || sdtd || enshrouded || zomboid || vrising || sotf || lif || ats || factorio || rust || beammp
               ? "Find it in the in-game server browser"
               : "Find it on the in-game Unofficial list"}
         </span>
@@ -74,7 +75,20 @@ export function UnofficialListHelp({
       </button>
 
       {open &&
-        (rust ? (
+        (beammp ? (
+          <div className="space-y-1.5 border-t border-ark-border px-2.5 py-2 text-xs">
+            <p className="text-slate-400">
+              In the <span className="text-slate-200">BeamMP launcher</span>:
+            </p>
+            <FilterRow state="on" label="Server list — search by name (only if 'Private' is off)" />
+            <FilterRow state="on" label="Or Direct Connect with the address above (works when Private)" />
+            <p className="pt-1 leading-snug text-slate-400">
+              Players need the free <span className="text-slate-200">BeamMP launcher</span> (beammp.com) plus
+              BeamNG.drive. Everyone must own any non-vanilla map/vehicle mods you drop in the client-mods
+              folder — those download automatically on join.
+            </p>
+          </div>
+        ) : rust ? (
           <div className="space-y-1.5 border-t border-ark-border px-2.5 py-2 text-xs">
             <p className="text-slate-400">
               In <span className="text-slate-200">the server browser</span>:

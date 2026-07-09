@@ -42,6 +42,8 @@ export enum Game {
   FACTORIO = "FACTORIO",
   /** Rust — didstopia image (native), env-driven; legacy Source RCON + A2S; Oxide toggle. */
   RUST = "RUST",
+  /** BeamNG.drive via BeamMP — rouhim image (native), env-driven; AuthKey required; NO RCON/query. */
+  BEAMMP = "BEAMMP",
 }
 
 /** Friendly game names for the UI. */
@@ -67,6 +69,7 @@ export const GAME_LABELS: Record<Game, string> = {
   [Game.TERRARIA]: "Terraria",
   [Game.FACTORIO]: "Factorio",
   [Game.RUST]: "Rust",
+  [Game.BEAMMP]: "BeamNG.drive (BeamMP)",
 };
 
 /** SteamCMD app IDs for the dedicated server (anonymous login). */
@@ -111,6 +114,8 @@ export const STEAM_APP_ID: Record<Game, number> = {
   [Game.FACTORIO]: 0,
   // Rust dedicated server (the didstopia image installs it via SteamCMD on boot).
   [Game.RUST]: 258550,
+  // BeamMP isn't on Steam — the rouhim image bundles the BeamMP server. Unused.
+  [Game.BEAMMP]: 0,
 };
 
 /** Steam Workshop "consumer" app ids for mod downloads (ARK: Survival Evolved /
@@ -159,6 +164,7 @@ export const GAME_ICONS: Record<Game, string> = {
   [Game.TERRARIA]: "https://cdn.cloudflare.steamstatic.com/steam/apps/105600/header.jpg",
   [Game.FACTORIO]: "https://cdn.cloudflare.steamstatic.com/steam/apps/427520/header.jpg",
   [Game.RUST]: "https://cdn.cloudflare.steamstatic.com/steam/apps/252490/header.jpg",
+  [Game.BEAMMP]: "https://cdn.cloudflare.steamstatic.com/steam/apps/284160/header.jpg",
 };
 
 /** CurseForge numeric game id for ASA (used by the mod browser). */
@@ -224,6 +230,8 @@ export const RAM_ESTIMATE_MB: Record<Game, number> = {
   [Game.FACTORIO]: 3000,
   // Rust is HUNGRY — ~6 GB on a small map, 10+ on default 3500 worlds.
   [Game.RUST]: 8000,
+  // The BeamMP server is a featherweight relay (physics run on clients) — well under 1 GB.
+  [Game.BEAMMP]: 1000,
 };
 
 /**
@@ -254,6 +262,7 @@ export const MAX_PLAYERS_BY_GAME: Record<Game, number> = {
   [Game.TERRARIA]: 255, // Terraria's protocol cap
   [Game.FACTORIO]: 100, // no hard cap (0 = unlimited); a sane ceiling
   [Game.RUST]: 200, // no hard cap; a sane ceiling for self-hosting
+  [Game.BEAMMP]: 64, // no hard cap; practical ceiling (physics load is client-side)
 };
 
 /** The default player count the create form pre-fills per game (a sensible starting
@@ -280,6 +289,7 @@ export const DEFAULT_MAX_PLAYERS_BY_GAME: Record<Game, number> = {
   [Game.TERRARIA]: 8,
   [Game.FACTORIO]: 10,
   [Game.RUST]: 50,
+  [Game.BEAMMP]: 10,
 };
 
 /** A password field on the create form: whether to show it at all, its label, an
@@ -343,6 +353,13 @@ export const ADMIN_PASSWORD_META: Record<Game, PasswordFieldMeta> = {
   },
   [Game.FACTORIO]: { show: true, label: "RCON password (enables the console)" },
   [Game.RUST]: { show: true, label: "RCON password (enables the console)" },
+  [Game.BEAMMP]: {
+    show: true,
+    label: "BeamMP AuthKey (required)",
+    help: "Free key from beammp.com/k/dashboard — required even for private servers (it authenticates the server, not players).",
+    required: true,
+    minLength: 10,
+  },
 };
 
 /** The join (server) password field, per game. Every game can have one, but Valheim
@@ -392,6 +409,8 @@ export const JOIN_PASSWORD_META: Record<Game, PasswordFieldMeta> = {
   [Game.FACTORIO]: { show: true, label: "Game password (players need it to join)" },
   // Vanilla Rust has NO join-password concept — access control is via bans/whitelist plugins.
   [Game.RUST]: { show: false, label: "" },
+  // The rouhim image doesn't expose BeamMP's join password; keep the server Private instead.
+  [Game.BEAMMP]: { show: false, label: "" },
 };
 
 /** Default port offsets within a per-server allocation block. */
@@ -518,6 +537,21 @@ export const FACTORIO_OFFICIAL_MAPS = [
  *  is generated with (RUST_SERVER_WORLDSIZE; bigger = much more RAM). */
 export const RUST_OFFICIAL_MAPS = ["RustSmall", "RustMedium", "RustLarge"] as const;
 
+/** BeamNG.drive's vanilla levels (BeamMP maps to /levels/<name>/info.json). */
+export const BEAMMP_OFFICIAL_MAPS = [
+  "gridmap_v2",
+  "west_coast_usa",
+  "east_coast_usa",
+  "italy",
+  "utah",
+  "hirochi_raceway",
+  "jungle_rock_island",
+  "small_island",
+  "industrial",
+  "automation_test_track",
+  "derby",
+] as const;
+
 /** Friendly display names for known level names (raw level → label). */
 export const MAP_LABELS: Record<string, string> = {
   // Conan Exiles
@@ -575,6 +609,18 @@ export const MAP_LABELS: Record<string, string> = {
   RustSmall: "Small map (2000)",
   RustMedium: "Medium map (3000)",
   RustLarge: "Large map (4500)",
+  // BeamNG.drive levels
+  gridmap_v2: "Gridmap v2",
+  west_coast_usa: "West Coast USA",
+  east_coast_usa: "East Coast USA",
+  italy: "Italy",
+  utah: "Utah",
+  hirochi_raceway: "Hirochi Raceway",
+  jungle_rock_island: "Jungle Rock Island",
+  small_island: "Small Island",
+  industrial: "Industrial Site",
+  automation_test_track: "Automation Test Track",
+  derby: "Derby Arenas",
   // Sons of the Forest game modes (repurposed map field)
   Normal: "Normal (survival)",
   Hard: "Hard (survival)",

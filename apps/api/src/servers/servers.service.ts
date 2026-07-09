@@ -160,8 +160,11 @@ export const READY_RE_BY_GAME: Record<Game, RegExp> = {
   // the server takes joins — CONFIRMED live.
   [Game.FACTORIO]: /changing state from\(CreatingGame\) to\(InGame\)/i,
   // Rust prints "Server startup complete" after the (long) map generation, right
-  // as it takes joins. PROVISIONAL — confirm against a real boot.
+  // as it takes joins — CONFIRMED live.
   [Game.RUST]: /Server startup complete/i,
+  // BeamMP prints an unmistakable all-caps line once fully up. PROVISIONAL —
+  // confirm against a real boot.
+  [Game.BEAMMP]: /ALL SYSTEMS STARTED SUCCESSFULLY|Vehicle data network online/i,
 };
 
 /** The "server is now joinable" log-marker regex for a game. */
@@ -1157,7 +1160,8 @@ export class ServersService implements OnApplicationBootstrap {
       game === Game.ATS ||
       game === Game.ETS2 ||
       game === Game.CORE_KEEPER ||
-      game === Game.TERRARIA
+      game === Game.TERRARIA ||
+      game === Game.BEAMMP
     )
       return;
     if (
@@ -1307,14 +1311,18 @@ export class ServersService implements OnApplicationBootstrap {
     const game = server.game as Game;
     // Env-driven images build their own config (Minecraft/Bedrock → server.properties,
     // Icarus → ServerSettings.ini, Valheim → launch args, Enshrouded → enshrouded_server.json,
-    // V Rising → HOST/GAME_SETTINGS env patching its JSONs) — nothing to render.
+    // V Rising → HOST/GAME_SETTINGS env patching its JSONs, Core Keeper/Rust/BeamMP →
+    // pure env) — nothing to render.
     if (
       game === Game.MINECRAFT ||
       game === Game.ICARUS ||
       game === Game.BEDROCK ||
       game === Game.VALHEIM ||
       game === Game.ENSHROUDED ||
-      game === Game.VRISING
+      game === Game.VRISING ||
+      game === Game.CORE_KEEPER ||
+      game === Game.RUST ||
+      game === Game.BEAMMP
     )
       return;
 

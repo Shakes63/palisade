@@ -85,6 +85,11 @@ export const IMAGES: Record<Game, string> = {
   // RCON in LEGACY Source mode (RUST_RCON_WEB=0) so the existing RCON stack works.
   // Optional Oxide/uMod via env toggle.
   [Game.RUST]: "didstopia/rust-server:latest",
+  // rouhim/beammp-server — the BeamMP (BeamNG.drive multiplayer) server, baked into
+  // the image. Fully env-driven; REQUIRES a free beammp.com AuthKey (carried in the
+  // admin-password field). The server is a lightweight relay — physics run on the
+  // clients. NO RCON/query; console is stdin-only.
+  [Game.BEAMMP]: "rouhim/beammp-server:latest",
 };
 
 /** POK keeps all instance data (install + saves + config) under this path. */
@@ -174,6 +179,11 @@ export const FACTORIO_DATA_DIR = "/factorio";
  *  (saves/cfg under server/docker) — backups target just the identity dir. */
 export const RUST_DATA_DIR = "/steamcmd/rust";
 
+/** BeamMP (rouhim): client-mod zips (maps/vehicles sent to joiners) + server-side
+ *  Lua plugins. There's no world state — these ARE the persistent data. */
+export const BEAMMP_CLIENT_MODS_DIR = "/beammp/Resources/Client";
+export const BEAMMP_SERVER_MODS_DIR = "/beammp/Resources/Server";
+
 /**
  * The uid/gid each image runs the server as. Neither chowns its mounts fully
  * (POK never does; hermsi only chowns the volume root), so the manager makes the
@@ -201,6 +211,7 @@ export const SERVER_UID: Record<Game, number> = {
   [Game.TERRARIA]: 0, // the ryshe image runs as root
   [Game.FACTORIO]: 845, // the image's "factorio" user, remapped via PUID/PGID (we pass ours)
   [Game.RUST]: 0, // didstopia runs as root
+  [Game.BEAMMP]: 0, // rouhim runs as root (mod dirs world-writable per its docs)
 };
 export const SERVER_GID: Record<Game, number> = {
   [Game.ASA]: 7777,
@@ -224,4 +235,5 @@ export const SERVER_GID: Record<Game, number> = {
   [Game.TERRARIA]: 0,
   [Game.FACTORIO]: 845,
   [Game.RUST]: 0,
+  [Game.BEAMMP]: 0,
 };

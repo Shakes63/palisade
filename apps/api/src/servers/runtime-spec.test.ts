@@ -1228,6 +1228,41 @@ describe("buildContainerSpec (Rust / didstopia)", () => {
   });
 });
 
+describe("buildContainerSpec (BeamMP / rouhim)", () => {
+  it("maps the env contract: AuthKey from the admin field, level path from the map field", async () => {
+    const { buildContainerSpec } = await import("./runtime-spec");
+    const { BEAMMP_CATALOG } = await import("../catalog/beammp.catalog");
+    const spec = buildContainerSpec({
+      serverId: "srv1",
+      game: Game.BEAMMP,
+      map: "west_coast_usa",
+      sessionName: "Crash Club",
+      ports: { game: 30814, rawSocket: 30815, query: 30814, rcon: 0 },
+      maxPlayers: 10,
+      adminPassword: "beammp-authkey-123",
+      serverPassword: null,
+      modIds: [],
+      cluster: null,
+      config: { values: { BEAMMP_MAX_CARS: 3, BEAMMP_PRIVATE: true } },
+      catalog: BEAMMP_CATALOG,
+    });
+    expect(spec.Image).toBe("rouhim/beammp-server:latest");
+    const env = envOf(spec);
+    expect(env).toContain("BEAMMP_NAME=Crash Club");
+    expect(env).toContain("BEAMMP_AUTH_KEY=beammp-authkey-123");
+    expect(env).toContain("BEAMMP_MAP=/levels/west_coast_usa/info.json");
+    expect(env).toContain("BEAMMP_MAX_PLAYERS=10");
+    expect(env).toContain("BEAMMP_MAX_CARS=3");
+    expect(env).toContain("BEAMMP_PRIVATE=true");
+    // one port, both protocols; no rcon
+    expect(spec.HostConfig?.PortBindings?.["30814/tcp"]).toEqual([{ HostPort: "30814" }]);
+    expect(spec.HostConfig?.PortBindings?.["30814/udp"]).toEqual([{ HostPort: "30814" }]);
+    const binds = spec.HostConfig?.Binds ?? [];
+    expect(binds.some((b) => b.endsWith(":/beammp/Resources/Client"))).toBe(true);
+    expect(binds.some((b) => b.endsWith(":/beammp/Resources/Server"))).toBe(true);
+  });
+});
+
 describe("parsePzModIds", () => {
   it("parses 'Mod ID:' lines from a Workshop description (deduped, in order)", async () => {
     const { parsePzModIds } = await import("../mods/mods.service");

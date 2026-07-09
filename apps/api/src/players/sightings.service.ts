@@ -66,6 +66,7 @@ const ACTIONS_BY_GAME: Record<Game, PlayerAction[]> = {
   [Game.TERRARIA]: [], // stdin console only; capture-only from join log lines
   [Game.FACTORIO]: ["kick", "ban", "whitelist", "admin"], // /kick /ban /whitelist add /promote
   [Game.RUST]: ["kick", "ban", "admin"], // kickid / banid / moderatorid (steamid-based)
+  [Game.BEAMMP]: [], // stdin console only; joins visible in logs
 };
 
 const CAPTURE_NOTES: Partial<Record<Game, string>> = {

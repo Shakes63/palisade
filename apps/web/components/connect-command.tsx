@@ -292,6 +292,22 @@ export function ConnectCommand({
     );
   }
 
+  if (game === Game.BEAMMP) {
+    return (
+      <div className={className}>
+        <div className="mb-1 flex items-center gap-1.5 text-xs font-medium text-slate-400">
+          <Terminal className="h-3.5 w-3.5" /> Direct Connect (BeamMP launcher)
+        </div>
+        <CopyRow value={`${hostOr}:${gamePort}`} title="Address for BeamMP's Direct Connect" />
+        <p className="mt-1 text-[11px] leading-snug text-slate-500">
+          Launch BeamNG.drive through the <span className="font-mono">BeamMP launcher</span>, then{" "}
+          <span className="font-mono">Multiplayer → Direct Connect</span> with this address (or find the server
+          by name when it isn't Private). Online, friends use your public IP with the same port.
+        </p>
+      </div>
+    );
+  }
+
   if (game === Game.RUST) {
     return (
       <div className={className}>

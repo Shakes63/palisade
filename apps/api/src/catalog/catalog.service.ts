@@ -20,6 +20,7 @@ import { CORE_KEEPER_CATALOG } from "./core-keeper.catalog";
 import { TERRARIA_CATALOG } from "./terraria.catalog";
 import { FACTORIO_CATALOG } from "./factorio.catalog";
 import { RUST_CATALOG } from "./rust.catalog";
+import { BEAMMP_CATALOG } from "./beammp.catalog";
 import { serializeGameIni, serializeGameUserSettings } from "./ini-serializer";
 
 @Injectable()
@@ -46,6 +47,7 @@ export class CatalogService {
     if (game === Game.TERRARIA) return TERRARIA_CATALOG;
     if (game === Game.FACTORIO) return FACTORIO_CATALOG;
     if (game === Game.RUST) return RUST_CATALOG;
+    if (game === Game.BEAMMP) return BEAMMP_CATALOG;
     throw new NotFoundException(`Unknown game: ${game}`);
   }
 

@@ -41,6 +41,8 @@ import {
   TERRARIA_LOGS_DIR,
   FACTORIO_DATA_DIR,
   RUST_DATA_DIR,
+  BEAMMP_CLIENT_MODS_DIR,
+  BEAMMP_SERVER_MODS_DIR,
 } from "../common/images";
 // (ATS reuses the ich777 wrapper mount points LIF_STEAMCMD_DIR / LIF_SERVERFILES_DIR.)
 import { ZOMBOID_STEAM_PORTS } from "../catalog/ports";
@@ -96,6 +98,7 @@ export function buildContainerSpec(input: RuntimeSpecInput): Docker.ContainerCre
   if (input.game === Game.TERRARIA) return buildTerrariaSpec(input);
   if (input.game === Game.FACTORIO) return buildFactorioSpec(input);
   if (input.game === Game.RUST) return buildRustSpec(input);
+  if (input.game === Game.BEAMMP) return buildBeammpSpec(input);
   return buildAseSpec(input);
 }
 
@@ -1629,6 +1632,72 @@ function buildRustSpec(input: RuntimeSpecInput): Docker.ContainerCreateOptions {
               [portKey(ports.query, "udp")]: [{ HostPort: String(ports.query) }],
               [portKey(ports.rcon, "tcp")]: [{ HostPort: String(ports.rcon) }],
               [portKey(ports.rawSocket, "tcp")]: [{ HostPort: String(ports.rawSocket) }],
+            },
+          }),
+      RestartPolicy: { Name: "no" }, // manager watchdog owns restarts
+      Memory: input.ramLimitMb ? input.ramLimitMb * 1024 * 1024 : undefined,
+      NanoCpus: input.cpuLimit ? Math.round(input.cpuLimit * 1e9) : undefined,
+    },
+    ...(hostNet ? {} : { NetworkingConfig: { EndpointsConfig: { [ARK_NETWORK]: {} } } }),
+  };
+}
+
+/**
+ * BeamMP (BeamNG.drive multiplayer) — drive the rouhim image. The server binary
+ * is baked in and fully env-driven; it's a lightweight relay (client-side
+ * physics). The map field carries the vanilla LEVEL name (expanded to BeamNG's
+ * /levels/<name>/info.json path); the MANDATORY beammp.com AuthKey rides the
+ * admin-password field. Client-mod zips + server Lua plugins persist via binds.
+ * NO RCON/query; one port, TCP AND UDP.
+ */
+function buildBeammpSpec(input: RuntimeSpecInput): Docker.ContainerCreateOptions {
+  const env = loadEnv();
+  const { ports } = input;
+
+  const beammpEnv = [
+    `TZ=${input.timezone || env.TZ}`,
+    `BEAMMP_NAME=${input.sessionName}`,
+    `BEAMMP_AUTH_KEY=${input.adminPassword}`,
+    `BEAMMP_PORT=${ports.game}`,
+    `BEAMMP_MAX_PLAYERS=${input.maxPlayers}`,
+    `BEAMMP_MAP=/levels/${input.map}/info.json`,
+  ];
+  for (const def of input.catalog.settings) {
+    if (def.target !== SettingTarget.Env) continue;
+    const raw = input.config.values?.[def.key] ?? def.default;
+    if (raw === undefined || raw === null || raw === "") continue;
+    beammpEnv.push(`${def.emitAs ?? def.key}=${typeof raw === "boolean" ? (raw ? "true" : "false") : String(raw)}`);
+  }
+
+  const root = HostPaths.instanceRoot(input.serverId);
+  const binds = [
+    `${root}/mods-client:${BEAMMP_CLIENT_MODS_DIR}`, // map/vehicle zips sent to joiners
+    `${root}/mods-server:${BEAMMP_SERVER_MODS_DIR}`, // server-side Lua plugins
+  ];
+
+  const hostNet = env.GAME_HOST_NETWORK;
+  return {
+    name: containerName(input.serverId, input.game, input.sessionName),
+    Image: IMAGES[Game.BEAMMP],
+    Hostname: containerName(input.serverId, input.game, input.sessionName),
+    Env: beammpEnv,
+    Labels: serverLabels(input, env.PUBLIC_BASE_URL),
+    ...(hostNet
+      ? {}
+      : {
+          ExposedPorts: {
+            [portKey(ports.game, "tcp")]: {},
+            [portKey(ports.game, "udp")]: {},
+          },
+        }),
+    HostConfig: {
+      Binds: binds,
+      ...(hostNet
+        ? { NetworkMode: "host" }
+        : {
+            PortBindings: {
+              [portKey(ports.game, "tcp")]: [{ HostPort: String(ports.game) }],
+              [portKey(ports.game, "udp")]: [{ HostPort: String(ports.game) }],
             },
           }),
       RestartPolicy: { Name: "no" }, // manager watchdog owns restarts
