@@ -1039,7 +1039,7 @@ describe("buildContainerSpec + patchTShockConfig (Terraria / ryshe)", () => {
       game: Game.TERRARIA,
       map: "TerrariaLarge",
       sessionName: "Corruption Co",
-      ports: { game: 7777, rawSocket: 7779, query: 7777, rcon: 7878 },
+      ports: { game: 7777, rawSocket: 7779, query: 7777, rcon: 7979 },
       maxPlayers: 8,
       adminPassword: "resttoken",
       serverPassword: "hunter2",
@@ -1054,7 +1054,7 @@ describe("buildContainerSpec + patchTShockConfig (Terraria / ryshe)", () => {
       "-autocreate", "3", "-worldname", "Corruption Co", "-difficulty", "2", "-seed", "worthy",
     ]);
     expect(spec.HostConfig?.PortBindings?.["7777/tcp"]).toEqual([{ HostPort: "7777" }]);
-    expect(spec.HostConfig?.PortBindings?.["7878/tcp"]).toEqual([{ HostPort: "7878" }]);
+    expect(spec.HostConfig?.PortBindings?.["7979/tcp"]).toEqual([{ HostPort: "7979" }]);
     const binds = spec.HostConfig?.Binds ?? [];
     expect(binds.some((b) => b.endsWith(":/root/.local/share/Terraria/Worlds"))).toBe(true);
     expect(binds.some((b) => b.endsWith(":/tshock/ServerPlugins"))).toBe(true);
@@ -1073,7 +1073,7 @@ describe("buildContainerSpec + patchTShockConfig (Terraria / ryshe)", () => {
         adminPassword: "resttoken",
         maxPlayers: 8,
         gamePort: 7777,
-        restPort: 7878,
+        restPort: 7979,
         catalog: TERRARIA_CATALOG,
         config: { values: { PvPMode: "disabled" } },
       }),
@@ -1101,7 +1101,7 @@ describe("buildContainerSpec + patchTShockConfig (Terraria / ryshe)", () => {
         adminPassword: "",
         maxPlayers: 8,
         gamePort: 7777,
-        restPort: 7878,
+        restPort: 7979,
         catalog: TERRARIA_CATALOG,
         config: { values: {} },
       }),

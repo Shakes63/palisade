@@ -135,12 +135,14 @@ export const ETS2_PORTS: PortSet = { game: 27018, rawSocket: 27020, query: 27019
 export const CORE_KEEPER_PORTS: PortSet = { game: 0, rawSocket: 0, query: 0, rcon: 0 };
 
 /**
- * Terraria: the canonical game port 7777 (TCP), plus TShock's REST API on 7878
- * (carried in the rcon slot — it's the admin/management surface and stays
- * LAN-only). query mirrors the game port; rawSocket unused. NOTE: 7777 overlaps
- * the ARK block + Satisfactory — the start-time conflict guard covers it.
+ * Terraria: the canonical game port 7777 (TCP), plus TShock's REST API in the
+ * rcon slot — on 7979, NOT TShock's 7878 default, because game containers use
+ * host networking and 7878 is Radarr's well-known port (verified taken on the
+ * box). REST is the admin/management surface and stays LAN-only. query mirrors
+ * the game port; rawSocket unused. NOTE: 7777 overlaps the ARK block +
+ * Satisfactory — the start-time conflict guard covers it.
  */
-export const TERRARIA_PORTS: PortSet = { game: 7777, rawSocket: 7779, query: 7777, rcon: 7878 };
+export const TERRARIA_PORTS: PortSet = { game: 7777, rawSocket: 7779, query: 7777, rcon: 7979 };
 
 /**
  * Every host port a server binds (skipping unused 0 slots — e.g. rcon on no-RCON
