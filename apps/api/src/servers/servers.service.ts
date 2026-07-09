@@ -139,10 +139,11 @@ export const READY_RE_BY_GAME: Record<Game, RegExp> = {
   // and Steam registration follow within seconds). NOT the wrapper's "---Server
   // ready---", which fires BEFORE the wine launch.
   [Game.LIF]: /Server is up and ready to accept connections/i,
-  // ATS: the dedicated server logs its session/Steam registration once joinable.
-  // PROVISIONAL — confirm against a real boot. (NOT the wrapper's "---Server
-  // ready---", which fires BEFORE the game launch.)
-  [Game.ATS]: /Session created|Server is running|Logged on to Steam/i,
+  // ATS: the true ready line ("[MP] Session running.") goes to the game's OWN log
+  // file (server.log.txt), not stdout — docker logs end at "[MP] Server init",
+  // which the file's timestamps show is <2 s before the session is up (CONFIRMED
+  // live). So the stdout init line is the marker; the tiny early window is fine.
+  [Game.ATS]: /\[MP\] Server init/i,
 };
 
 /** The "server is now joinable" log-marker regex for a game. */
