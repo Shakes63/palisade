@@ -812,6 +812,80 @@ describe("buildContainerSpec (Satisfactory / wolveix)", () => {
   });
 });
 
+describe("buildContainerSpec + patchLifWorldXml (LiF:YO / ich777)", () => {
+  it("drives the ich777 wrapper (app id + world 1, PUID, both binds, tcp+udp block)", async () => {
+    const { buildContainerSpec } = await import("./runtime-spec");
+    const { LIF_CATALOG } = await import("../catalog/lif.catalog");
+    const spec = buildContainerSpec({
+      serverId: "srv1",
+      game: Game.LIF,
+      map: "Abella",
+      sessionName: "Feudal Test",
+      ports: { game: 28000, rawSocket: 28001, query: 28002, rcon: 0 },
+      maxPlayers: 16,
+      adminPassword: "gmpw",
+      serverPassword: "hunter2",
+      modIds: [],
+      cluster: null,
+      config: { values: {} },
+      catalog: LIF_CATALOG,
+    });
+    expect(spec.Image).toBe("ghcr.io/ich777/steamcmd:lifyo");
+    const env = envOf(spec);
+    expect(env).toContain("GAME_ID=320850");
+    expect(env).toContain("GAME_PARAMS=-world 1");
+    for (const p of [28000, 28001, 28002, 28003]) {
+      expect(spec.HostConfig?.PortBindings?.[`${p}/tcp`]).toEqual([{ HostPort: String(p) }]);
+      expect(spec.HostConfig?.PortBindings?.[`${p}/udp`]).toEqual([{ HostPort: String(p) }]);
+    }
+    const binds = spec.HostConfig?.Binds ?? [];
+    expect(binds.some((b) => b.endsWith(":/serverdata/steamcmd"))).toBe(true);
+    expect(binds.some((b) => b.endsWith(":/serverdata/serverfiles"))).toBe(true);
+  });
+
+  const SAMPLE = `<?xml version="1.0"?>
+<config>
+\t<ID>1</ID>
+\t<name>My own LiF server</name> <!-- No more than 63 symbols! -->
+\t<password></password>
+\t<adminPassword></adminPassword>
+\t<skillsStatsMult>100</skillsStatsMult>
+\t<skillcap>
+\t\t<group id="1" value="3000" />
+\t\t<group id="2" value="400" />
+\t\t<group id="3" value="800" />
+\t</skillcap>
+\t<dayCycle>4</dayCycle>
+\t<maxPlayers>64</maxPlayers>
+\t<port>28000</port>
+\t<isPrivate>0</isPrivate>
+</config>`;
+
+  it("patches first-class fields + catalog tags + skillcap groups, preserving the rest", async () => {
+    const { patchLifWorldXml } = await import("./runtime-spec");
+    const { LIF_CATALOG } = await import("../catalog/lif.catalog");
+    const out = patchLifWorldXml(SAMPLE, {
+      sessionName: "Feudal & Friends",
+      serverPassword: "hunter2",
+      adminPassword: "gmpw",
+      maxPlayers: 16,
+      gamePort: 28000,
+      catalog: LIF_CATALOG,
+      config: { values: { LIF_SKILLCAP_COMBAT: 900, dayCycle: 8, isPrivate: true } },
+    });
+    expect(out).toContain("<name>Feudal &amp; Friends</name>"); // XML-escaped
+    expect(out).toContain("<password>hunter2</password>");
+    expect(out).toContain("<adminPassword>gmpw</adminPassword>");
+    expect(out).toContain("<maxPlayers>16</maxPlayers>");
+    expect(out).toContain('<group id="2" value="900" />');
+    expect(out).toContain('<group id="1" value="600" />'); // catalog default applied
+    expect(out).toContain("<dayCycle>8</dayCycle>");
+    expect(out).toContain("<isPrivate>1</isPrivate>"); // bool -> 1/0
+    expect(out).toContain("<ID>1</ID>"); // untouched
+    expect(out).toContain("<!-- No more than 63 symbols! -->"); // comments preserved
+  });
+});
+
 describe("parsePzModIds", () => {
   it("parses 'Mod ID:' lines from a Workshop description (deduped, in order)", async () => {
     const { parsePzModIds } = await import("../mods/mods.service");

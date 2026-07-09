@@ -25,6 +25,7 @@ const A2S_GAMES = new Set<Game>([
   Game.ENSHROUDED,
   Game.VRISING,
   Game.SOTF,
+  Game.LIF,
 ]);
 
 /**

@@ -32,9 +32,12 @@ import {
   VRISING_DATA_DIR,
   SOTF_GAME_DIR,
   SATISFACTORY_CONFIG_DIR,
+  LIF_STEAMCMD_DIR,
+  LIF_SERVERFILES_DIR,
 } from "../common/images";
 import { ZOMBOID_STEAM_PORTS } from "../catalog/ports";
 import { SOTF_GAME_SETTINGS_KEYS } from "../catalog/sotf.catalog";
+import { LIF_SKILLCAP_GROUPS } from "../catalog/lif.catalog";
 import { ARK_NETWORK, containerName } from "../common/naming";
 import { loadEnv } from "../config/env";
 
@@ -77,6 +80,7 @@ export function buildContainerSpec(input: RuntimeSpecInput): Docker.ContainerCre
   if (input.game === Game.VRISING) return buildVRisingSpec(input);
   if (input.game === Game.SOTF) return buildSotfSpec(input);
   if (input.game === Game.SATISFACTORY) return buildSatisfactorySpec(input);
+  if (input.game === Game.LIF) return buildLifSpec(input);
   return buildAseSpec(input);
 }
 
@@ -1364,6 +1368,124 @@ function satisfactoryCatalogEnv(input: RuntimeSpecInput): string[] {
     out.push(`${def.emitAs ?? def.key}=${val}`);
   }
   return out;
+}
+
+/**
+ * Life is Feudal: Your Own — drive ich777's lifyo SteamCMD wrapper. It installs
+ * the Windows server (app 320850) via SteamCMD on boot, runs it under Wine, and
+ * bundles the game's REQUIRED MariaDB inside the container (datadir persisted at
+ * serverfiles/.database, connection seeded into config_local.cs). All server
+ * settings live in serverfiles/config/world_1.xml, patched by patchLifWorldXml
+ * before each start. NO RCON. The wrapper needs no per-game env beyond the app id.
+ */
+function buildLifSpec(input: RuntimeSpecInput): Docker.ContainerCreateOptions {
+  const env = loadEnv();
+  const { ports } = input;
+
+  const lifEnv = [
+    `TZ=${input.timezone || env.TZ}`,
+    `GAME_ID=${STEAM_APP_ID_LIF}`,
+    `GAME_PARAMS=-world 1`, // matches config/world_1.xml
+    `UID=${env.PUID}`,
+    `GID=${env.PGID}`,
+    `VALIDATE=`,
+  ];
+
+  const root = HostPaths.instanceRoot(input.serverId);
+  const binds = [
+    `${root}/steamcmd:${LIF_STEAMCMD_DIR}`, // SteamCMD itself (per-instance, tiny)
+    `${root}/serverfiles:${LIF_SERVERFILES_DIR}`, // game + config + logs + MariaDB datadir
+  ];
+
+  // The server uses its base port + the two above (TCP AND UDP); the ich777
+  // template maps a 4th (28003) as well, so publish the whole block both ways.
+  const blockPorts = [ports.game, ports.rawSocket, ports.query, ports.game + 3];
+  const hostNet = env.GAME_HOST_NETWORK;
+  return {
+    name: containerName(input.serverId, input.game, input.sessionName),
+    Image: IMAGES[Game.LIF],
+    Hostname: containerName(input.serverId, input.game, input.sessionName),
+    Env: lifEnv,
+    Labels: serverLabels(input, env.PUBLIC_BASE_URL),
+    ...(hostNet
+      ? {}
+      : {
+          ExposedPorts: Object.fromEntries(
+            blockPorts.flatMap((p) => [
+              [portKey(p, "tcp"), {}],
+              [portKey(p, "udp"), {}],
+            ]),
+          ),
+        }),
+    HostConfig: {
+      Binds: binds,
+      ...(hostNet
+        ? { NetworkMode: "host" }
+        : {
+            PortBindings: Object.fromEntries(
+              blockPorts.flatMap((p) => [
+                [portKey(p, "tcp"), [{ HostPort: String(p) }]],
+                [portKey(p, "udp"), [{ HostPort: String(p) }]],
+              ]),
+            ),
+          }),
+      RestartPolicy: { Name: "no" }, // manager watchdog owns restarts
+      Memory: input.ramLimitMb ? input.ramLimitMb * 1024 * 1024 : undefined,
+      NanoCpus: input.cpuLimit ? Math.round(input.cpuLimit * 1e9) : undefined,
+    },
+    ...(hostNet ? {} : { NetworkingConfig: { EndpointsConfig: { [ARK_NETWORK]: {} } } }),
+  };
+}
+
+const STEAM_APP_ID_LIF = 320850;
+
+/**
+ * Patch a LiF:YO world_1.xml in place: first-class fields (name, join + GM
+ * passwords, slots, port) plus the catalog's tags, preserving everything else in
+ * the file (comments, judgementHour, unknown future tags). The LIF_SKILLCAP_*
+ * catalog keys land in the nested <skillcap><group id=N> elements. Booleans emit
+ * as 1/0; values are XML-escaped. Returns the patched document.
+ */
+export function patchLifWorldXml(
+  xml: string,
+  input: {
+    sessionName: string;
+    serverPassword: string;
+    adminPassword: string;
+    maxPlayers: number;
+    gamePort: number;
+    catalog: SettingsCatalog;
+    config: ServerConfigValues;
+  },
+): string {
+  const esc = (v: unknown): string =>
+    String(v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const setTag = (doc: string, tag: string, value: unknown): string =>
+    doc.replace(new RegExp(`<${tag}>[^<]*</${tag}>`), `<${tag}>${esc(value)}</${tag}>`);
+
+  let doc = xml;
+  doc = setTag(doc, "name", input.sessionName.slice(0, 63));
+  doc = setTag(doc, "password", input.serverPassword.slice(0, 32));
+  doc = setTag(doc, "adminPassword", input.adminPassword.slice(0, 32));
+  doc = setTag(doc, "maxPlayers", Math.min(Math.max(input.maxPlayers, 1), 64));
+  doc = setTag(doc, "port", input.gamePort);
+
+  for (const def of input.catalog.settings) {
+    if (def.target !== SettingTarget.Env) continue;
+    const raw = input.config.values?.[def.key] ?? def.default;
+    if (raw === undefined || raw === null || raw === "") continue;
+    const value = typeof raw === "boolean" ? (raw ? 1 : 0) : raw;
+    const groupId = LIF_SKILLCAP_GROUPS[def.key];
+    if (groupId !== undefined) {
+      doc = doc.replace(
+        new RegExp(`(<group id="${groupId}" value=")[^"]*(")`),
+        `$1${esc(value)}$2`,
+      );
+    } else {
+      doc = setTag(doc, def.emitAs ?? def.key, value);
+    }
+  }
+  return doc;
 }
 
 /**

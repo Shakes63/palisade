@@ -28,6 +28,8 @@ export enum Game {
   SOTF = "SOTF",
   /** Satisfactory — wolveix image (native Linux), env-driven; HTTPS server API (no RCON). */
   SATISFACTORY = "SATISFACTORY",
+  /** Life is Feudal: Your Own — ich777 image (Wine + bundled MariaDB); we patch world_1.xml; NO RCON. */
+  LIF = "LIF",
 }
 
 /** Friendly game names for the UI. */
@@ -46,6 +48,7 @@ export const GAME_LABELS: Record<Game, string> = {
   [Game.VRISING]: "V Rising",
   [Game.SOTF]: "Sons of the Forest",
   [Game.SATISFACTORY]: "Satisfactory",
+  [Game.LIF]: "Life is Feudal: Your Own",
 };
 
 /** SteamCMD app IDs for the dedicated server (anonymous login). */
@@ -76,6 +79,8 @@ export const STEAM_APP_ID: Record<Game, number> = {
   [Game.SOTF]: 2465200,
   // Satisfactory dedicated server (the wolveix image installs it via SteamCMD).
   [Game.SATISFACTORY]: 1690800,
+  // Life is Feudal: Your Own dedicated server (the ich777 image installs it via SteamCMD).
+  [Game.LIF]: 320850,
 };
 
 /** Steam Workshop "consumer" app ids for mod downloads (ARK: Survival Evolved /
@@ -117,6 +122,7 @@ export const GAME_ICONS: Record<Game, string> = {
   [Game.VRISING]: "https://cdn.cloudflare.steamstatic.com/steam/apps/1604030/header.jpg",
   [Game.SOTF]: "https://cdn.cloudflare.steamstatic.com/steam/apps/1326470/header.jpg",
   [Game.SATISFACTORY]: "https://cdn.cloudflare.steamstatic.com/steam/apps/526870/header.jpg",
+  [Game.LIF]: "https://cdn.cloudflare.steamstatic.com/steam/apps/290080/header.jpg",
 };
 
 /** CurseForge numeric game id for ASA (used by the mod browser). */
@@ -169,6 +175,8 @@ export const RAM_ESTIMATE_MB: Record<Game, number> = {
   [Game.SOTF]: 12000,
   // Satisfactory: 8-16 GB recommended; grows with factory size/late game.
   [Game.SATISFACTORY]: 8000,
+  // LiF:YO under Wine PLUS the bundled MariaDB — ~6-8 GB populated.
+  [Game.LIF]: 8000,
 };
 
 /**
@@ -192,6 +200,7 @@ export const MAX_PLAYERS_BY_GAME: Record<Game, number> = {
   [Game.VRISING]: 40, // Stunlock's supported ceiling (MaxConnectedUsers)
   [Game.SOTF]: 8, // Endnight's design cap for multiplayer
   [Game.SATISFACTORY]: 16, // no hard cap; >8 needs serious hardware (default is 4)
+  [Game.LIF]: 64, // world_1.xml maxPlayers hard range 1-64
 };
 
 /** The default player count the create form pre-fills per game (a sensible starting
@@ -211,6 +220,7 @@ export const DEFAULT_MAX_PLAYERS_BY_GAME: Record<Game, number> = {
   [Game.VRISING]: 10,
   [Game.SOTF]: 8,
   [Game.SATISFACTORY]: 4,
+  [Game.LIF]: 16,
 };
 
 /** A password field on the create form: whether to show it at all, its label, an
@@ -259,6 +269,11 @@ export const ADMIN_PASSWORD_META: Record<Game, PasswordFieldMeta> = {
     label: "Admin password (claims the server)",
     help: "Palisade claims the server through its API on first boot with this password — no in-game claim needed. It also unlocks the in-game Server Manager.",
   },
+  [Game.LIF]: {
+    show: true,
+    label: "GM / admin password",
+    help: "Unlocks in-game GM mode. NOTE: the game files (and config) install on the FIRST start, so name + passwords apply from the second start — restart once after the first boot.",
+  },
 };
 
 /** The join (server) password field, per game. Every game can have one, but Valheim
@@ -290,6 +305,7 @@ export const JOIN_PASSWORD_META: Record<Game, PasswordFieldMeta> = {
   [Game.VRISING]: { show: true, label: "Server password (players need it to join)" },
   [Game.SOTF]: { show: true, label: "Server password (players need it to join)" },
   [Game.SATISFACTORY]: { show: true, label: "Server password (players need it to join)" },
+  [Game.LIF]: { show: true, label: "Server password (players need it to join)" },
 };
 
 /** Default port offsets within a per-server allocation block. */
@@ -383,6 +399,9 @@ export const SOTF_OFFICIAL_MAPS = ["Normal", "Hard", "Peaceful", "Creative"] as 
 /** Satisfactory has a single fixed planet — no map choice. */
 export const SATISFACTORY_OFFICIAL_MAPS = ["Satisfactory"] as const;
 
+/** LiF:YO has a single fixed 3x3 km island — no map choice. */
+export const LIF_OFFICIAL_MAPS = ["Abella"] as const;
+
 /** Friendly display names for known level names (raw level → label). */
 export const MAP_LABELS: Record<string, string> = {
   // Conan Exiles
@@ -413,6 +432,8 @@ export const MAP_LABELS: Record<string, string> = {
   Vardoran: "Vardoran",
   // Satisfactory (single planet)
   Satisfactory: "MASSAGE-2 (A-B) b",
+  // Life is Feudal: Your Own (single island)
+  Abella: "The island (3\u00d73 km)",
   // Sons of the Forest game modes (repurposed map field)
   Normal: "Normal (survival)",
   Hard: "Hard (survival)",

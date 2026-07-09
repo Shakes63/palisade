@@ -52,6 +52,11 @@ export const IMAGES: Record<Game, string> = {
   // SteamCMD on boot into /config/gamefiles. Env-driven. No RCON — management is
   // the game's own HTTPS API on the game port (see satisfactory-api.ts).
   [Game.SATISFACTORY]: "wolveix/satisfactory-server:latest",
+  // ich777's SteamCMD wrapper, lifyo flavour — installs the LiF:YO Windows server
+  // (app 320850) via SteamCMD on boot, runs it under Wine, and bundles the game's
+  // required MariaDB IN the container (datadir persisted under the serverfiles
+  // bind). Settings live in config/world_1.xml, which the manager patches. NO RCON.
+  [Game.LIF]: "ghcr.io/ich777/steamcmd:lifyo",
 };
 
 /** POK keeps all instance data (install + saves + config) under this path. */
@@ -114,6 +119,11 @@ export const SOTF_GAME_DIR = "/sonsoftheforest";
  *  saved (saves + blueprints + server config), backups, and logs. */
 export const SATISFACTORY_CONFIG_DIR = "/config";
 
+/** LiF:YO (ich777): SteamCMD itself + the serverfiles (game install, world_1.xml
+ *  config, logs, AND the bundled MariaDB datadir at .database/). */
+export const LIF_STEAMCMD_DIR = "/serverdata/steamcmd";
+export const LIF_SERVERFILES_DIR = "/serverdata/serverfiles";
+
 /**
  * The uid/gid each image runs the server as. Neither chowns its mounts fully
  * (POK never does; hermsi only chowns the volume root), so the manager makes the
@@ -134,6 +144,7 @@ export const SERVER_UID: Record<Game, number> = {
   [Game.VRISING]: 0, // trueosiris runs as root (no PUID/PGID support)
   [Game.SOTF]: 1000, // jammsen's steam user, remapped to env PUID/PGID (entrypoint chowns)
   [Game.SATISFACTORY]: 1000, // wolveix runs the game as PUID/PGID (default 1000)
+  [Game.LIF]: 99, // ich777's default nobody/users, remapped via UID/GID env (we pass PUID/PGID)
 };
 export const SERVER_GID: Record<Game, number> = {
   [Game.ASA]: 7777,
@@ -150,4 +161,5 @@ export const SERVER_GID: Record<Game, number> = {
   [Game.VRISING]: 0,
   [Game.SOTF]: 1000,
   [Game.SATISFACTORY]: 1000,
+  [Game.LIF]: 100,
 };

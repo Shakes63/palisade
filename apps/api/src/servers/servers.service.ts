@@ -41,7 +41,7 @@ import { ManagerSettingsService, SettingKeys } from "../manager-settings/manager
 import { LogCaptureService, LOG_CAPTURE_MAX } from "../logs/log-capture.service";
 import { BackupsService } from "../backups/backups.service";
 import { PlayersService } from "../players/players.service";
-import { buildContainerSpec, renderSdtdServerXml, renderSotfConfig } from "./runtime-spec";
+import { buildContainerSpec, renderSdtdServerXml, renderSotfConfig, patchLifWorldXml } from "./runtime-spec";
 import { portsFor, serverPortSet } from "../catalog/ports";
 import { LocalPaths } from "../common/paths";
 import { containerName } from "../common/naming";
@@ -128,6 +128,10 @@ export const READY_RE_BY_GAME: Record<Game, RegExp> = {
   // fires right as the game port starts listening — CONFIRMED live (the API
   // claim + query follow within seconds).
   [Game.SATISFACTORY]: /Engine is initialized\. Leaving FEngineLoop::Init|Satisfactory Server is now running/i,
+  // LiF:YO: the container tails the game's own log after launching it under Wine.
+  // PROVISIONAL — confirm against a real boot. (NOT the wrapper's "---Server
+  // ready---", which fires BEFORE the wine launch.)
+  [Game.LIF]: /Server started|listening on|Steam game server.*(init|logged)/i,
 };
 
 /** The "server is now joinable" log-marker regex for a game. */
@@ -1062,7 +1066,8 @@ export class ServersService implements OnApplicationBootstrap {
       game === Game.ENSHROUDED ||
       game === Game.VRISING ||
       game === Game.SOTF ||
-      game === Game.SATISFACTORY
+      game === Game.SATISFACTORY ||
+      game === Game.LIF
     )
       return;
     if (!containerId || game === Game.CONAN || game === Game.MINECRAFT || game === Game.ZOMBOID) {
@@ -1271,6 +1276,29 @@ export class ServersService implements OnApplicationBootstrap {
         config: JSON.parse(server.configJson) as ServerConfigValues,
       });
       await writeFile(join(dir, "dedicatedserver.cfg"), cfg, "utf8");
+      return;
+    }
+
+    // LiF:YO: all settings live in serverfiles/config/world_1.xml. The file is
+    // WRITTEN BY STEAMCMD on the first install (so it can't be pre-seeded — the
+    // depot would overwrite it); once present, patch our name/passwords/slots/
+    // port + catalog values into it before every start, preserving the rest.
+    // On the very first boot the image's own defaults apply; a restart applies ours.
+    if (game === Game.LIF) {
+      const file = join(env.DATA_DIR, "instances", server.id, "serverfiles", "config", "world_1.xml");
+      const xml = await readFile(file, "utf8").catch(() => null);
+      if (xml !== null) {
+        const patched = patchLifWorldXml(xml, {
+          sessionName: server.name,
+          serverPassword: server.serverPasswordEnc ? this.crypto.decrypt(server.serverPasswordEnc) : "",
+          adminPassword: server.adminPasswordEnc ? this.crypto.decrypt(server.adminPasswordEnc) : "",
+          maxPlayers: server.maxPlayers,
+          gamePort: server.gamePort,
+          catalog: this.catalog.getCatalog(Game.LIF),
+          config: JSON.parse(server.configJson) as ServerConfigValues,
+        });
+        if (patched !== xml) await writeFile(file, patched, "utf8");
+      }
       return;
     }
 

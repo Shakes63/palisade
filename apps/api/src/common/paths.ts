@@ -82,6 +82,11 @@ export const LocalPaths = {
         // Saves + blueprints + server config live under config/saved; the ~10 GB
         // install (config/gamefiles) and the image's own backups dir are skipped.
         return ["config/saved"];
+      case Game.LIF:
+        // The world lives in the bundled MariaDB's datadir (.database) plus the
+        // config dir (world_1.xml). NOTE: a running-server backup of a live MariaDB
+        // datadir is crash-consistent only — clean backups happen while stopped.
+        return ["serverfiles/.database", "serverfiles/config"];
       default:
         return ["ShooterGame/Saved"]; // ASA (POK)
     }

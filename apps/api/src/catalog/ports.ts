@@ -106,6 +106,13 @@ export const SOTF_PORTS: PortSet = { game: 8766, rawSocket: 9700, query: 27016, 
 export const SATISFACTORY_PORTS: PortSet = { game: 7777, rawSocket: 8888, query: 7777, rcon: 0 };
 
 /**
+ * LiF:YO: the server uses its base port + the two above it (28000-28002, TCP AND
+ * UDP), with Steam A2S expected on game+2; the ich777 template also maps 28003.
+ * NO RCON (rcon 0, Console UI hidden). rawSocket carries game+1.
+ */
+export const LIF_PORTS: PortSet = { game: 28000, rawSocket: 28001, query: 28002, rcon: 0 };
+
+/**
  * Every host port a server binds (skipping unused 0 slots — e.g. rcon on no-RCON
  * games). Valheim also binds its HTTP status endpoint on game + 3, and Minecraft's
  * query column mirrors the game port (the set dedupes it). Used by the start-time
@@ -116,6 +123,7 @@ export function serverPortSet(game: Game, ports: PortSet): Set<number> {
   for (const p of [ports.game, ports.rawSocket, ports.query, ports.rcon]) if (p > 0) set.add(p);
   if (game === Game.VALHEIM) set.add(ports.game + 3); // STATUS_HTTP (player counts)
   if (game === Game.ZOMBOID) for (const p of ZOMBOID_STEAM_PORTS) set.add(p); // Steam comms
+  if (game === Game.LIF) set.add(ports.game + 3); // 28003, mapped by the ich777 template
   return set;
 }
 
@@ -184,6 +192,15 @@ export function forwardSpec(game: Game, ports: PortSet): ForwardPort[] {
         { port: ports.game, proto: "tcp", label: "server API (join/manage)" },
         { port: ports.rawSocket, proto: "tcp", label: "reliable messaging" },
       ];
+    case Game.LIF:
+      return [
+        { port: ports.game, proto: "tcp", label: "game (tcp)" },
+        { port: ports.game, proto: "udp", label: "game (udp)" },
+        { port: ports.rawSocket, proto: "tcp", label: "game +1 (tcp)" },
+        { port: ports.rawSocket, proto: "udp", label: "game +1 (udp)" },
+        { port: ports.query, proto: "tcp", label: "query (tcp)" },
+        { port: ports.query, proto: "udp", label: "query (server browser)" },
+      ];
     default:
       // ARK family + Conan: game + raw socket + query, all UDP.
       return [
@@ -206,5 +223,6 @@ export function portsFor(game: Game): PortSet {
   if (game === Game.VRISING) return VRISING_PORTS;
   if (game === Game.SOTF) return SOTF_PORTS;
   if (game === Game.SATISFACTORY) return SATISFACTORY_PORTS;
+  if (game === Game.LIF) return LIF_PORTS;
   return FIXED_PORTS;
 }

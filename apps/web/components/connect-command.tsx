@@ -241,6 +241,33 @@ export function ConnectCommand({
     );
   }
 
+  if (game === Game.LIF) {
+    return (
+      <div className={className}>
+        <div className="mb-1 flex items-center gap-1.5 text-xs font-medium text-slate-400">
+          <Terminal className="h-3.5 w-3.5" /> Join by IP (in-game)
+        </div>
+        <CopyRow value={`${hostOr}:${gamePort}`} title="Server IP + port for LiF's Custom IP connect" />
+        <p className="mt-1 text-[11px] leading-snug text-slate-500">
+          In Life is Feudal: Your Own: <span className="font-mono">Multiplayer → server list</span> — search by
+          name, or use <span className="font-mono">Connect to custom IP</span> with this address. Online,
+          friends use your public IP with the same port.
+        </p>
+        {joinPassword && (
+          <div className="mt-3">
+            <div className="mb-1 flex items-center gap-1.5 text-xs font-medium text-slate-400">
+              <Lock className="h-3.5 w-3.5" /> Join password
+            </div>
+            <CopyRow value={joinPassword} title="Copy the join password" />
+            <p className="mt-1 text-[11px] leading-snug text-slate-500">
+              Enter this when it prompts. (Applies from the second server start.)
+            </p>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   if (game === Game.SATISFACTORY) {
     return (
       <div className={className}>
