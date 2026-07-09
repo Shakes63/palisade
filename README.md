@@ -10,7 +10,7 @@ container spawns and supervises a container per game server, manages every
 setting through schema-driven forms, and handles mods, backups, schedules,
 player administration, and even your router's port-forwards.
 
-**Supported games (16):**
+**Supported games (17):**
 
 | Game | Runtime | Console | Mods |
 |---|---|---|---|
@@ -30,6 +30,7 @@ player administration, and even your router's port-forwards.
 | Satisfactory | native | — (HTTPS API: auto-claim) | — (SFTP per upstream docs) |
 | Life is Feudal: Your Own | Wine (+ bundled MariaDB) | — (in-game GM password) | — (file-based per upstream docs) |
 | American Truck Simulator | native | — | — (optional mods via session host) |
+| Euro Truck Simulator 2 | native | — | — (optional mods via session host) |
 
 **Feature highlights**
 
@@ -264,6 +265,7 @@ wouldn't exist without them:
 | Satisfactory | `wolveix/satisfactory-server` | [wolveix](https://github.com/wolveix/satisfactory-server) |
 | Life is Feudal: Your Own | `ich777/steamcmd:lifyo` | [ich777](https://github.com/ich777/docker-steamcmd-server/tree/lifyo) |
 | American Truck Simulator | `ich777/steamcmd:ats` | [ich777](https://github.com/ich777/docker-steamcmd-server/tree/ats) |
+| Euro Truck Simulator 2 | `ich777/steamcmd:ets2` | [ich777](https://github.com/ich777/docker-steamcmd-server/tree/ets2) |
 
 Also standing on: [SteamCMD](https://developer.valvesoftware.com/wiki/SteamCMD),
 GE-Proton/Wine for the Windows-only servers,
