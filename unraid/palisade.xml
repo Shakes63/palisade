@@ -21,7 +21,7 @@
   <Project>https://github.com/Shakes63/palisade</Project>
   <Overview>
     Palisade - a web control panel for game dedicated servers (ARK ASA/ASE, Conan,
-    Palworld, Minecraft Java + Bedrock, Icarus, Valheim, 7 Days to Die, Enshrouded, Project Zomboid, V Rising, Sons of the Forest, Satisfactory, Life is Feudal: Your Own).
+    Palworld, Minecraft Java + Bedrock, Icarus, Valheim, 7 Days to Die, Enshrouded, Project Zomboid, V Rising, Sons of the Forest, Satisfactory, Life is Feudal: Your Own, American Truck Simulator).
     Manages every setting, mods, backups, schedules, players, and port-forwards, and
     spawns one container per game server. Controls Docker through the host socket
     mounted at /var/run/docker.sock.

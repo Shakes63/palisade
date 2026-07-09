@@ -10,7 +10,7 @@ container spawns and supervises a container per game server, manages every
 setting through schema-driven forms, and handles mods, backups, schedules,
 player administration, and even your router's port-forwards.
 
-**Supported games (15):**
+**Supported games (16):**
 
 | Game | Runtime | Console | Mods |
 |---|---|---|---|
@@ -29,6 +29,7 @@ player administration, and even your router's port-forwards.
 | Sons of the Forest | Wine | — | — (game has no official mod support) |
 | Satisfactory | native | — (HTTPS API: auto-claim) | — (SFTP per upstream docs) |
 | Life is Feudal: Your Own | Wine (+ bundled MariaDB) | — (in-game GM password) | — (file-based per upstream docs) |
+| American Truck Simulator | native | — | — (optional mods via session host) |
 
 **Feature highlights**
 
@@ -262,6 +263,7 @@ wouldn't exist without them:
 | Sons of the Forest | `jammsen/sons-of-the-forest-dedicated-server` | [jammsen](https://github.com/jammsen/docker-sons-of-the-forest-dedicated-server) |
 | Satisfactory | `wolveix/satisfactory-server` | [wolveix](https://github.com/wolveix/satisfactory-server) |
 | Life is Feudal: Your Own | `ich777/steamcmd:lifyo` | [ich777](https://github.com/ich777/docker-steamcmd-server/tree/lifyo) |
+| American Truck Simulator | `ich777/steamcmd:ats` | [ich777](https://github.com/ich777/docker-steamcmd-server/tree/ats) |
 
 Also standing on: [SteamCMD](https://developer.valvesoftware.com/wiki/SteamCMD),
 GE-Proton/Wine for the Windows-only servers,
