@@ -1,6 +1,8 @@
 # <img src="unraid/palisade-icon.png" width="40" alt="" align="top"> Palisade
 
 > Formerly **ARK Server Manager** — it outgrew the name. Old repo links redirect.
+>
+> **Now on Unraid Community Applications** — search "Palisade" in the Apps tab.
 
 A self-hosted, Docker-based control panel for game dedicated servers — built
 Unraid-first, but it runs on any Linux box with Docker. One lean manager
@@ -89,7 +91,25 @@ manager injects config, watches logs, and talks RCON/telnet/query protocols.
   # persist it: /etc/sysctl.conf, or on Unraid append to /boot/config/go
   ```
 
-### Option A — plain `docker run`
+### Option A — Unraid (Community Applications) ⭐ recommended
+
+Palisade is in [Community Applications](https://ca.unraid.net): open the
+**Apps** tab, search for **Palisade**, and install. The template pre-fills
+everything except your two secrets (`SECRETS_KEY`, `JWT_SECRET` — generators
+above) and the app-data path. The prerequisites above still apply: create the
+`ark-net` network and set the `vm.max_map_count` sysctl once.
+
+Two Unraid-specific notes baked into the template:
+- Use a path on the cache disk itself (`/mnt/cache/appdata/...`), **not**
+  `/mnt/user/...` — the ARK game-file cache reflink-clones between servers,
+  which needs one real filesystem.
+- Spawned game servers appear on the Docker page with per-game icons and WebUI
+  buttons that deep-link back into Palisade.
+
+(Manual alternative: drop [unraid/palisade.xml](unraid/palisade.xml) into
+`/boot/config/plugins/dockerMan/templates-user/`.)
+
+### Option B — plain `docker run`
 
 ```bash
 docker run -d \
@@ -117,7 +137,7 @@ Then open `http://YOUR-LAN-IP:8970` and complete the first-run wizard
 (create the admin account; API keys are optional and can be added later in
 Settings).
 
-### Option B — docker compose
+### Option C — docker compose
 
 A reference [`docker-compose.yml`](docker-compose.yml) ships in the repo:
 
@@ -125,13 +145,6 @@ A reference [`docker-compose.yml`](docker-compose.yml) ships in the repo:
 export SECRETS_KEY=... JWT_SECRET=... HOST_DATA_DIR=/opt/palisade
 docker compose up -d
 ```
-
-### Option C — Unraid
-
-Use the [Community Applications template](unraid/palisade.xml): add it as a
-template, fill in the same variables, and the manager shows up as a normal
-Unraid Docker app (spawned game servers appear on the Docker page with proper
-icons and WebUI links back into the manager).
 
 ### Environment variables
 
