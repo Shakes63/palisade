@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Palisade: a wall of sharpened stakes guarding your game servers -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1e293b"/>
+      <stop offset="1" stop-color="#0f172a"/>
+    </linearGradient>
+    <linearGradient id="stake" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#34d399"/>
+      <stop offset="1" stop-color="#059669"/>
+    </linearGradient>
+    <linearGradient id="stakeDim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2dd4bf"/>
+      <stop offset="1" stop-color="#0d9488"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="96" fill="url(#bg)"/>
+  <!-- stakes: pointed-top planks, center tallest -->
+  <g stroke="#0f172a" stroke-width="10" stroke-linejoin="round">
+    <path d="M78 436 V196 L118 148 L158 196 V436 Z" fill="url(#stakeDim)"/>
+    <path d="M170 436 V150 L210 102 L250 150 V436 Z" fill="url(#stake)"/>
+    <path d="M262 436 V116 L302 68  L342 116 V436 Z" fill="url(#stake)"/>
+    <path d="M354 436 V162 L394 114 L434 162 V436 Z" fill="url(#stakeDim)"/>
+  </g>
+  <!-- lashing rails binding the wall -->
+  <rect x="58" y="252" width="396" height="30" rx="15" fill="#0f172a" opacity="0.55"/>
+  <rect x="58" y="342" width="396" height="30" rx="15" fill="#0f172a" opacity="0.55"/>
+</svg>

@@ -17,7 +17,8 @@
   <Registry>https://github.com/Shakes63/palisade/pkgs/container/palisade</Registry>
   <Network>ark-net</Network>
   <Privileged>false</Privileged>
-  <Support/>
+  <Support>https://github.com/Shakes63/palisade/issues</Support>
+  <Project>https://github.com/Shakes63/palisade</Project>
   <Overview>
     Palisade - a web control panel for game dedicated servers (ARK ASA/ASE, Conan,
     Palworld, Minecraft Java + Bedrock, Icarus, Valheim, 7 Days to Die, Enshrouded).
@@ -27,7 +28,8 @@
   </Overview>
   <Category>GameServers: Tools:</Category>
   <WebUI>http://[IP]:[PORT:3000]/</WebUI>
-  <Icon>https://cdn.cloudflare.steamstatic.com/steam/apps/2399830/header.jpg</Icon>
+  <Icon>https://raw.githubusercontent.com/Shakes63/palisade/main/unraid/palisade-icon.png</Icon>
+  <TemplateURL>https://raw.githubusercontent.com/Shakes63/palisade/main/unraid/palisade.xml</TemplateURL>
   <ExtraParams>--add-host host.docker.internal:host-gateway</ExtraParams>
 
   <Config Name="Web UI" Target="3000" Default="8970" Mode="tcp" Type="Port" Display="always" Required="true" Description="Port for the web control panel. Open http://your-server-ip:this-port in a browser (the WebUI button uses it too). It maps to the app's internal port 3000 - only change this host number if it is already in use.">8970</Config>
