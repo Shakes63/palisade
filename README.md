@@ -10,7 +10,7 @@ container spawns and supervises a container per game server, manages every
 setting through schema-driven forms, and handles mods, backups, schedules,
 player administration, and even your router's port-forwards.
 
-**Supported games (18):**
+**Supported games (19):**
 
 | Game | Runtime | Console | Mods |
 |---|---|---|---|
@@ -32,6 +32,7 @@ player administration, and even your router's port-forwards.
 | American Truck Simulator | native | — | — (optional mods via session host) |
 | Euro Truck Simulator 2 | native | — | — (optional mods via session host) |
 | Core Keeper | native | — | — (no ports needed: Steam-relay Game ID joins) |
+| Terraria (TShock) | native | — (REST-powered counts) | plugin folder (TShock ServerPlugins) |
 
 **Feature highlights**
 
@@ -268,6 +269,7 @@ wouldn't exist without them:
 | American Truck Simulator | `ich777/steamcmd:ats` | [ich777](https://github.com/ich777/docker-steamcmd-server/tree/ats) |
 | Euro Truck Simulator 2 | `ich777/steamcmd:ets2` | [ich777](https://github.com/ich777/docker-steamcmd-server/tree/ets2) |
 | Core Keeper | `escaping/core-keeper-dedicated` | [escaping.network](https://github.com/escapingnetwork/core-keeper-dedicated) |
+| Terraria | `ryshe/terraria` | [Ryan Sheehan](https://github.com/ryansheehan/terraria) (built on [TShock](https://github.com/Pryaxis/TShock)) |
 
 Also standing on: [SteamCMD](https://developer.valvesoftware.com/wiki/SteamCMD),
 GE-Proton/Wine for the Windows-only servers,
