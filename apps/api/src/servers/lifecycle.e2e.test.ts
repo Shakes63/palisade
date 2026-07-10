@@ -153,8 +153,13 @@ async function makeService(row: ServerRow, docker: FakeDocker) {
   const { ServersService } = await import("./servers.service");
   const { StateMachineService } = await import("./state-machine.service");
   const { CatalogService } = await import("../catalog/catalog.service");
+  const { ServerConfigWriter } = await import("./config-writer.service");
 
   const prisma = makePrisma(row);
+  const crypto = { encrypt: (s: string) => s, decrypt: (s: string) => s };
+  const catalog = new CatalogService();
+  // The REAL config writer — writeInis is exactly what the fall-through guard tests.
+  const configWriter = new ServerConfigWriter(crypto as never, catalog);
   const events = { emit: noop, onEvent: () => undefined };
   const realtime = { broadcast: () => undefined };
   const sm = new StateMachineService(prisma as never, events as never, realtime as never);
@@ -169,11 +174,11 @@ async function makeService(row: ServerRow, docker: FakeDocker) {
   };
   const service = new ServersService(
     prisma as never,
-    { encrypt: (s: string) => s, decrypt: (s: string) => s } as never,
+    crypto as never,
     events as never,
     realtime as never,
     docker as never,
-    new CatalogService(),
+    catalog,
     { prepareGameFiles: noop, seedGameFilesCache: noop } as never,
     { disconnect: noop, saveWorld: noop, broadcast: noop } as never,
     sm,
@@ -181,6 +186,7 @@ async function makeService(row: ServerRow, docker: FakeDocker) {
     logCapture as never,
     { create: noop } as never,
     { count: async () => ({ online: 0 }) } as never,
+    configWriter,
   );
   return { service, prisma, sm };
 }
