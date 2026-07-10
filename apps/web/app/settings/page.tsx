@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Save, KeyRound, Send, CheckCircle2, Circle } from "lucide-react";
 import { apiGet, apiPatch, apiPost } from "@/lib/api";
 import { TimezoneSelect, detectZone } from "@/components/timezone-select";
+import { NotificationTargetsCard } from "@/components/notification-targets";
 
 type SettingsView = Record<string, string | boolean>;
 
@@ -11,7 +12,6 @@ export default function SettingsPage() {
   const [timezone, setTimezone] = useState("");
   const [curseForgeApiKey, setCurseForgeApiKey] = useState("");
   const [steamWebApiKey, setSteamWebApiKey] = useState("");
-  const [discordWebhookUrl, setDiscordWebhookUrl] = useState("");
   const [backupKeep, setBackupKeep] = useState("10");
   const [autoStop, setAutoStop] = useState(true);
   const [pfsenseHost, setPfsenseHost] = useState("");
@@ -20,7 +20,6 @@ export default function SettingsPage() {
   const [pfTestMsg, setPfTestMsg] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [testMsg, setTestMsg] = useState<string | null>(null);
 
   const load = () => {
     apiGet<SettingsView>("/settings")
@@ -29,7 +28,6 @@ export default function SettingsPage() {
         // Pre-select the user's detected zone when nothing is saved yet, so they
         // rarely have to touch it.
         setTimezone(typeof v.timezone === "string" && v.timezone ? v.timezone : detectZone());
-        if (typeof v.discord_webhook_url === "string") setDiscordWebhookUrl(v.discord_webhook_url);
         if (typeof v.backup_keep === "string" && v.backup_keep) setBackupKeep(v.backup_keep);
         setAutoStop(v.auto_stop_on_start !== "false"); // default on when unset
         if (typeof v.pfsense_host === "string") setPfsenseHost(v.pfsense_host);
@@ -56,7 +54,6 @@ export default function SettingsPage() {
       settingsBody.pfsenseTargetIp = pfsenseTargetIp;
       if (pfsenseApiKey) settingsBody.pfsenseApiKey = pfsenseApiKey;
       if (Object.keys(settingsBody).length) await apiPatch("/settings", settingsBody);
-      await apiPatch("/notifications/webhook", { discordWebhookUrl });
       setCurseForgeApiKey("");
       setSteamWebApiKey("");
       setPfsenseApiKey("");
@@ -66,16 +63,6 @@ export default function SettingsPage() {
       alert((err as Error).message);
     } finally {
       setBusy(false);
-    }
-  };
-
-  const testWebhook = async () => {
-    setTestMsg(null);
-    try {
-      const res = await apiPost<{ sent: boolean }>("/notifications/test");
-      setTestMsg(res.sent ? "Test message sent ✓" : "No webhook configured — save one first.");
-    } catch (err) {
-      setTestMsg((err as Error).message);
     }
   };
 
@@ -115,26 +102,7 @@ export default function SettingsPage() {
         />
       </div>
 
-      <div className="card space-y-4">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-ark-accent2">
-          Notifications
-        </h2>
-        <div>
-          <label className="label">Discord / generic webhook URL</label>
-          <div className="flex gap-2">
-            <input
-              className="input"
-              placeholder="https://discord.com/api/webhooks/…"
-              value={discordWebhookUrl}
-              onChange={(e) => setDiscordWebhookUrl(e.target.value)}
-            />
-            <button type="button" className="btn-secondary shrink-0" onClick={testWebhook}>
-              <Send className="h-4 w-4" /> Test
-            </button>
-          </div>
-          {testMsg && <p className="mt-2 text-sm text-slate-400">{testMsg}</p>}
-        </div>
-      </div>
+      <NotificationTargetsCard />
 
       <div className="card space-y-4">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-ark-accent2">

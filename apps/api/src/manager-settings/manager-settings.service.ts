@@ -8,7 +8,8 @@ export const SettingKeys = {
   Timezone: "timezone",
   CurseForgeApiKey: "curseforge_api_key", // secret
   SteamWebApiKey: "steam_web_api_key", // secret
-  DiscordWebhook: "discord_webhook_url",
+  DiscordWebhook: "discord_webhook_url", // legacy single-webhook (migrated to NotificationTargets)
+  NotificationTargets: "notification_targets", // secret (JSON; webhook URLs grant post access)
   BackupKeep: "backup_keep",
   AutoStopOnStart: "auto_stop_on_start",
   // pfSense REST API (jaredhendrickson13 package) for one-click port-forwards.
@@ -25,6 +26,7 @@ const SECRET_KEYS = new Set<string>([
   SettingKeys.CurseForgeApiKey,
   SettingKeys.SteamWebApiKey,
   SettingKeys.PfsenseApiKey,
+  SettingKeys.NotificationTargets,
 ]);
 
 /** Fallback timezone when the user hasn't picked one yet (matches the web default). */

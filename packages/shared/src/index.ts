@@ -5,3 +5,4 @@ export * from "./settings-rules";
 export * from "./mods";
 export * from "./events";
 export * from "./dto";
+export * from "./notifications";

@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, Logger, NotFoundException, OnModuleInit } from "@nestjs/common";
-import { Game, ServerState } from "@ark/shared";
+import { EventType, Game, ServerState } from "@ark/shared";
 import { PrismaService } from "../prisma/prisma.service";
+import { EventsService } from "../events/events.service";
 import { RconService } from "../rcon/rcon.service";
 import { rconArg } from "../rcon/rcon-arg";
 import { LogCaptureService } from "../logs/log-capture.service";
@@ -97,12 +98,15 @@ export class SightingsService implements OnModuleInit {
   private gameCache = new Map<string, Game>();
   /** Valheim pairs a SteamID handshake line with the next character-name line. */
   private readonly valheimPendingId = new Map<string, string>();
+  /** serverId → names seen in the last RCON poll, for leave detection. */
+  private readonly lastPollNames = new Map<string, Set<string>>();
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly rcon: RconService,
     private readonly logCapture: LogCaptureService,
     private readonly accessLists: AccessListsService,
+    private readonly events: EventsService,
   ) {}
 
   onModuleInit(): void {
@@ -128,9 +132,32 @@ export class SightingsService implements OnModuleInit {
       try {
         const players = await this.listDetailed(s.id, game);
         for (const p of players) await this.upsert(s.id, p.name, p.playerId);
+        // Leave detection: only the polled games have a reliable heartbeat, so a
+        // name present last poll but not this one really did disconnect.
+        const current = new Set(players.map((p) => p.name).filter(Boolean));
+        const previous = this.lastPollNames.get(s.id);
+        if (previous) {
+          for (const name of previous) {
+            if (!current.has(name)) {
+              await this.events.emit({
+                type: EventType.PlayerLeave,
+                message: `${name} left`,
+                serverId: s.id,
+                data: { name },
+              });
+            }
+          }
+        }
+        this.lastPollNames.set(s.id, current);
       } catch {
         /* rcon down/booting — the next poll retries */
       }
+    }
+    // Forget poll state for servers that are no longer running (no "left" spam
+    // when a server stops with players online).
+    const runningIds = new Set(running.map((s) => s.id));
+    for (const id of this.lastPollNames.keys()) {
+      if (!runningIds.has(id)) this.lastPollNames.delete(id);
     }
   }
 
@@ -235,6 +262,12 @@ export class SightingsService implements OnModuleInit {
 
   private async upsert(serverId: string, name: string, playerId?: string): Promise<void> {
     if (!name) return;
+    // A sighting after a stale (or absent) lastSeen means the player just came
+    // online — both capture paths (RCON poll + join log lines) land here.
+    const prev = await this.prisma.playerSighting
+      .findUnique({ where: { serverId_name: { serverId, name } }, select: { lastSeenAt: true } })
+      .catch(() => null);
+    const wasOnline = prev !== null && Date.now() - prev.lastSeenAt.getTime() < ONLINE_WINDOW_MS;
     await this.prisma.playerSighting
       .upsert({
         where: { serverId_name: { serverId, name } },
@@ -243,6 +276,11 @@ export class SightingsService implements OnModuleInit {
         update: { lastSeenAt: new Date(), ...(playerId ? { playerId } : {}) },
       })
       .catch(() => undefined); // e.g. server deleted mid-flight
+    if (!wasOnline) {
+      await this.events
+        .emit({ type: EventType.PlayerJoin, message: `${name} joined`, serverId, data: { name } })
+        .catch(() => undefined);
+    }
   }
 
   // ── Read + act ────────────────────────────────────────────────────────────────
