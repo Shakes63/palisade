@@ -7,6 +7,7 @@ import { CatalogService } from "../catalog/catalog.service";
 import { SERVER_UID, SERVER_GID } from "../common/images";
 import { loadEnv } from "../config/env";
 import {
+  patchPalServerLauncher,
   renderSotfConfig,
   renderSdtdServerXml,
   patchLifWorldXml,
@@ -60,10 +61,10 @@ export class ServerConfigWriter {
     const game = server.game as Game;
     // Env-driven images build their own config (Minecraft/Bedrock → server.properties,
     // Icarus → ServerSettings.ini, Valheim → launch args, Enshrouded → enshrouded_server.json,
-    // V Rising → HOST/GAME_SETTINGS env patching its JSONs, Palworld → PalWorldSettings.ini
-    // from env, Core Keeper/Rust/BeamMP → pure env) — nothing to render. Anything missing
-    // from this list falls through to the ARK INI renderer at the bottom and gets junk
-    // GameUserSettings.ini/Game.ini files (guarded by lifecycle.e2e.test.ts).
+    // V Rising → HOST/GAME_SETTINGS env patching its JSONs, Core Keeper/Rust/BeamMP →
+    // pure env) — nothing to render. Anything missing from this list falls through to
+    // the ARK INI renderer at the bottom and gets junk GameUserSettings.ini/Game.ini
+    // files (guarded by lifecycle.e2e.test.ts).
     if (
       game === Game.MINECRAFT ||
       game === Game.ICARUS ||
@@ -71,13 +72,34 @@ export class ServerConfigWriter {
       game === Game.VALHEIM ||
       game === Game.ENSHROUDED ||
       game === Game.VRISING ||
-      game === Game.PALWORLD ||
       game === Game.SATISFACTORY ||
       game === Game.CORE_KEEPER ||
       game === Game.RUST ||
       game === Game.BEAMMP
     )
       return;
+
+    // Palworld: settings come from env (thijsvanloef renders PalWorldSettings.ini), so
+    // the only thing to write is the UE4SS preload. It CANNOT be a container-wide
+    // LD_PRELOAD — that injects libUE4SS.so into bash/steamcmd and segfaults them — so
+    // we prefix the exec line inside Steam's own PalServer.sh. SteamCMD rewrites that
+    // file on update, hence re-applying (or removing) it before every start.
+    if (game === Game.PALWORLD) {
+      const launcher = join(env.DATA_DIR, "instances", server.id, "PalServer.sh");
+      let script: string;
+      try {
+        script = await readFile(launcher, "utf8");
+      } catch {
+        return; // not installed yet — first boot writes it, and mods can't be on yet
+      }
+      const cfg = JSON.parse(server.configJson) as ServerConfigValues;
+      const preload = cfg.values?._palFramework
+        ? (cfg.values._palFrameworkPreload as string) || "Pal/Binaries/Linux/libUE4SS.so"
+        : null;
+      const patched = patchPalServerLauncher(script, preload);
+      if (patched !== script) await writeFile(launcher, patched, { mode: 0o755 });
+      return;
+    }
 
     // Project Zomboid: the danixu86 image applies env vars by sed-ing
     // data/Server/servertest.ini — but on FIRST boot that file doesn't exist yet, so

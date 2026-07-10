@@ -462,18 +462,10 @@ function buildPalworldSpec(input: RuntimeSpecInput): Docker.ContainerCreateOptio
     `UPDATE_ON_BOOT=false`,
     `BACKUP_ENABLED=false`,
     `AUTO_REBOOT_ENABLED=false`,
-    // Server-side mod framework (UE4SS): when enabled, preload its loader so the
-    // native-Linux server injects it. The framework files live in the bind-mounted
-    // Pal/Binaries/Linux (managed via the Mods tab / PalModsService). Only Lua/BP
-    // mods load this way — DLL mods would need the Windows server under Wine.
-    ...(input.config.values?.["_palFramework"]
-      ? [
-          `LD_PRELOAD=${PALWORLD_DATA_DIR}/${
-            (input.config.values?.["_palFrameworkPreload"] as string) ||
-            "Pal/Binaries/Linux/libUE4SS.so"
-          }`,
-        ]
-      : []),
+    // NOTE: the UE4SS mod framework is NOT preloaded via a container-wide LD_PRELOAD.
+    // That injects libUE4SS.so into every process the image spawns (bash, steamcmd,
+    // the rcon client) and segfaults them. ServerConfigWriter patches the preload
+    // into Steam's PalServer.sh launch line instead — see patchPalServerLauncher.
     ...palworldCatalogEnv(input),
   ];
 
@@ -1969,6 +1961,33 @@ function buildAtsSpec(input: RuntimeSpecInput): Docker.ContainerCreateOptions {
     },
     ...(hostNet ? {} : { NetworkingConfig: { EndpointsConfig: { [ARK_NETWORK]: {} } } }),
   };
+}
+
+/** The last line of Steam's PalServer.sh, optionally already carrying our preload. */
+const PAL_LAUNCH_LINE =
+  /^([ \t]*)(?:LD_PRELOAD=(?:"[^"]*"|\S+)[ \t]+)?("\$UE_PROJECT_ROOT\/Pal\/Binaries\/Linux\/PalServer-Linux-Shipping"[ \t]+Pal[ \t]+"\$@")[ \t]*$/m;
+
+/**
+ * Scope UE4SS's LD_PRELOAD to the game process by editing Steam's PalServer.sh
+ * launcher, rather than setting LD_PRELOAD on the container.
+ *
+ * A container-wide LD_PRELOAD injects libUE4SS.so into EVERY process the image
+ * spawns — bash, steamcmd, the rcon client — and UE4SS segfaults immediately in
+ * anything that isn't the Unreal server (verified: `bash -c echo` exits 139).
+ * The image launches the server via ./PalServer.sh, which lives in the instance
+ * bind mount, so prefixing that one exec line preloads it exactly where it belongs.
+ *
+ * `preload` is relative to the install dir (e.g. Pal/Binaries/Linux/libUE4SS.so);
+ * pass null to remove a previously-applied preload. Idempotent, and re-applied on
+ * every start because a SteamCMD update rewrites PalServer.sh. Returns the script
+ * unchanged (no throw) when the launch line isn't recognized — a future Steam
+ * layout shouldn't brick the server, it should just start without mods.
+ */
+export function patchPalServerLauncher(script: string, preload: string | null): string {
+  if (!PAL_LAUNCH_LINE.test(script)) return script;
+  return script.replace(PAL_LAUNCH_LINE, (_m, indent: string, exec: string) =>
+    preload ? `${indent}LD_PRELOAD="$UE_PROJECT_ROOT/${preload}" ${exec}` : `${indent}${exec}`,
+  );
 }
 
 /**
