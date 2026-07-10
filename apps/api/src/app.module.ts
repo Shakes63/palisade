@@ -26,6 +26,7 @@ import { PresetsModule } from "./presets/presets.module";
 import { UpdatesModule } from "./updates/updates.module";
 import { LogCaptureModule } from "./logs/log-capture.module";
 import { ReplicationModule } from "./replication/replication.module";
+import { AdoptionModule } from "./adoption/adoption.module";
 import { HealthController } from "./health/health.controller";
 
 @Module({
@@ -59,6 +60,7 @@ import { HealthController } from "./health/health.controller";
     PresetsModule,
     UpdatesModule,
     ReplicationModule,
+    AdoptionModule,
   ],
   controllers: [HealthController],
 })

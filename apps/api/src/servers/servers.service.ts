@@ -6,6 +6,7 @@ import {
   NotFoundException,
   type OnApplicationBootstrap,
 } from "@nestjs/common";
+import type Docker from "dockerode";
 import { mkdir, writeFile, rm, cp, chmod, chown, stat, readFile } from "node:fs/promises";
 import { execFile, spawn } from "node:child_process";
 import type { Readable } from "node:stream";
@@ -907,6 +908,73 @@ export class ServersService implements OnApplicationBootstrap {
     }
   }
 
+  /** assembleSpec by server id (fetches the row + cluster). */
+  async specForServer(id: string): Promise<Docker.ContainerCreateOptions> {
+    const server = (await this.prisma.server.findUnique({
+      where: { id },
+      include: { cluster: true },
+    })) as ServerRow;
+    if (!server) throw new NotFoundException("Server not found");
+    return this.assembleSpec(server);
+  }
+
+  /** Assemble the full Docker create spec for a server row — decrypted
+   *  passwords, catalog, mods, timezone. Shared by start() and by container
+   *  adoption (which needs the spec's Binds to map foreign volume data in). */
+  async assembleSpec(server: ServerRow): Promise<Docker.ContainerCreateOptions> {
+    const game = server.game as Game;
+    // Both ARK images install their own mods on first boot (POK via MOD_IDS,
+    // hermsi via `arkmanager installmod`), so nothing to pre-download here.
+    const modIds = JSON.parse(server.modIds) as number[];
+
+    // Project Zomboid activates mods by their in-game "Mod ID" names (Mods=),
+    // parsed from each Workshop description at install and stored on Mod.extra.
+    let pzModNames: string[] | undefined;
+    if (game === Game.ZOMBOID) {
+      const installs = await this.prisma.modInstall.findMany({
+        where: { serverId: server.id, enabled: true },
+        include: { mod: true },
+        orderBy: { loadOrder: "asc" },
+      });
+      pzModNames = installs.flatMap((i) => {
+        try {
+          return (JSON.parse(i.mod.extra ?? "{}") as { pzModIds?: string[] }).pzModIds ?? [];
+        } catch {
+          return [];
+        }
+      });
+    }
+
+    return buildContainerSpec({
+      serverId: server.id,
+      game,
+      map: server.map,
+      sessionName: server.name,
+      ports: this.portsOf(server),
+      maxPlayers: server.maxPlayers,
+      adminPassword: server.adminPasswordEnc
+        ? this.crypto.decrypt(server.adminPasswordEnc)
+        : "changeme",
+      serverPassword: server.serverPasswordEnc
+        ? this.crypto.decrypt(server.serverPasswordEnc)
+        : null,
+      spectatorPassword: server.spectatorPasswordEnc
+        ? this.crypto.decrypt(server.spectatorPasswordEnc)
+        : null,
+      modIds,
+      cluster: server.cluster ? { clusterId: server.cluster.clusterId } : null,
+      config: JSON.parse(server.configJson) as ServerConfigValues,
+      catalog: this.catalog.getCatalog(game),
+      ramLimitMb: server.ramLimitMb,
+      cpuLimit: server.cpuLimit,
+      timezone: await this.settings.getTimezone(),
+      // Minecraft only: lets itzg auto-install a selected CurseForge modpack.
+      curseForgeApiKey:
+        game === Game.MINECRAFT ? await this.settings.get(SettingKeys.CurseForgeApiKey) : null,
+      pzModNames,
+    });
+  }
+
   private async doStart(id: string): Promise<void> {
     const server = (await this.prisma.server.findUnique({
       where: { id },
@@ -962,58 +1030,7 @@ export class ServersService implements OnApplicationBootstrap {
         await chown(dataDir, SERVER_UID[game], SERVER_GID[game]).catch(() => undefined);
       }
 
-      // Both images install their own mods on first boot (POK via MOD_IDS,
-      // hermsi via `arkmanager installmod`), so nothing to pre-download here.
-      const modIds = JSON.parse(server.modIds) as number[];
-
-      // Project Zomboid activates mods by their in-game "Mod ID" names (Mods=),
-      // parsed from each Workshop description at install and stored on Mod.extra.
-      let pzModNames: string[] | undefined;
-      if (game === Game.ZOMBOID) {
-        const installs = await this.prisma.modInstall.findMany({
-          where: { serverId: id, enabled: true },
-          include: { mod: true },
-          orderBy: { loadOrder: "asc" },
-        });
-        pzModNames = installs.flatMap((i) => {
-          try {
-            return (JSON.parse(i.mod.extra ?? "{}") as { pzModIds?: string[] }).pzModIds ?? [];
-          } catch {
-            return [];
-          }
-        });
-      }
-
-      const spec = buildContainerSpec({
-        serverId: server.id,
-        game: server.game as Game,
-        map: server.map,
-        sessionName: server.name,
-        ports: this.portsOf(server),
-        maxPlayers: server.maxPlayers,
-        adminPassword: server.adminPasswordEnc
-          ? this.crypto.decrypt(server.adminPasswordEnc)
-          : "changeme",
-        serverPassword: server.serverPasswordEnc
-          ? this.crypto.decrypt(server.serverPasswordEnc)
-          : null,
-        spectatorPassword: server.spectatorPasswordEnc
-          ? this.crypto.decrypt(server.spectatorPasswordEnc)
-          : null,
-        modIds,
-        cluster: server.cluster ? { clusterId: server.cluster.clusterId } : null,
-        config: JSON.parse(server.configJson) as ServerConfigValues,
-        catalog: this.catalog.getCatalog(server.game as Game),
-        ramLimitMb: server.ramLimitMb,
-        cpuLimit: server.cpuLimit,
-        timezone: await this.settings.getTimezone(),
-        // Minecraft only: lets itzg auto-install a selected CurseForge modpack.
-        curseForgeApiKey:
-          (server.game as Game) === Game.MINECRAFT
-            ? await this.settings.get(SettingKeys.CurseForgeApiKey)
-            : null,
-        pzModNames,
-      });
+      const spec = await this.assembleSpec(server);
 
       // Fresh run → wipe the captured log/console so it starts clean.
       this.logCapture.clear(id);

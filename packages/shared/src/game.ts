@@ -665,3 +665,30 @@ export function mapLabel(raw: string | null | undefined): string {
   const base = raw.replace(/_WP$|_P$/i, "");
   return base.replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/_/g, " ").trim();
 }
+
+/** Official/selectable maps per game (single source for web pickers and the
+ *  API's defaults — e.g. container adoption uses the first entry). */
+export const MAPS_BY_GAME: Record<Game, readonly string[]> = {
+  [Game.ASA]: ASA_OFFICIAL_MAPS,
+  [Game.ASE]: ASE_OFFICIAL_MAPS,
+  [Game.CONAN]: CONAN_OFFICIAL_MAPS,
+  [Game.PALWORLD]: PALWORLD_OFFICIAL_MAPS,
+  [Game.MINECRAFT]: MINECRAFT_OFFICIAL_MAPS,
+  [Game.ICARUS]: ICARUS_OFFICIAL_MAPS,
+  [Game.BEDROCK]: BEDROCK_OFFICIAL_MAPS,
+  [Game.VALHEIM]: VALHEIM_OFFICIAL_MAPS,
+  [Game.SEVEN_DAYS]: SEVEN_DAYS_OFFICIAL_MAPS,
+  [Game.ENSHROUDED]: ENSHROUDED_OFFICIAL_MAPS,
+  [Game.ZOMBOID]: ZOMBOID_OFFICIAL_MAPS,
+  [Game.VRISING]: VRISING_OFFICIAL_MAPS,
+  [Game.SOTF]: SOTF_OFFICIAL_MAPS,
+  [Game.SATISFACTORY]: SATISFACTORY_OFFICIAL_MAPS,
+  [Game.LIF]: LIF_OFFICIAL_MAPS,
+  [Game.ATS]: ATS_OFFICIAL_MAPS,
+  [Game.ETS2]: ETS2_OFFICIAL_MAPS,
+  [Game.CORE_KEEPER]: CORE_KEEPER_OFFICIAL_MAPS,
+  [Game.TERRARIA]: TERRARIA_OFFICIAL_MAPS,
+  [Game.FACTORIO]: FACTORIO_OFFICIAL_MAPS,
+  [Game.RUST]: RUST_OFFICIAL_MAPS,
+  [Game.BEAMMP]: BEAMMP_OFFICIAL_MAPS,
+};

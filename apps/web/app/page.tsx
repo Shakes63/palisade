@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
   Plus, Play, Square, Download, Settings2, Boxes, Loader2, RotateCw,
-  Cpu, MemoryStick, HardDrive, Users,
+  Cpu, MemoryStick, HardDrive, Users, Import,
 } from "lucide-react";
 import {
   Game,
@@ -41,6 +41,7 @@ import {
   type HostStats,
 } from "@ark/shared";
 import { apiGet, apiPost } from "@/lib/api";
+import { AdoptContainerPanel } from "@/components/adopt-container";
 import { useRealtime } from "@/lib/socket";
 import { StateBadge } from "@/components/state-badge";
 import { UpdateBadge } from "@/components/update-badge";
@@ -57,6 +58,7 @@ export default function DashboardPage() {
   const [servers, setServers] = useState<ServerSummary[]>([]);
   const [clusters, setClusters] = useState<ClusterLite[]>([]);
   const [creating, setCreating] = useState(false);
+  const [adopting, setAdopting] = useState(false);
   const [pending, setPending] = useState<Record<string, "install" | "start" | "stop" | "restart">>({});
   const [stats, setStats] = useState<Record<string, ServerStatsById>>({});
   const [host, setHost] = useState<HostStats | null>(null);
@@ -145,14 +147,20 @@ export default function DashboardPage() {
           </span>
         </div>
       )}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <h1 className="text-xl font-semibold">Servers</h1>
-        <button className="btn-primary" onClick={() => setCreating((v) => !v)}>
-          <Plus className="h-4 w-4" /> New server
-        </button>
+        <div className="flex gap-2">
+          <button className="btn-secondary" onClick={() => { setAdopting((v) => !v); setCreating(false); }}>
+            <Import className="h-4 w-4" /> Adopt existing
+          </button>
+          <button className="btn-primary" onClick={() => { setCreating((v) => !v); setAdopting(false); }}>
+            <Plus className="h-4 w-4" /> New server
+          </button>
+        </div>
       </div>
 
       {creating && <CreateServerForm onDone={() => { setCreating(false); refresh(); }} />}
+      {adopting && <AdoptContainerPanel onDone={() => { setAdopting(false); refresh(); }} />}
 
       {servers.length === 0 && !creating && (
         <div className="card text-center text-slate-400">

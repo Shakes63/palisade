@@ -129,6 +129,11 @@ export class DockerService {
     return this.docker.getContainer(id);
   }
 
+  /** Every container on the host (managed or not) — used by adoption discovery. */
+  async listAllContainers(): Promise<Docker.ContainerInfo[]> {
+    return this.docker.listContainers({ all: true });
+  }
+
   /** All manager-spawned server containers (running or not), keyed for reconcile. */
   async listManagedServers(): Promise<
     Array<{ id: string; serverId: string; running: boolean; status: string }>
