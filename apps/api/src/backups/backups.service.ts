@@ -92,15 +92,42 @@ export class BackupsService {
       throw new BadRequestException(`Backup failed: ${(err as Error).message}`);
     }
 
-    const snapshot = await this.prisma.snapshot.create({ data: { serverId, path: dest, reason } });
-    await this.events.emit({
-      type: EventType.BackupCreated,
-      message: `Backup (${reason}) created`,
-      serverId,
-      data: { path: dest },
+    // Verify the snapshot actually captured something — an empty backup would
+    // otherwise sit in the rotation looking like a valid restore point.
+    const sizeBytes = await this.dirSize(dest);
+    const snapshot = await this.prisma.snapshot.create({
+      data: { serverId, path: dest, reason, sizeBytes },
     });
+    if (sizeBytes === 0) {
+      this.logger.warn(`Backup (${reason}) for ${serverId} captured 0 bytes: ${dest}`);
+      await this.events.emit({
+        type: EventType.Warning,
+        message: `Backup (${reason}) captured no files — the save directory may be empty or the game hasn't saved yet`,
+        serverId,
+        data: { path: dest },
+      });
+    } else {
+      await this.events.emit({
+        type: EventType.BackupCreated,
+        message: `Backup (${reason}) created`,
+        serverId,
+        data: { path: dest, sizeBytes },
+      });
+    }
     await this.applyRetention(serverId);
     return snapshot;
+  }
+
+  /** Total bytes of regular files under a directory (recursive). */
+  private async dirSize(root: string): Promise<number> {
+    let total = 0;
+    const entries = await readdir(root, { withFileTypes: true, recursive: true }).catch(() => []);
+    for (const e of entries) {
+      if (!e.isFile()) continue;
+      const s = await stat(join(e.parentPath, e.name)).catch(() => null);
+      if (s) total += s.size;
+    }
+    return total;
   }
 
   /** Stream a snapshot as a tar.gz for a browser download (spawned tar; the

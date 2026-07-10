@@ -3,6 +3,10 @@ name: Build and publish Docker image
 # Builds the manager image and pushes it to GitHub Container Registry (GHCR) so
 # Unraid can pull it and surface the built-in "update" button. Tagged `latest`
 # on main, plus a short-sha tag and semver tags on `vX.Y.Z` releases.
+#
+# Security gates: the dependency audit must pass (no high/critical prod vulns)
+# before the image builds, and the built image is Trivy-scanned for CRITICAL
+# OS/library vulnerabilities before it is pushed.
 on:
   push:
     branches: [main]
@@ -14,8 +18,21 @@ permissions:
   packages: write
 
 jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Audit production dependencies (fail on high+)
+        run: pnpm audit --prod --audit-level high
+
   build-and-push:
     runs-on: ubuntu-latest
+    needs: audit
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -41,7 +58,28 @@ jobs:
             type=ref,event=tag
             type=sha,format=short
 
-      - name: Build and push (amd64 — Unraid)
+      - name: Build (amd64 — Unraid), load for scanning
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: false
+          load: true
+          platforms: linux/amd64
+          tags: ghcr.io/shakes63/palisade:scan
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Trivy scan (block on CRITICAL)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ghcr.io/shakes63/palisade:scan
+          format: table
+          exit-code: "1"
+          severity: CRITICAL
+          ignore-unfixed: true
+
+      - name: Push (reuses the scanned build from cache)
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -51,4 +89,3 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
-          cache-to: type=gha,mode=max

@@ -46,17 +46,28 @@ export class DbBackupService implements OnModuleInit {
       await mkdir(dir, { recursive: true });
       const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
       const dest = join(dir, `db-${stamp}.sqlite`);
+      let viaSqlite = true;
       try {
         await execFileP("sqlite3", ["-readonly", db, `.backup '${dest}'`]);
       } catch {
         // No sqlite3 CLI (or it failed) — copy the DB + WAL sidecars; WAL mode
         // keeps the main file valid and the sidecars bring it current.
+        viaSqlite = false;
         await cp(db, dest);
         await cp(`${db}-wal`, `${dest}-wal`).catch(() => undefined);
         await cp(`${db}-shm`, `${dest}-shm`).catch(() => undefined);
       }
+      // A corrupt snapshot is worse than none — it silently displaces a good one
+      // in the rotation. Verify and discard it while yesterday's copy still exists.
+      if (viaSqlite) {
+        const { stdout } = await execFileP("sqlite3", ["-readonly", dest, "PRAGMA integrity_check;"]);
+        if (stdout.trim() !== "ok") {
+          await rm(dest, { force: true });
+          throw new Error(`snapshot failed integrity_check: ${stdout.trim().slice(0, 200)}`);
+        }
+      }
       await this.prune(dir);
-      this.logger.log(`Manager DB backed up to ${dest}`);
+      this.logger.log(`Manager DB backed up to ${dest}${viaSqlite ? " (integrity ok)" : ""}`);
     } catch (err) {
       this.logger.warn(`Manager DB backup failed: ${(err as Error).message}`);
     }

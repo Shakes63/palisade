@@ -5,7 +5,10 @@
 # Layered so the big, slow-changing dependency layer (~750 MB) is cached across
 # code-only updates: an Unraid "update" then only pulls the ~85 MB of changed
 # build artifacts, not the whole image.
-FROM node:20-bookworm-slim AS base
+# Pinned to the multi-arch index digest so builds are reproducible and the base
+# can't be silently swapped upstream. Bump deliberately: check the current digest
+# with `docker buildx imagetools inspect node:20-bookworm-slim` and update here.
+FROM node:20-bookworm-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0 AS base
 ENV PNPM_HOME=/pnpm PATH=/pnpm:$PATH
 # openssl + ca-certificates are required by Prisma's query/schema engines (the
 # slim image omits them, which otherwise breaks `prisma migrate deploy` on boot).

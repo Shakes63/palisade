@@ -228,6 +228,42 @@ The app is LAN-first but proxy-friendly:
 - The manager controls Docker via the host socket. If you expose the UI beyond
   your LAN, strongly consider the socket-proxy setup above.
 
+## Security
+
+What's built in:
+
+- **Auth**: single-admin JWT auth (bcrypt cost 12), 7-day tokens carrying a
+  version claim checked against the DB on every request — `POST
+  /auth/logout-all` instantly invalidates every outstanding token. Login and
+  first-run are rate-limited (5/min per client). The realtime socket requires
+  the same token; anonymous connections never receive log or console traffic.
+- **API**: helmet security headers; CORS denies cross-origin by default
+  (browsers reach the API same-origin through the web app). Serving the UI
+  from a different origin needs `CORS_ORIGINS` (comma-separated allowlist).
+- **Docker access**: least-privilege via
+  [docker-socket-proxy](https://github.com/Tecnativa/docker-socket-proxy) —
+  see `docker-compose.yml`. The manager then only reaches container/image
+  endpoints; exec, volumes, networks, build, and secrets are denied at the
+  proxy. Note the proxy filters endpoints, not payloads: container creation
+  stays possible, so this narrows the blast radius rather than eliminating it.
+- **Game containers** run with `no-new-privileges`, a pids limit, and RAM
+  caps; console/RCON arguments are sanitized against command injection from
+  player-chosen names.
+- **Supply chain**: CI blocks the image build on high/critical production
+  dependency vulnerabilities (pnpm audit) and Trivy-scans the built image for
+  CRITICAL CVEs before pushing; the base image is digest-pinned.
+- **Backups** are verified: the manager's nightly DB snapshot must pass
+  SQLite's `integrity_check`, and world backups record their size and raise a
+  warning event when a snapshot captures no files.
+
+Trade-off to know about: **game-server images are pulled by floating tags**
+(usually `:latest`, as their maintainers publish them). That's what keeps
+game updates one click away, but it means those images change underneath you
+outside Palisade's control. The game containers' runtime caps above (plus
+per-container RAM limits) bound what a misbehaving image can do — but treat
+game images with the same trust you'd give installing that community image
+by hand.
+
 ## Development
 
 ```bash
