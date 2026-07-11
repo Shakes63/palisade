@@ -1383,7 +1383,12 @@ export class ServersService implements OnApplicationBootstrap {
     const server = await this.prisma.server.findUnique({ where: { id } });
     if (!server) throw new NotFoundException("Server not found");
     const current = (server.artworkJson ? JSON.parse(server.artworkJson) : {}) as Partial<GameArtwork>;
-    const merged = { ...current, ...patch };
+    // Only keys PRESENT in the request may change: the validated DTO instance
+    // materializes every declared field, so absent kinds arrive as own
+    // `undefined` properties — a naive spread would clobber previously-pinned
+    // kinds with undefined (picking a banner used to wipe the cover).
+    const sent = Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined));
+    const merged = { ...current, ...sent };
     // Drop null/empty keys so an all-default override stores as NULL, not "{}".
     const clean = Object.fromEntries(Object.entries(merged).filter(([, v]) => v));
     const updated = await this.prisma.server.update({
