@@ -176,11 +176,35 @@ export function readyReFor(game: Game): RegExp {
 const CRASH_WINDOW_MS = 5 * 60_000;
 const CRASH_LIMIT = 3;
 
+/**
+ * How long a server may sit in Starting before we treat the start as failed. A
+ * server that never reaches its ready marker — a wrong/renamed marker, a boot that
+ * hangs, a download that dies mid-stream — would otherwise stay in Starting FOREVER,
+ * silently holding the one-at-a-time slot (RAM + ports) so nothing else can run.
+ *
+ * It's an ABSOLUTE cap on time-in-Starting, not a log-stall detector: the failure we
+ * most want to catch (a healthy server whose marker never matches) keeps logging
+ * indefinitely, so "no new logs" would never fire. Sized for the worst case — a cold
+ * first boot that downloads the whole game — so a legitimately slow start is never
+ * killed; the big-download games get a longer window.
+ */
+const STARTUP_DEADLINE_MS_DEFAULT = 30 * 60_000;
+const STARTUP_DEADLINE_MS_BY_GAME: Partial<Record<Game, number>> = {
+  [Game.ASA]: 45 * 60_000, // ~13 GB depot on first boot
+  [Game.ASE]: 45 * 60_000,
+  [Game.SEVEN_DAYS]: 45 * 60_000, // ~17 GB via LinuxGSM
+};
+const startupDeadlineMs = (game: Game): number =>
+  STARTUP_DEADLINE_MS_BY_GAME[game] ?? STARTUP_DEADLINE_MS_DEFAULT;
+
 @Injectable()
 export class ServersService implements OnApplicationBootstrap {
   private readonly logger = new Logger(ServersService.name);
   private readonly logStops = new Map<string, () => void>();
   private readonly crashTimes = new Map<string, number[]>();
+  /** Armed while a server is in Starting; fires if it never reaches Running in time.
+   *  Cleared on ready / stop / crash so it only ever fires for a genuinely stuck boot. */
+  private readonly startTimers = new Map<string, NodeJS.Timeout>();
   /** Serializes lifecycle ops per server (no double-start / start-while-update). */
   private readonly locks = new Map<string, Promise<unknown>>();
   /**
@@ -320,6 +344,9 @@ export class ServersService implements OnApplicationBootstrap {
       await this.sm.force(serverId, target, "adopted running container on restart");
     }
     await this.attachMonitors(serverId, containerId);
+    // A container re-adopted still mid-boot gets a fresh deadline so a start that was
+    // already wedged when the manager restarted can't sit in Starting indefinitely.
+    if (target === ServerState.Starting) this.armStartDeadline(serverId, game);
   }
 
   // ── Locking ────────────────────────────────────────────────────────────────
@@ -1054,6 +1081,8 @@ export class ServersService implements OnApplicationBootstrap {
       await this.docker.start(containerId);
 
       await this.attachMonitors(id, containerId);
+      // Bound time-in-Starting so a boot that never signals ready can't hold the slot.
+      this.armStartDeadline(id, game);
     } catch (err) {
       await this.sm.transition(id, ServerState.Crashed, { error: (err as Error).message });
       throw new BadRequestException(`Start failed: ${(err as Error).message}`);
@@ -1108,6 +1137,7 @@ export class ServersService implements OnApplicationBootstrap {
    */
   private async tearDownStopped(id: string, containerId: string | null): Promise<void> {
     this.stopping.add(id); // suppress the crash watchdog for this deliberate exit
+    this.disarmStartDeadline(id); // stopping during boot cancels the startup failsafe
     try {
       await this.saveAndWaitForSave(id, containerId);
       await this.rcon.disconnect(id).catch(() => undefined);
@@ -1286,6 +1316,7 @@ export class ServersService implements OnApplicationBootstrap {
   private async onReady(id: string): Promise<void> {
     const state = await this.sm.current(id).catch(() => null);
     if (state !== ServerState.Starting) return; // already Running → fires once
+    this.disarmStartDeadline(id); // reached ready in time — cancel the failsafe
     await this.sm.transition(id, ServerState.Running);
     // First successful install seeds the golden cache for future servers.
     const server = await this.prisma.server.findUnique({ where: { id } });
@@ -1302,6 +1333,9 @@ export class ServersService implements OnApplicationBootstrap {
     const state = await this.sm.current(id).catch(() => null);
     // Expected stop → ignore; we already drive Stopping/Stopped explicitly.
     if (!state || ![ServerState.Running, ServerState.Starting].includes(state)) return;
+
+    // It exited on its own → the startup failsafe is moot; the crash path owns it now.
+    this.disarmStartDeadline(id);
 
     const now = Date.now();
     const recent = (this.crashTimes.get(id) ?? []).filter((t) => now - t < CRASH_WINDOW_MS);
@@ -1325,6 +1359,67 @@ export class ServersService implements OnApplicationBootstrap {
     await this.start(id).catch((e) =>
       this.logger.error(`auto-restart failed: ${(e as Error).message}`),
     );
+  }
+
+  // ── Startup deadline ─────────────────────────────────────────────────────────
+  /** Start the clock on a Starting server: if it hasn't reached Running by its
+   *  per-game deadline, {@link onStartDeadline} tears it down and frees the slot. */
+  private armStartDeadline(id: string, game: Game): void {
+    this.disarmStartDeadline(id);
+    const ms = startupDeadlineMs(game);
+    const timer = setTimeout(() => void this.onStartDeadline(id, ms), ms);
+    // Don't let a pending deadline keep the process alive (e.g. tests, shutdown).
+    timer.unref?.();
+    this.startTimers.set(id, timer);
+  }
+
+  private disarmStartDeadline(id: string): void {
+    const timer = this.startTimers.get(id);
+    if (timer) clearTimeout(timer);
+    this.startTimers.delete(id);
+  }
+
+  /** The start took too long. If it's still Starting (never reached its marker),
+   *  fail it: tear the container down so the slot is freed and tell the user — a
+   *  wedged boot must never hold the box hostage. Deliberately does NOT auto-restart
+   *  (unlike a crash): a start that hangs once will almost certainly hang again, and
+   *  looping 30-minute timeouts would just keep the slot occupied. */
+  private async onStartDeadline(id: string, ms: number): Promise<void> {
+    this.startTimers.delete(id);
+    const state = await this.sm.current(id).catch(() => null);
+    if (state !== ServerState.Starting) return; // reached Running, or already torn down
+    const mins = Math.round(ms / 60_000);
+    this.logger.warn(`start(${id}): no ready marker within ${mins}m — treating the start as failed`);
+    await this.events.emit({
+      type: EventType.Warning,
+      message: `Server never became ready within ${mins} min — stopping it. Check the log (its readiness marker may not be matching).`,
+      serverId: id,
+    });
+    await this.failStuckStart(id);
+  }
+
+  /** Tear down a server wedged in Starting and settle it to Crashed. Like a stop but
+   *  with no graceful save (a boot that never finished has nothing to persist) and no
+   *  transition to Stopped — Crashed reflects that the start did not succeed. */
+  private async failStuckStart(id: string): Promise<void> {
+    this.stopping.add(id); // our own teardown exit isn't a crash — suppress the watchdog
+    try {
+      this.disarmStartDeadline(id);
+      this.logStops.get(id)?.();
+      this.logStops.delete(id);
+      await this.rcon.disconnect(id).catch(() => undefined);
+      await this.docker
+        .removeByServerId(id)
+        .catch((e) => this.logger.warn(`failStuckStart(${id}): force-remove failed: ${(e as Error).message}`));
+      await this.prisma.server
+        .update({ where: { id }, data: { containerId: null } })
+        .catch(() => undefined);
+      await this.sm.transition(id, ServerState.Crashed).catch(() => undefined);
+    } finally {
+      this.stopping.delete(id);
+      // Mirror tearDownStopped: the freed RAM lags in /proc, so the RAM guard debounces.
+      this.lastStopCompletedAt = Date.now();
+    }
   }
 
   // ── Helpers ─────────────────────────────────────────────────────────────---
