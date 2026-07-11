@@ -75,6 +75,9 @@ model Server {
   // Advanced: pin the game image to a specific tag instead of the shipped default.
   // Null = use the default tag. Applied on the next start (pull + recreate).
   imageTag         String?
+  // Last crash's container exit reason (exit code + a log tail), captured when a
+  // running/starting container exits unexpectedly. Null once it starts cleanly.
+  crashReason      String?
   updateAvailable  Boolean @default(false)
   // True when an installed mod (Valheim/Thunderstore or a pinned Minecraft modpack)
   // has a newer version — set by the mod-update poller (ModUpdatesService).

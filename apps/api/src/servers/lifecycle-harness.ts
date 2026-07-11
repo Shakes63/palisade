@@ -45,6 +45,7 @@ export interface ServerRow {
   installedBuildId: string | null;
   updateAvailable: boolean;
   configDirty: boolean;
+  crashReason?: string | null;
 }
 
 export function makeRow(over: Partial<ServerRow> = {}): ServerRow {
@@ -97,6 +98,11 @@ export class FakeDocker {
   failCreateOnce = false;
   /** When true, imageExists() reports the image absent (pull produced nothing). */
   missingImage = false;
+  /** Scripted crash forensics returned by inspect()/tailLogs() — lets a test assert
+   *  the crash-reason capture. */
+  exitCode = 0;
+  oomKilled = false;
+  crashLogTail = "";
 
   private lineHandlers = new Map<string, (line: string) => void>();
   private exitResolvers = new Map<string, () => void>();
@@ -152,14 +158,14 @@ export class FakeDocker {
     this.removedByServerId.push(id);
   }
   async tailLogs() {
-    return "";
+    return this.crashLogTail;
   }
   async followLogs(containerId: string, onLine: (line: string) => void) {
     this.lineHandlers.set(containerId, onLine);
     return () => this.lineHandlers.delete(containerId);
   }
   async inspect() {
-    return {};
+    return { State: { ExitCode: this.exitCode, OOMKilled: this.oomKilled } };
   }
   async listManagedServers() {
     return [];

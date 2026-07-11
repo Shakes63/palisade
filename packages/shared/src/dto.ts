@@ -18,6 +18,10 @@ export interface ServerSummary {
   modUpdateAvailable: boolean;
   /** Advanced: pinned game-image tag, or null to use the shipped default. */
   imageTag?: string | null;
+  /** When the server is Crashed, why its container died: exit code (or OOM) plus a
+   *  log tail — or the launch error for a start that never got a container. Null
+   *  otherwise. Lets the UI explain a crash (e.g. a pinned image that won't boot). */
+  crashReason?: string | null;
   /** The game's server image is already pulled locally — "Install" (an image
    *  pull) would be a no-op, so the UI disables it. Game files install on Start. */
   imageReady: boolean;

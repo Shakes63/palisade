@@ -1088,6 +1088,8 @@ export class ServersService implements OnApplicationBootstrap {
     await this.assertPortsFree(server);
 
     await this.sm.transition(id, ServerState.Starting);
+    // Fresh attempt → drop any stale crash reason from a previous failed boot.
+    await this.prisma.server.update({ where: { id }, data: { crashReason: null } }).catch(() => undefined);
     try {
       const game = server.game as Game;
       // Clone game files from the warmed cache if available, so POK boots
@@ -1157,6 +1159,11 @@ export class ServersService implements OnApplicationBootstrap {
       // Bound time-in-Starting so a boot that never signals ready can't hold the slot.
       this.armStartDeadline(id, game);
     } catch (err) {
+      // The launch itself failed (bad image, config/preflight error) — the thrown
+      // message IS the reason; surface it in the UI alongside the Crashed state.
+      await this.prisma.server
+        .update({ where: { id }, data: { crashReason: `Start failed: ${(err as Error).message}` } })
+        .catch(() => undefined);
       await this.sm.transition(id, ServerState.Crashed, { error: (err as Error).message });
       throw new BadRequestException(`Start failed: ${(err as Error).message}`);
     }
@@ -1410,6 +1417,11 @@ export class ServersService implements OnApplicationBootstrap {
     // It exited on its own → the startup failsafe is moot; the crash path owns it now.
     this.disarmStartDeadline(id);
 
+    // Capture WHY the container died (exit code + log tail) so the UI can show it
+    // instead of a bare "Crashed" — invaluable when a pinned/bad image won't boot.
+    const server = await this.prisma.server.findUnique({ where: { id } });
+    if (server?.containerId) await this.recordCrashReason(id, server.containerId);
+
     const now = Date.now();
     const recent = (this.crashTimes.get(id) ?? []).filter((t) => now - t < CRASH_WINDOW_MS);
     recent.push(now);
@@ -1432,6 +1444,39 @@ export class ServersService implements OnApplicationBootstrap {
     await this.start(id).catch((e) =>
       this.logger.error(`auto-restart failed: ${(e as Error).message}`),
     );
+  }
+
+  /**
+   * Persist a human-readable reason a container died: its exit code (or OOM) plus
+   * the tail of its own logs. Best-effort — a failure here never blocks the crash
+   * path. Cleared to null on the next clean start.
+   */
+  private async recordCrashReason(id: string, containerId: string): Promise<void> {
+    try {
+      const reason = await this.buildCrashReason(containerId);
+      if (reason) await this.prisma.server.update({ where: { id }, data: { crashReason: reason } });
+    } catch (e) {
+      this.logger.warn(`crash-reason capture failed for ${id}: ${(e as Error).message}`);
+    }
+  }
+
+  /** Inspect a dead container + tail its logs into a compact reason string. */
+  private async buildCrashReason(containerId: string): Promise<string | null> {
+    const info = await this.docker.inspect(containerId).catch(() => null);
+    const oom = info?.State?.OOMKilled;
+    const code = info?.State?.ExitCode;
+    const header = oom
+      ? "The container ran out of memory and was killed (OOM)."
+      : `The container exited with code ${code ?? "?"}.`;
+    const raw = await this.docker.tailLogs(containerId, 40).catch(() => "");
+    const tail = raw
+      .split("\n")
+      .map((l) => l.replace(/\s+$/, ""))
+      .filter((l) => l.trim().length > 0)
+      .slice(-16)
+      .join("\n")
+      .slice(-1800); // keep the DB column + payload small
+    return tail ? `${header}\n\n${tail}` : header;
   }
 
   // ── Startup deadline ─────────────────────────────────────────────────────────
@@ -1481,6 +1526,10 @@ export class ServersService implements OnApplicationBootstrap {
       this.logStops.get(id)?.();
       this.logStops.delete(id);
       await this.rcon.disconnect(id).catch(() => undefined);
+      // Capture the reason (log tail) BEFORE removing the container — a stuck start's
+      // log is often the only clue the readiness marker never matched.
+      const stuck = await this.prisma.server.findUnique({ where: { id } });
+      if (stuck?.containerId) await this.recordCrashReason(id, stuck.containerId);
       await this.docker
         .removeByServerId(id)
         .catch((e) => this.logger.warn(`failStuckStart(${id}): force-remove failed: ${(e as Error).message}`));
@@ -1545,6 +1594,7 @@ export class ServersService implements OnApplicationBootstrap {
       updateAvailable: row.updateAvailable,
       modUpdateAvailable: row.modUpdateAvailable,
       imageTag: row.imageTag,
+      crashReason: row.state === ServerState.Crashed ? row.crashReason : null,
       imageReady,
       configDirty: row.configDirty,
       joinPassword,

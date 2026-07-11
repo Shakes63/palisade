@@ -112,6 +112,36 @@ describe("chaos: crash recovery", () => {
       true,
     );
   });
+
+  it("captures the container's exit reason (code + log tail) onto the crashed server", async () => {
+    const row = makeRow({ game: Game.MINECRAFT, id: "chaos-reason", map: "world" });
+    docker.logScript = [MINECRAFT_READY];
+    // What inspect()/tailLogs() will report when the container dies.
+    docker.exitCode = 1;
+    docker.crashLogTail =
+      "[init] Starting the Minecraft server...\n" +
+      "Error: UnsupportedClassVersionError: class file version 69.0 > 65.0";
+    const { service } = await makeService(row, docker);
+    neuterGuards(service);
+    await startServer(service, row.id);
+    await tick();
+
+    // Crash it past the loop limit so it parks in Crashed (no restart clears the reason).
+    for (let i = 1; i <= 3; i++) {
+      docker.triggerExit(`container-${i}`);
+      await tick();
+    }
+
+    expect(row.state).toBe(ServerState.Crashed);
+    expect(row.crashReason, "the exit code is captured").toMatch(/exited with code 1/);
+    expect(row.crashReason, "the log tail is captured for the UI").toMatch(/UnsupportedClassVersionError/);
+    // And a clean restart wipes the stale reason.
+    docker.exitCode = 0;
+    await startServer(service, row.id);
+    await tick();
+    expect(row.state, "reached ready again").toBe(ServerState.Running);
+    expect(row.crashReason, "stale reason cleared on a fresh start").toBeNull();
+  });
 });
 
 describe("chaos: bounded teardown + start failure", () => {

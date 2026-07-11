@@ -19,6 +19,7 @@ import { AccessListsCard } from "@/components/access-lists-card";
 import { PortsCard } from "@/components/ports-card";
 import { GeneralCard } from "@/components/general-card";
 import { ImageVersionCard } from "@/components/image-version-card";
+import { CrashBanner } from "@/components/crash-banner";
 import { PortForwardsCard } from "@/components/port-forwards-card";
 import { LogsTab } from "@/components/logs-tab";
 import { ScheduleList } from "@/components/schedule-list";
@@ -536,6 +537,7 @@ function Overview({ server, onChanged }: { server: ServerSummary; onChanged: () 
   ];
   return (
     <div className="space-y-6">
+      <CrashBanner server={server} />
       <ResourcesPanel serverId={server.id} state={server.state} />
       <div className="card">
         <dl className="grid gap-x-8 gap-y-3 sm:grid-cols-2">
