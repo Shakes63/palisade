@@ -10,11 +10,20 @@ import {
   Res,
   StreamableFile,
 } from "@nestjs/common";
-import { IsArray, IsBoolean, IsOptional, IsString } from "class-validator";
+import { IsArray, IsBoolean, IsOptional, IsString, IsUrl, ValidateIf } from "class-validator";
 
 /** The slice of Express's Response we use (avoids a @types/express dependency). */
 interface HeaderSettable {
   setHeader(name: string, value: string): void;
+}
+
+/** Per-server artwork override: each kind is a URL (to pin) or null (to reset).
+ *  ValidateIf lets null through IsUrl. */
+class ArtworkOverrideBody {
+  @IsOptional() @ValidateIf((_o, v) => v !== null) @IsUrl() grid?: string | null;
+  @IsOptional() @ValidateIf((_o, v) => v !== null) @IsUrl() hero?: string | null;
+  @IsOptional() @ValidateIf((_o, v) => v !== null) @IsUrl() logo?: string | null;
+  @IsOptional() @ValidateIf((_o, v) => v !== null) @IsUrl() icon?: string | null;
 }
 import type { CreateServerDto, UpdateServerDto } from "@ark/shared";
 import { ServersService } from "./servers.service";
@@ -119,6 +128,13 @@ export class ServersController {
   @Patch(":id")
   update(@Param("id") id: string, @Body() body: UpdateServerBody) {
     return this.servers.update(id, body as UpdateServerDto);
+  }
+
+  /** Pin per-server artwork (each field a URL to set, or null to reset to the
+   *  game default). Returns the updated summary. */
+  @Patch(":id/artwork")
+  setArtwork(@Param("id") id: string, @Body() body: ArtworkOverrideBody) {
+    return this.servers.setArtwork(id, body);
   }
 
   /** Delete the server. ?wipe=0 keeps the on-disk game data + backups (default wipes). */

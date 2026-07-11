@@ -175,11 +175,11 @@ export default function DashboardPage() {
           <div key={s.id} className="card space-y-3">
             <div className="flex items-start justify-between">
               <div className="flex min-w-0 items-start gap-3">
-                {artwork[s.game]?.grid && (
+                {(s.artwork?.grid ?? artwork[s.game]?.grid) && (
                   <Link href={`/servers/${s.id}`} className="shrink-0">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src={artwork[s.game]!.grid!}
+                      src={s.artwork?.grid ?? artwork[s.game]!.grid!}
                       alt=""
                       className="h-20 w-[3.33rem] rounded-md object-cover shadow-md ring-1 ring-black/40"
                       loading="lazy"

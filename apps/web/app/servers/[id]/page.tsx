@@ -2,7 +2,7 @@
 import { use, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Play, Square, RotateCw, Download, Loader2, Pencil, Check, X, Trash2, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Play, Square, RotateCw, Download, Loader2, Pencil, Check, X, Trash2, AlertTriangle, Image as ImageIcon } from "lucide-react";
 import { mapLabel, Game, ServerState, type ServerSummary, type ServerConfigValues } from "@ark/shared";
 import { apiGet, apiPost, apiPatch, apiDelete, apiDownload } from "@/lib/api";
 import { useRealtime } from "@/lib/socket";
@@ -30,6 +30,8 @@ import { SevenDaysModsTab } from "@/components/sevendays-mods-tab";
 import { ValheimModsTab } from "@/components/valheim-mods-tab";
 import { useStartGuard } from "@/components/start-guard";
 import { useArtwork } from "@/lib/use-artwork";
+import { useRole } from "@/lib/use-role";
+import { ArtworkPicker } from "@/components/artwork-picker";
 import { BackupsTab } from "@/components/backups-tab";
 import { PlayersTab } from "@/components/players-tab";
 
@@ -41,6 +43,8 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
   const router = useRouter();
   const [server, setServer] = useState<ServerSummary | null>(null);
   const artwork = useArtwork();
+  const role = useRole();
+  const [pickingArt, setPickingArt] = useState(false);
   const [config, setConfig] = useState<ServerConfigValues | null>(null);
   const [configKey, setConfigKey] = useState(0); // bump to remount the editor on copy-in
   const [tab, setTab] = useState<Tab>("Overview");
@@ -145,7 +149,14 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
 
   if (!server) return <div className="text-slate-400">Loading…</div>;
 
-  const art = artwork[server.game];
+  // Onscreen art = per-server override winning over the game-wide default.
+  const def = artwork[server.game];
+  const art = {
+    grid: server.artwork?.grid ?? def?.grid ?? null,
+    hero: server.artwork?.hero ?? def?.hero ?? null,
+    logo: server.artwork?.logo ?? def?.logo ?? null,
+    icon: server.artwork?.icon ?? def?.icon ?? null,
+  };
 
   // Button availability follows the server state machine; `pending` covers the
   // click→response gap so a button can't be re-clicked before its state lands.
@@ -185,7 +196,7 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
         <ArrowLeft className="h-4 w-4" /> All servers
       </Link>
 
-      {art?.hero && (
+      {art.hero && (
         <div className="relative -mt-1 overflow-hidden rounded-xl ring-1 ring-black/40">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={art.hero} alt="" className="h-40 w-full object-cover sm:h-48" loading="lazy" />
@@ -200,7 +211,25 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
               loading="lazy"
             />
           )}
+          {role !== "viewer" && (
+            <button
+              onClick={() => setPickingArt(true)}
+              className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-md bg-black/50 px-2 py-1 text-xs text-slate-200 backdrop-blur hover:bg-black/70"
+            >
+              <ImageIcon className="h-3.5 w-3.5" /> Change artwork
+            </button>
+          )}
         </div>
+      )}
+
+      {pickingArt && (
+        <ArtworkPicker
+          serverId={id}
+          game={server.game}
+          current={server.artwork}
+          onClose={() => setPickingArt(false)}
+          onSaved={(updated) => setServer(updated)}
+        />
       )}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -235,6 +264,15 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
               >
                 <Pencil className="h-4 w-4" />
               </button>
+              {role !== "viewer" && !art.hero && (
+                <button
+                  onClick={() => setPickingArt(true)}
+                  className="text-slate-400 hover:text-slate-200"
+                  title="Choose artwork"
+                >
+                  <ImageIcon className="h-4 w-4" />
+                </button>
+              )}
             </>
           )}
           <StateBadge state={server.state} />

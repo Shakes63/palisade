@@ -65,6 +65,9 @@ model Server {
   // Config + mods
   configJson String @default("{}") // ServerConfigValues JSON
   modIds     String @default("[]") // JSON array of CurseForge/Workshop ids
+  // Per-server SteamGridDB art override (GameArtwork JSON). Null keys fall back
+  // to the game-wide default resolved by ArtworkService.
+  artworkJson String?
 
   // Runtime tracking
   containerId      String?

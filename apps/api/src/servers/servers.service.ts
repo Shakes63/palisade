@@ -28,6 +28,7 @@ import {
   type ServerStatsById,
   type ServerStatsDetail,
   type ServerConfigValues,
+  type GameArtwork,
 } from "@ark/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { CryptoService } from "../crypto/crypto.service";
@@ -1370,8 +1371,25 @@ export class ServersService implements OnApplicationBootstrap {
       modIds: JSON.parse(row.modIds) as number[],
       ramLimitMb: row.ramLimitMb,
       cpuLimit: row.cpuLimit,
+      artwork: row.artworkJson ? (JSON.parse(row.artworkJson) as GameArtwork) : null,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
     };
+  }
+
+  /** Merge a per-server artwork override (each kind: a URL to pin, or null to
+   *  clear back to the game default). Returns the updated summary. */
+  async setArtwork(id: string, patch: Partial<GameArtwork>): Promise<ServerSummary> {
+    const server = await this.prisma.server.findUnique({ where: { id } });
+    if (!server) throw new NotFoundException("Server not found");
+    const current = (server.artworkJson ? JSON.parse(server.artworkJson) : {}) as Partial<GameArtwork>;
+    const merged = { ...current, ...patch };
+    // Drop null/empty keys so an all-default override stores as NULL, not "{}".
+    const clean = Object.fromEntries(Object.entries(merged).filter(([, v]) => v));
+    const updated = await this.prisma.server.update({
+      where: { id },
+      data: { artworkJson: Object.keys(clean).length ? JSON.stringify(clean) : null },
+    });
+    return this.toSummary(updated as ServerRow, await this.docker.imageExists(IMAGES[server.game as Game]).catch(() => false));
   }
 }

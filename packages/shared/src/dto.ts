@@ -31,9 +31,20 @@ export interface ServerSummary {
   modIds: number[];
   ramLimitMb?: number | null;
   cpuLimit?: number | null;
+  /** Per-server SteamGridDB art override (each field null = use the game default). */
+  artwork?: GameArtwork | null;
   createdAt: string;
   updatedAt: string;
 }
+
+/** One selectable SteamGridDB asset for the per-server artwork picker. */
+export interface ArtworkOption {
+  url: string;
+  thumb: string;
+}
+
+/** Art asset kinds a server can override. */
+export type ArtworkKind = "grid" | "hero" | "logo" | "icon";
 
 /** Live resource usage for a server. CPU/memory are null unless the container is
  *  up (Starting counts — boot is the heaviest period); disk (the on-disk instance

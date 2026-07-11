@@ -1,5 +1,12 @@
 import { Injectable, Logger } from "@nestjs/common";
-import { Game, GAME_LABELS, STORE_APP_ID, type GameArtwork } from "@ark/shared";
+import {
+  Game,
+  GAME_LABELS,
+  STORE_APP_ID,
+  type ArtworkKind,
+  type ArtworkOption,
+  type GameArtwork,
+} from "@ark/shared";
 import { ManagerSettingsService, SettingKeys } from "../manager-settings/manager-settings.service";
 
 const SGDB_BASE = "https://www.steamgriddb.com/api/v2";
@@ -21,8 +28,17 @@ type Cache = Partial<Record<Game, CacheEntry>>;
 
 interface SgdbAsset {
   url?: string;
+  thumb?: string;
   score?: number;
 }
+
+/** SGDB path segment per art kind. */
+const KIND_PATH: Record<ArtworkKind, string> = {
+  grid: "grids",
+  hero: "heroes",
+  logo: "logos",
+  icon: "icons",
+};
 
 /**
  * Game cover art / banners / logos / icons from SteamGridDB. Resolution is by
@@ -89,34 +105,49 @@ export class ArtworkService {
     return { fetched, missing };
   }
 
-  private async fetchGameArt(game: Game, key: string): Promise<GameArtwork> {
-    // Resolve by the game's STORE app id (where SGDB indexes art), not the
-    // dedicated-server id; the two non-Steam games fall back to name search.
+  /** SGDB ref for a game: its STORE app id (where SGDB indexes art), or a game
+   *  id from name search for the two games that aren't on Steam. Null if neither. */
+  private async resolveRef(game: Game, key: string): Promise<{ kind: "steam" | "game"; id: number } | null> {
     const appId = STORE_APP_ID[game];
-    let ref: { kind: "steam" | "game"; id: number } | null =
-      appId > 0 ? { kind: "steam", id: appId } : null;
-    if (!ref) {
-      const name = SEARCH_NAME[game] ?? GAME_LABELS[game];
-      const results = await this.sgdb<{ id: number }[]>(
-        `/search/autocomplete/${encodeURIComponent(name)}`,
-        key,
-      );
-      if (results?.[0]?.id) ref = { kind: "game", id: results[0].id };
-    }
-    if (!ref) return { grid: null, hero: null, logo: null, icon: null };
+    if (appId > 0) return { kind: "steam", id: appId };
+    const name = SEARCH_NAME[game] ?? GAME_LABELS[game];
+    const results = await this.sgdb<{ id: number }[]>(
+      `/search/autocomplete/${encodeURIComponent(name)}`,
+      key,
+    );
+    return results?.[0]?.id ? { kind: "game", id: results[0].id } : null;
+  }
 
-    const path = (type: string, params: string) =>
-      `/${type}/${ref.kind}/${ref.id}?nsfw=false&humor=false&types=static${params}`;
-    const [grids, heroes, logos, icons] = await Promise.all([
-      // 600x900 is the portrait cover every launcher uses; heroes/logos/icons
-      // keep SGDB's defaults (sorted by score).
-      this.sgdb<SgdbAsset[]>(path("grids", "&dimensions=600x900"), key),
-      this.sgdb<SgdbAsset[]>(path("heroes", ""), key),
-      this.sgdb<SgdbAsset[]>(path("logos", ""), key),
-      this.sgdb<SgdbAsset[]>(path("icons", ""), key),
+  private assetPath(kind: ArtworkKind, ref: { kind: string; id: number }): string {
+    // Grids: 600x900 portrait covers. Others keep SGDB's score-sorted defaults.
+    const dims = kind === "grid" ? "&dimensions=600x900" : "";
+    return `/${KIND_PATH[kind]}/${ref.kind}/${ref.id}?nsfw=false&humor=false&types=static${dims}`;
+  }
+
+  /** Candidate assets of one kind for the per-server picker (score-sorted by SGDB). */
+  async options(game: Game, kind: ArtworkKind): Promise<ArtworkOption[]> {
+    const key = await this.settings.get(SettingKeys.SteamGridDbApiKey);
+    if (!key) return [];
+    const ref = await this.resolveRef(game, key).catch(() => null);
+    if (!ref) return [];
+    const assets = (await this.sgdb<SgdbAsset[]>(this.assetPath(kind, ref), key).catch(() => null)) ?? [];
+    return assets
+      .filter((a): a is SgdbAsset & { url: string } => Boolean(a.url))
+      .map((a) => ({ url: a.url, thumb: a.thumb || a.url }));
+  }
+
+  private async fetchGameArt(game: Game, key: string): Promise<GameArtwork> {
+    const ref = await this.resolveRef(game, key);
+    if (!ref) return { grid: null, hero: null, logo: null, icon: null };
+    const first = async (kind: ArtworkKind) =>
+      (await this.sgdb<SgdbAsset[]>(this.assetPath(kind, ref), key))?.[0]?.url ?? null;
+    const [grid, hero, logo, icon] = await Promise.all([
+      first("grid"),
+      first("hero"),
+      first("logo"),
+      first("icon"),
     ]);
-    const best = (assets: SgdbAsset[] | null) => assets?.[0]?.url ?? null;
-    return { grid: best(grids), hero: best(heroes), logo: best(logos), icon: best(icons) };
+    return { grid, hero, logo, icon };
   }
 
   /** GET an SGDB endpoint; null on any failure (404 = game/assets not found). */
