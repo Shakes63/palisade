@@ -61,6 +61,12 @@ export type AppEnv = z.infer<typeof schema>;
 
 let cached: AppEnv | undefined;
 
+/** Drop the memoized env so the next loadEnv() re-reads process.env. Used at boot after
+ *  HOST_DATA_DIR is auto-detected, since an import-time loadEnv() may have cached before. */
+export function resetEnvCache(): void {
+  cached = undefined;
+}
+
 export function loadEnv(): AppEnv {
   if (cached) return cached;
   const parsed = schema.safeParse(process.env);
