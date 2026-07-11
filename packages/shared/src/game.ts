@@ -273,6 +273,40 @@ export const RAM_ESTIMATE_MB: Record<Game, number> = {
 };
 
 /**
+ * Approximate on-disk INSTALL footprint per game (MB), used by the start-time disk
+ * preflight to refuse a first boot that would fill the data volume and corrupt a
+ * half-downloaded install. Deliberately GENEROUS (real download + unpack + margin) —
+ * over-estimating only costs a rare, clearly-explained "free up disk" prompt, while
+ * under-estimating risks the corruption we're guarding against. Only consulted for a
+ * COLD start (nothing installed yet); a warm restart just needs the runtime floor.
+ */
+export const DISK_INSTALL_MB: Record<Game, number> = {
+  [Game.ASA]: 15000, // ~13 GB depot
+  [Game.ASE]: 12000,
+  [Game.CONAN]: 45000, // Conan's install is famously ~40 GB
+  [Game.PALWORLD]: 8000,
+  [Game.PALWORLD_WINE]: 12000, // Windows depot under Wine
+  [Game.MINECRAFT]: 3000, // vanilla is tiny; modpacks pull much more
+  [Game.ICARUS]: 15000,
+  [Game.BEDROCK]: 2000,
+  [Game.VALHEIM]: 3000,
+  [Game.SEVEN_DAYS]: 18000, // ~17 GB via LinuxGSM
+  [Game.ENSHROUDED]: 12000,
+  [Game.ZOMBOID]: 5000,
+  [Game.VRISING]: 6000,
+  [Game.SOTF]: 12000,
+  [Game.SATISFACTORY]: 15000,
+  [Game.LIF]: 8000,
+  [Game.ATS]: 10000, // base + the map DLC most servers run
+  [Game.ETS2]: 12000, // ETS2 base + map DLC is large
+  [Game.CORE_KEEPER]: 3000,
+  [Game.TERRARIA]: 2000,
+  [Game.FACTORIO]: 3000,
+  [Game.RUST]: 25000, // Rust's server files are ~20-25 GB
+  [Game.BEAMMP]: 3000,
+};
+
+/**
  * The largest player count each game actually supports, so the create form can cap
  * the field instead of accepting a nonsensical value (e.g. 70 for Icarus, which tops
  * out at 20). Some are hard engine limits (Valheim 10, Enshrouded 16, Icarus 20 after

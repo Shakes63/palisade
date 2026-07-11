@@ -7,7 +7,7 @@ import {
   type OnApplicationBootstrap,
 } from "@nestjs/common";
 import type Docker from "dockerode";
-import { mkdir, writeFile, rm, cp, chmod, chown, stat, readFile } from "node:fs/promises";
+import { mkdir, writeFile, rm, cp, chmod, chown, stat, readFile, readdir } from "node:fs/promises";
 import { execFile, spawn } from "node:child_process";
 import type { Readable } from "node:stream";
 import { join, dirname, relative, sep } from "node:path";
@@ -19,6 +19,8 @@ import {
   RealtimeTopic,
   DEFAULT_PORTS,
   RAM_ESTIMATE_MB,
+  DISK_INSTALL_MB,
+  GAME_LABELS,
   type RunningServerRam,
   type InsufficientRamInfo,
   type CreateServerDto,
@@ -196,6 +198,10 @@ const STARTUP_DEADLINE_MS_BY_GAME: Partial<Record<Game, number>> = {
 };
 const startupDeadlineMs = (game: Game): number =>
   STARTUP_DEADLINE_MS_BY_GAME[game] ?? STARTUP_DEADLINE_MS_DEFAULT;
+
+/** Free-disk headroom (MB) every start needs beyond the install footprint — room for
+ *  the world save, logs, and a backup snapshot so a running server can't wedge the box. */
+const DISK_RUNTIME_FLOOR_MB = 2048;
 
 @Injectable()
 export class ServersService implements OnApplicationBootstrap {
@@ -827,6 +833,10 @@ export class ServersService implements OnApplicationBootstrap {
     } else if (!opts.force) {
       await this.assertRamAvailable(id);
     }
+    // Disk applies to every real start (including a swap's target and an auto-restart)
+    // but not a restart-in-place, which re-uses files already on disk. A near-full
+    // volume corrupts a fresh install and starves a running server's saves.
+    if (!opts.force) await this.assertDiskAvailable(id);
     return this.withLock(id, () => this.doStart(id));
   }
 
@@ -913,6 +923,43 @@ export class ServersService implements OnApplicationBootstrap {
         };
       }),
     );
+  }
+
+  /**
+   * Throw a 409 if the data volume doesn't have room to safely start this server. A
+   * COLD start (nothing installed yet) needs the game's whole install footprint plus a
+   * runtime floor — starting onto a near-full disk corrupts a half-downloaded install;
+   * a warm restart just needs the floor for saves/logs. Fails fast with a clear "free
+   * up disk" message instead of letting a container die mid-write.
+   */
+  private async assertDiskAvailable(id: string): Promise<void> {
+    const server = await this.prisma.server.findUnique({ where: { id } });
+    if (!server) throw new NotFoundException("Server not found");
+    const game = server.game as Game;
+    const cold = await this.isColdInstall(id);
+    const needMb = DISK_RUNTIME_FLOOR_MB + (cold ? DISK_INSTALL_MB[game] : 0);
+    const freeMb = await this.sampleFreeDiskMb();
+    if (freeMb >= needMb) return;
+    const gb = (mb: number) => (mb / 1024).toFixed(1);
+    throw new ConflictException(
+      `Not enough disk to ${cold ? "install" : "start"} ${GAME_LABELS[game]}: ` +
+        `need ~${gb(needMb)} GB free, only ${gb(freeMb)} GB available. Free up space and try again.`,
+    );
+  }
+
+  /** Free space (MB) on the data volume. Split out so tests can stub it. */
+  private async sampleFreeDiskMb(): Promise<number> {
+    return (await hostStats(loadEnv().DATA_DIR)).diskFreeMb;
+  }
+
+  /** True when this server's game files aren't on disk yet (fresh instance dir) — so
+   *  the next start will download the whole game. Missing dir counts as cold. */
+  private async isColdInstall(id: string): Promise<boolean> {
+    try {
+      return (await readdir(LocalPaths.instanceRoot(id))).length === 0;
+    } catch {
+      return true;
+    }
   }
 
   /**
@@ -1072,9 +1119,23 @@ export class ServersService implements OnApplicationBootstrap {
       this.logCapture.clear(id);
       // Remove any stale container with the same name, then create+start.
       await this.docker.removeByServerId(id).catch(() => undefined);
-      await this.docker.pullImage(spec.Image as string).catch((e) =>
-        this.logger.warn(`pull skipped: ${(e as Error).message}`),
-      );
+      let pullError: string | null = null;
+      await this.docker
+        .pullImage(spec.Image as string)
+        .catch((e) => {
+          pullError = (e as Error).message;
+          this.logger.warn(`pull skipped: ${pullError}`);
+        });
+      // A pull can fail transiently (registry hiccup) and still be fine if the image is
+      // already cached — but if it's NOT on disk either, createContainer would throw a
+      // cryptic "No such image". Fail fast with a clear, actionable reason instead.
+      if (!(await this.docker.imageExists(spec.Image as string))) {
+        throw new Error(
+          `game image ${spec.Image} isn't available` +
+            (pullError ? ` (pull failed: ${pullError})` : "") +
+            " — check the image name and your network/registry access.",
+        );
+      }
       const containerId = await this.docker.createContainer(spec);
       // Container now reflects the current config → clear the restart-needed flag.
       await this.prisma.server.update({ where: { id }, data: { containerId, configDirty: false } });

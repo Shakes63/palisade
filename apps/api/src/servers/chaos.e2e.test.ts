@@ -153,4 +153,50 @@ describe("chaos: bounded teardown + start failure", () => {
     expect(row.state, "a failed create leaves a clean Crashed, restartable state").toBe(ServerState.Crashed);
     expect(docker.started, "nothing was started").toEqual([]);
   });
+
+  it("fails fast with a clear reason when the game image isn't available", async () => {
+    const row = makeRow({ game: Game.MINECRAFT, id: "chaos-noimage", map: "world" });
+    docker.missingImage = true; // pull produced nothing and it's not cached
+    const { service } = await makeService(row, docker);
+
+    await expect(startServer(service, row.id)).rejects.toThrow(/isn't available/i);
+    expect(row.state, "clean Crashed, not a cryptic mid-create failure").toBe(ServerState.Crashed);
+    expect(docker.started, "we never tried to start a container without an image").toEqual([]);
+  });
+});
+
+describe("preflight: disk space", () => {
+  // assertDiskAvailable is host-dependent (reads the data volume), so drive it directly
+  // with the disk read + install-state stubbed — no real filesystem involved.
+  const withStubs = async (game: Game, opts: { cold: boolean; freeMb: number }) => {
+    const row = makeRow({ game, id: `disk-${game}`, map: "map" });
+    const { service } = await makeService(row, new FakeDocker());
+    const svc = service as unknown as Record<string, unknown>;
+    svc.isColdInstall = async () => opts.cold;
+    svc.sampleFreeDiskMb = async () => opts.freeMb;
+    return (svc.assertDiskAvailable as (id: string) => Promise<void>).call(svc, row.id);
+  };
+
+  it("rejects a cold start when free disk < install footprint + floor", async () => {
+    // 7DTD needs ~18 GB to install; 5 GB free must be refused, clearly.
+    await expect(withStubs(Game.SEVEN_DAYS, { cold: true, freeMb: 5000 })).rejects.toThrow(
+      /Not enough disk to install/i,
+    );
+  });
+
+  it("allows a cold start when the volume has ample room", async () => {
+    await expect(withStubs(Game.SEVEN_DAYS, { cold: true, freeMb: 60000 })).resolves.toBeUndefined();
+  });
+
+  it("a warm restart only needs the runtime floor, not the whole footprint", async () => {
+    // Already installed → 3 GB free clears the 2 GB floor even though a fresh 7DTD
+    // install would need ~18 GB.
+    await expect(withStubs(Game.SEVEN_DAYS, { cold: false, freeMb: 3000 })).resolves.toBeUndefined();
+  });
+
+  it("still refuses a warm start when the volume is critically full", async () => {
+    await expect(withStubs(Game.SEVEN_DAYS, { cold: false, freeMb: 500 })).rejects.toThrow(
+      /Not enough disk to start/i,
+    );
+  });
 });

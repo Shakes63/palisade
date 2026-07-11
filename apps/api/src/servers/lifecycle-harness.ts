@@ -95,6 +95,8 @@ export class FakeDocker {
   hangStop = false;
   /** When true, the next createContainer throws once (transient daemon error). */
   failCreateOnce = false;
+  /** When true, imageExists() reports the image absent (pull produced nothing). */
+  missingImage = false;
 
   private lineHandlers = new Map<string, (line: string) => void>();
   private exitResolvers = new Map<string, () => void>();
@@ -118,6 +120,9 @@ export class FakeDocker {
 
   async pullImage(image: string) {
     this.pulled.push(image);
+  }
+  async imageExists() {
+    return !this.missingImage;
   }
   async createContainer(spec: Record<string, unknown>) {
     if (this.failCreateOnce) {
@@ -241,4 +246,5 @@ export function neuterGuards(service: unknown): void {
   const svc = service as unknown as Record<string, unknown>;
   svc.assertPortsFree = async () => undefined;
   svc.assertRamAvailable = async () => undefined;
+  svc.assertDiskAvailable = async () => undefined; // host-disk-independent
 }
