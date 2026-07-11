@@ -561,6 +561,11 @@ function buildPalworldWineSpec(input: RuntimeSpecInput): Docker.ContainerCreateO
     `TZ=${input.timezone || env.TZ}`,
     `PUID=${env.PUID}`,
     `PGID=${env.PGID}`,
+    // UE4SS ships as a dwmapi.dll proxy in Pal/Binaries/Win64; Wine only loads it if told
+    // to prefer the native (proxy) dwmapi over its builtin. "n,b" = native-then-builtin,
+    // so vanilla servers (no proxy on disk) still fall back to Wine's builtin. Without
+    // this the framework files sit inert and DLL mods never load.
+    `WINEDLLOVERRIDES=dwmapi=n,b`,
     // Without this the image defaults to SERVER_SETTINGS_MODE=manual and IGNORES every
     // env var above (ports, RCON, passwords, catalog) — the server then boots on its
     // hard-coded defaults (game 8211, RCON off). "auto" makes it envsubst our values
