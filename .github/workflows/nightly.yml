@@ -1,17 +1,20 @@
-name: Build and publish Docker image
+name: Nightly image
 
-# STABLE channel: pushing a vX.Y.Z tag publishes `latest`, the semver tags
-# (vX.Y.Z + vX.Y), and an immutable short-sha tag. This is what Community
-# Applications users track; it only moves when a release is cut. Plain pushes
-# to main build nothing — the prerelease channel is nightly.yml (manual-only,
-# publishes `:nightly` and never touches `latest`).
+# PRERELEASE channel, manual-only: fire it with `gh workflow run nightly.yml`
+# (or the Actions tab) when there's something on main worth testing. No
+# schedule, no on-push — a nightly exists only when you ask for one.
 #
-# Security gates: the dependency audit must pass (no high/critical prod vulns)
-# before the image builds, and the built image is Trivy-scanned for CRITICAL
-# OS/library vulnerabilities before it is pushed.
+# What it publishes: `ghcr.io/shakes63/palisade:nightly` plus an immutable
+# `sha-<short>` pin. It NEVER touches `latest` or the semver tags, so stable
+# (Community Applications) users can't see it. A box opts in by pointing its
+# container at `:nightly` (scripts/deploy-unraid.sh tower nightly) and rejoins
+# stable by pointing back at `:latest` — the tag you track IS the channel.
+#
+# The image self-identifies as a prerelease: package.json's version is stamped
+# to `<base>-nightly.<UTC timestamp>` in the workflow workspace only — nothing
+# is committed and no tags land in the repo. Same audit + Trivy gates as the
+# stable pipeline.
 on:
-  push:
-    tags: ["v*"]
   workflow_dispatch:
 
 permissions:
@@ -38,6 +41,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Stamp prerelease version (workspace only — never committed)
+        id: ver
+        run: |
+          BASE=$(node -p "require('./package.json').version")
+          NIGHTLY="${BASE}-nightly.$(date -u +%Y%m%d%H%M)"
+          node -e "
+            const fs = require('fs');
+            const p = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            p.version = '${NIGHTLY}';
+            fs.writeFileSync('package.json', JSON.stringify(p, null, 2) + '\n');
+          "
+          echo "version=${NIGHTLY}" >> "$GITHUB_OUTPUT"
+          echo "Stamped ${NIGHTLY}"
+
       - name: Set up Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -52,16 +69,14 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          # Lowercase image name (GHCR requires lowercase); links to this repo.
           images: ghcr.io/shakes63/palisade
-          # `latest` is gated to tag refs so a stray workflow_dispatch from a
-          # branch can never move it. The `type=semver` lines only emit on a
-          # semver tag ref, so they're inert everywhere else.
+          # Deliberately no `latest` and no semver tags here — structurally
+          # impossible for a nightly to reach the stable channel.
           tags: |
-            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
-            type=semver,pattern=v{{version}}
-            type=semver,pattern=v{{major}}.{{minor}}
+            type=raw,value=nightly
             type=sha,format=short
+          labels: |
+            org.opencontainers.image.version=${{ steps.ver.outputs.version }}
 
       - name: Build (amd64 — Unraid), load for scanning
         uses: docker/build-push-action@v6

@@ -216,13 +216,16 @@ published release remains pullable as a rollback pin.
 | --- | --- | --- |
 | `latest` | a `vX.Y.Z` release is cut | most people |
 | `vX.Y.Z` / `vX.Y` | that release | pinning / rollback |
-| `nightly` | every push to `main` | early testing, bleeding edge |
+| `nightly` | a nightly build is manually triggered | early testing, bleeding edge |
 | `sha-<short>` | every build | immutable pin of an exact build |
 
-`nightly` is unreleased code — expect rough edges, and note it may apply DB
+`nightly` is a prerelease of unreleased `main` code (versioned like
+`1.3.2-nightly.202607110245`) — expect rough edges, and note it may apply DB
 migrations a later rollback to a stable release can't undo (Prisma migrates
-forward only), so back up first. It never affects `latest` users. To ride it,
-point your container's image at `ghcr.io/shakes63/palisade:nightly`.
+forward only), so back up first. It never moves `latest`, so stable users
+can't see it. Opting in and out is just which tag your container tracks:
+point the image at `ghcr.io/shakes63/palisade:nightly` to ride prereleases,
+and back at `:latest` to rejoin stable at the next release.
 
 ---
 
