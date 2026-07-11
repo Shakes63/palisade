@@ -1,6 +1,6 @@
 {
   "name": "palisade",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "private": true,
   "description": "Docker-based control panel for ARK: Survival Ascended/Evolved dedicated servers (Unraid-first).",
   "packageManager": "pnpm@9.15.9",
