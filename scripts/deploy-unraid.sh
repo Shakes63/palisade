@@ -1,8 +1,16 @@
 #!/bin/bash
-# Redeploy Palisade on an Unraid box over SSH — pull the latest image and
-# recreate the container with the SAME env/labels/mounts it already has.
+# Redeploy Palisade on an Unraid box over SSH — pull an image tag and recreate
+# the container with the SAME env/labels/mounts/data it already has.
 #
-# Usage: scripts/deploy-unraid.sh [ssh-host]   (default: tower)
+# Usage: scripts/deploy-unraid.sh [ssh-host] [tag]   (defaults: tower latest)
+#   scripts/deploy-unraid.sh tower           # track the stable channel
+#   scripts/deploy-unraid.sh tower nightly   # ride the bleeding-edge channel
+#
+# The container name + data dir are unchanged regardless of tag, so this just
+# swaps which code runs on the SAME data. Heads-up when moving to nightly: it
+# may apply DB migrations that a later rollback to a stable release can't undo
+# (Prisma only migrates forward). The manager self-backs-up its DB nightly, but
+# take a fresh backup first if you care.
 #
 # Secrets never touch disk: the current container's env is piped straight into
 # `docker run --env-file /dev/stdin` (no /tmp file to leak on a crash).
@@ -14,10 +22,16 @@
 set -euo pipefail
 
 HOST="${1:-tower}"
+TAG="${2:-latest}"
 NAME="Palisade"
-IMAGE="ghcr.io/shakes63/palisade:latest"
+IMAGE="ghcr.io/shakes63/palisade:${TAG}"
 PROXY_NAME="palisade-docker-proxy"
 PROXY_NET="palisade-proxy"
+
+if [ "$TAG" != "latest" ]; then
+  echo "WARNING: deploying the '${TAG}' channel to '${NAME}' on ${HOST} (same data dir)."
+  echo "         A rollback to an older stable release may hit un-downgradable DB migrations."
+fi
 
 ssh "$HOST" bash -s <<EOF
 set -euo pipefail

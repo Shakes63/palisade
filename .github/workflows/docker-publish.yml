@@ -1,16 +1,17 @@
 name: Build and publish Docker image
 
-# Builds the manager image and pushes it to GitHub Container Registry (GHCR) so
-# Unraid can pull it and surface the built-in "update" button. Publishes ONLY on
-# vX.Y.Z tags (a release IS the deploy) — every release gets `latest`, the
-# semver tags, and a short-sha tag, so any prior version stays pullable as a
-# rollback pin. Plain pushes to main do not build.
-#
-# Security gates: the dependency audit must pass (no high/critical prod vulns)
-# before the image builds, and the built image is Trivy-scanned for CRITICAL
-# OS/library vulnerabilities before it is pushed.
+# Builds the manager image and pushes it to GitHub Container Registry (GHCR).
+# Two channels, same audit + Trivy gates:
+#   * STABLE — pushing a vX.Y.Z tag publishes `latest`, the semver tags
+#     (vX.Y.Z + vX.Y), and a short-sha tag. This is what Community Applications
+#     users track; it only moves when a release is cut.
+#   * NIGHTLY — every push to `main` publishes `nightly` (bleeding edge) plus a
+#     short-sha tag. Point a box at `:nightly` to ride ahead of stable without
+#     affecting `:latest` users. Nightly NEVER moves `latest` or the semver tags.
+# The short-sha tag on both channels is an immutable rollback pin.
 on:
   push:
+    branches: [main]
     tags: ["v*"]
   workflow_dispatch:
 
@@ -54,8 +55,12 @@ jobs:
         with:
           # Lowercase image name (GHCR requires lowercase); links to this repo.
           images: ghcr.io/shakes63/palisade
+          # `latest` is gated to tag refs so a push to main can never move it;
+          # `nightly` is gated to main. The `type=semver` lines only emit on a
+          # semver tag ref, so they're inert on branch pushes.
           tags: |
-            type=raw,value=latest
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+            type=raw,value=nightly,enable=${{ github.ref == 'refs/heads/main' }}
             type=semver,pattern=v{{version}}
             type=semver,pattern=v{{major}}.{{minor}}
             type=sha,format=short

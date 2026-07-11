@@ -210,6 +210,20 @@ does both). Database migrations run automatically on boot. Prefer a fixed
 version over `latest`? Point the template at a specific `vX.Y.Z` tag — any
 published release remains pullable as a rollback pin.
 
+**Channels:**
+
+| Tag | Moves when | For |
+| --- | --- | --- |
+| `latest` | a `vX.Y.Z` release is cut | most people |
+| `vX.Y.Z` / `vX.Y` | that release | pinning / rollback |
+| `nightly` | every push to `main` | early testing, bleeding edge |
+| `sha-<short>` | every build | immutable pin of an exact build |
+
+`nightly` is unreleased code — expect rough edges, and note it may apply DB
+migrations a later rollback to a stable release can't undo (Prisma migrates
+forward only), so back up first. It never affects `latest` users. To ride it,
+point your container's image at `ghcr.io/shakes63/palisade:nightly`.
+
 ---
 
 ## Integrations (all optional, all in Settings)
