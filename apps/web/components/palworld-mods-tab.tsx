@@ -16,12 +16,6 @@ const CURATED_SERVER_MODS: { name: string; desc: string; url: string; host: stri
     url: "https://github.com/Ultimeit/PalDefender/releases",
     host: "GitHub",
   },
-  {
-    name: "PalGuard",
-    desc: "Popular server anti-cheat + admin toolkit (spawn/give/teleport, extra RCON, exploit/crash protection). Community-distributed — its ko-fi page is the official home + Discord link.",
-    url: "https://ko-fi.com/palguard",
-    host: "ko-fi / Discord",
-  },
 ];
 
 type PalModStatus = {
@@ -122,6 +116,12 @@ export function PalworldModsTab({ serverId }: { serverId: string }) {
             </li>
           ))}
         </ul>
+        <p className="text-[11px] leading-snug text-slate-500">
+          <span className="font-medium text-slate-400">PalGuard</span> (another popular anti-cheat) is
+          intentionally not linked here: it has no public Nexus/GitHub download page and is distributed
+          only through its community Discord, so there&apos;s no stable link to point at. Search
+          &ldquo;PalGuard Palworld&rdquo; to find its current Discord if you want it.
+        </p>
       </div>
 
       {/* ── Pak content mods ────────────────────────────────────────────── */}
