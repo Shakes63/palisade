@@ -518,9 +518,10 @@ function Overview({ server, onChanged }: { server: ServerSummary; onChanged: () 
   const isFactorio = server.game === Game.FACTORIO;
   const isRust = server.game === Game.RUST;
   const isBeammp = server.game === Game.BEAMMP;
-  const noQuery = isMc || isBedrock || isSdtd || isZomboid || isSatisfactory || isCoreKeeper || isTerraria || isFactorio || isBeammp; // Valheim/Enshrouded/V Rising have a real query port; Zomboid's + Satisfactory's mirror the game port
-  const noRcon = isIcarus || isBedrock || isValheim || isSdtd || isEnshrouded || isSotf || isSatisfactory || isLif || isAts || isCoreKeeper || isTerraria || isBeammp; // 7DTD's console is telnet
-  const noMods = isIcarus || isBedrock || isValheim || isSdtd || isEnshrouded || isVRising || isSotf || isSatisfactory || isLif || isAts || isCoreKeeper || isTerraria || isFactorio || isRust || isBeammp;
+  const isOpenttd = server.game === Game.OPENTTD;
+  const noQuery = isMc || isBedrock || isSdtd || isZomboid || isSatisfactory || isCoreKeeper || isTerraria || isFactorio || isBeammp || isOpenttd; // Valheim/Enshrouded/V Rising have a real query port; Zomboid/Satisfactory/OpenTTD answer queries on the game port
+  const noRcon = isIcarus || isBedrock || isValheim || isSdtd || isEnshrouded || isSotf || isSatisfactory || isLif || isAts || isCoreKeeper || isTerraria || isBeammp || isOpenttd; // 7DTD's console is telnet; OpenTTD's is in-game only
+  const noMods = isIcarus || isBedrock || isValheim || isSdtd || isEnshrouded || isVRising || isSotf || isSatisfactory || isLif || isAts || isCoreKeeper || isTerraria || isFactorio || isRust || isBeammp || isOpenttd;
   const row = (k: string, v: string): [string, string] => [k, v];
   const rows: [string, string][] = [
     row("Game", server.game),
