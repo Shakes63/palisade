@@ -123,6 +123,23 @@ export interface ImageTagsResult {
   tags: ImageTag[]; // newest-first where the registry provides ordering
 }
 
+/** One selectable GAME version (distinct from the Docker image tag): the value the
+ *  wrapper image reads to install a specific build of the game itself. */
+export interface GameVersionOption {
+  value: string; // written to the game's version env (e.g. "1.20.4", "15.3", "testing")
+  label: string; // friendly label, may include a date
+  kind?: "default" | "release" | "snapshot" | "prerelease" | "branch";
+}
+
+/** Published game versions for a game, for the settings version dropdown. Populated
+ *  from the upstream source (Mojang manifest, GitHub releases) or a fixed branch set. */
+export interface GameVersionsResult {
+  /** The value that means "track the newest" — kept as the shipped default. */
+  defaultValue: string;
+  defaultLabel: string;
+  options: GameVersionOption[]; // newest-first
+}
+
 export interface CreateServerDto {
   name: string;
   game: Game;

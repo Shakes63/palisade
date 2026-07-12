@@ -177,6 +177,12 @@ export interface SettingDef {
   options?: string[]; // for type "enum" (value === label)
   /** Labeled choices for "enum"/"multiselect" (friendly label, real value). */
   choices?: { value: string; label: string }[];
+  /** When set, the UI renders a dropdown whose options are fetched live from the
+   *  matching endpoint (instead of a free-text box), so the user picks from real
+   *  published values rather than guessing. "game-versions" → GET
+   *  /games/:game/versions (e.g. Minecraft/OpenTTD game version). The stored value
+   *  is still a plain string, and a custom/pinned value stays selectable. */
+  optionsSource?: "game-versions";
   /** For multiselect dash options: how selected values are joined (e.g. "+"). */
   joinWith?: string;
   help?: string;

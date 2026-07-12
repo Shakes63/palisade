@@ -37,6 +37,22 @@ const MAP_SIZES = [
 ];
 
 const settings: SettingDef[] = [
+  // ── Version ──────────────────────────────────────────────────────────────────
+  // Not an openttd.cfg key: the ich777 image reads GAME_VERSION from the env to
+  // install a specific OpenTTD build. noEmit keeps the cfg renderer from writing it;
+  // buildOpenttdSpec reads it. Dropdown populated from OpenTTD's GitHub releases.
+  {
+    key: "GAME_VERSION",
+    label: "Game version",
+    category: "Version",
+    target: SettingTarget.Env,
+    emitAs: "GAME_VERSION",
+    type: "string",
+    default: "latest",
+    noEmit: true,
+    optionsSource: "game-versions",
+    help: 'Which OpenTTD version to install, e.g. "15.3". Use latest for the newest stable release. Changing it re-downloads the game on the next start.',
+  },
   // ── Network ──────────────────────────────────────────────────────────────────
   oset("server_game_type", "Server visibility", "Network", "network", "server_game_type", "enum", "public", {
     choices: [

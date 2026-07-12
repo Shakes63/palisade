@@ -50,6 +50,15 @@ export const ENSHROUDED_MINUTE_NS_KEYS = new Set([
 ]);
 
 const settings: SettingDef[] = [
+  // ── Version ──────────────────────────────────────────────────────────────────
+  // Steam branch the image installs; emitted as GAME_BRANCH by enshroudedCatalogEnv.
+  eset("GAME_BRANCH", "Game branch", "Version", "enum", "public", {
+    choices: [
+      { value: "public", label: "Stable (public)" },
+      { value: "testing", label: "Experimental (testing)" },
+    ],
+    help: "Which Steam branch of the Enshrouded server to run. Stable is recommended; Experimental (testing) gets early updates and may be unstable. Changing it re-downloads the game on the next start.",
+  }),
   // ── Difficulty / enemies ─────────────────────────────────────────────────────
   eset("SERVER_GS_PRESET", "Difficulty preset", "Difficulty", "enum", "Default", {
     choices: [

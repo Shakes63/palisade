@@ -34,6 +34,7 @@ const settings: SettingDef[] = [
     help: "Which server flavour to run. Vanilla is the official server; Paper/Spigot add plugins; Fabric/Forge/NeoForge add mods. The image downloads the right jar on first boot.",
   }),
   mset("VERSION", "Game version", "Server", "string", "LATEST", {
+    optionsSource: "game-versions", // dropdown from the Mojang manifest
     help: 'Minecraft version, e.g. "1.21.4". Use LATEST for the newest release. (For modded types, match the modpack\'s version.)',
   }),
   mset("ONLINE_MODE", "Online mode (auth)", "Server", "bool", true, {

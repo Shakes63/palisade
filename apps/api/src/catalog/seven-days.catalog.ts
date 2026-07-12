@@ -20,6 +20,18 @@ function sset(
 }
 
 const settings: SettingDef[] = [
+  // ── Version ──────────────────────────────────────────────────────────────────
+  // Not an XML property: the image reads VERSION from the env to pick the game's
+  // Steam branch (set_version.sh). noEmit keeps it out of sdtdserver.xml;
+  // buildSevenDaysSpec reads it.
+  sset("VERSION", "Game version", "Version", "enum", "stable", {
+    noEmit: true,
+    choices: [
+      { value: "stable", label: "Stable" },
+      { value: "latest_experimental", label: "Experimental (latest)" },
+    ],
+    help: "Which 7 Days to Die branch to install. Stable is recommended; Experimental gets early builds and may break saves/mods. Changing it re-downloads the game (~17 GB) on the next start.",
+  }),
   // ── World ────────────────────────────────────────────────────────────────────
   sset("GameName", "World save name", "World", "string", "ManagerWorld", {
     help: "Names the save game. For a Random World it also seeds generation; keep it stable to keep the same world.",

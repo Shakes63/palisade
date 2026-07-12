@@ -95,6 +95,19 @@ export function buildContainerSpec(input: RuntimeSpecInput): Docker.ContainerCre
 }
 
 /**
+ * Sanitize a user-chosen game version/branch (from the settings dropdown) into a safe
+ * token, falling back to the shipped default when unset or malformed. Accepts version
+ * ids and branch names — "1.20.4", "26.3-snapshot-3", "15.3", "16.0-beta1", "latest",
+ * "stable", "latest_experimental", "LATEST". The value reaches a Docker env array (not
+ * a shell), but constraining the shape keeps a junk value out of the image's launch
+ * scripts and preserves the default's behaviour for existing servers.
+ */
+export function gameVersionValue(raw: unknown, fallback: string): string {
+  const v = typeof raw === "string" ? raw.trim() : "";
+  return v && /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(v) ? v : fallback;
+}
+
+/**
  * The POK images (ASA + Conan, both Acekorneya) run `sudo` in their entrypoints,
  * and sudo refuses to run under no-new-privileges EVEN AS ROOT (it checks the
  * flag explicitly) — the container dies before printing a line. gosu/su-based
@@ -1007,7 +1020,9 @@ function buildSevenDaysSpec(input: RuntimeSpecInput): Docker.ContainerCreateOpti
     `PUID=${env.PUID}`,
     `PGID=${env.PGID}`,
     `START_MODE=1`, // install/update if needed, then start (LinuxGSM)
-    `VERSION=stable`,
+    // Pinnable branch (default "stable"; "latest_experimental" for the beta) — set
+    // via the settings dropdown. set_version.sh maps it to the LinuxGSM Steam branch.
+    `VERSION=${gameVersionValue(input.config.values?.["VERSION"], "stable")}`,
     `BACKUP=NO`, // manager owns backups
     `MONITOR=NO`, // manager owns the crash watchdog
   ];
@@ -1075,7 +1090,8 @@ function buildEnshroudedSpec(input: RuntimeSpecInput): Docker.ContainerCreateOpt
     `SERVER_SLOT_COUNT=${slots}`,
     `SERVER_GAME_PORT=${ports.game}`, // 15636 (also the image default)
     `SERVER_QUERYPORT=${ports.query}`, // 15637
-    `GAME_BRANCH=public`,
+    // GAME_BRANCH (default "public"; "testing" for the experimental branch) is emitted
+    // by enshroudedCatalogEnv from its catalog setting — no hardcoded line here.
     ...enshroudedRoleEnv(input),
     ...enshroudedCatalogEnv(input),
   ];
@@ -2087,7 +2103,8 @@ function buildOpenttdSpec(input: RuntimeSpecInput): Docker.ContainerCreateOption
     `TZ=${input.timezone || env.TZ}`,
     `GAME_PORT=${ports.game}`,
     `GAME_PARAMS=`,
-    `GAME_VERSION=latest`,
+    // Pinnable game version (default "latest") — set via the settings dropdown.
+    `GAME_VERSION=${gameVersionValue(input.config.values?.["GAME_VERSION"], "latest")}`,
     `GFX_PK_V=latest`,
     // Skip the gotty web console — it hard-codes host:8080 under host networking, a
     // common conflict. OpenTTD admins use the in-game console (rcon_password).
@@ -2282,6 +2299,7 @@ export function renderSdtdServerXml(input: {
   };
   // Catalog gameplay properties (GameName, difficulty, rates, …).
   for (const def of input.catalog.settings) {
+    if (def.noEmit) continue; // e.g. VERSION is a launch/branch env, not an XML property
     const raw = input.config.values?.[def.key] ?? def.default;
     if (raw === undefined || raw === null) continue;
     props[def.emitAs ?? def.key] = typeof raw === "boolean" ? (raw ? "true" : "false") : (raw as string | number);
@@ -2324,6 +2342,7 @@ export function renderOpenttdConfig(input: {
     difficulty: {},
   };
   for (const def of input.catalog.settings) {
+    if (def.noEmit) continue; // e.g. GAME_VERSION is passed via env, not a cfg key
     const raw = input.config.values?.[def.key] ?? def.default;
     if (raw === undefined || raw === null) continue;
     const [section, key] = (def.emitAs ?? `network.${def.key}`).split(".");

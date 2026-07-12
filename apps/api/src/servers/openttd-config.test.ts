@@ -84,6 +84,7 @@ describe("OPENTTD_CATALOG", () => {
   it("every setting routes into a known openttd.cfg section via emitAs", async () => {
     const sections = new Set(["network", "game_creation", "difficulty"]);
     for (const def of OPENTTD_CATALOG.settings) {
+      if (def.noEmit) continue; // e.g. GAME_VERSION rides the env, not openttd.cfg
       const section = (def.emitAs ?? "").split(".")[0] ?? "";
       expect(sections.has(section), `${def.key} → ${def.emitAs}`).toBe(true);
     }
