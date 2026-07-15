@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+﻿#!/usr/bin/env bash
 # Launch the API and the web app together in the single manager container.
 set -euo pipefail
 

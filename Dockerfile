@@ -72,5 +72,8 @@ COPY --from=build /app/packages ./packages
 COPY --from=build /app/package.json /app/pnpm-workspace.yaml ./
 COPY --from=build /app/docker ./docker
 EXPOSE 3000 8787
+# Strip any Windows CR from the start script — a CRLF-encoded file makes bash
+# see `pipefail\r` as the option name and fail immediately at startup.
+RUN sed -i 's/\r//' docker/start.sh
 # gosu + tini would be added here for PUID/PGID drop + signal handling.
 CMD ["bash", "docker/start.sh"]
