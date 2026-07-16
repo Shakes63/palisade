@@ -87,6 +87,9 @@ model Server {
   configDirty      Boolean @default(false)
   ramLimitMb       Int?
   cpuLimit         Float?
+  // User-defined extra environment variables injected into the game container.
+  // JSON: Array<{ key: string; value: string }>
+  extraEnvJson     String   @default("[]")
 
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt

@@ -2,6 +2,12 @@ import type { Game, PortSet } from "./game";
 import type { ServerState } from "./server-state";
 import type { ServerConfigValues } from "./settings-catalog";
 
+/** A single user-defined environment variable to inject into the game container. */
+export interface EnvVar {
+  key: string;
+  value: string;
+}
+
 /** Public (no secrets) view of a server instance. */
 export interface ServerSummary {
   id: string;
@@ -40,6 +46,8 @@ export interface ServerSummary {
   modIds: number[];
   ramLimitMb?: number | null;
   cpuLimit?: number | null;
+  /** User-defined extra env vars injected into the game container at start. */
+  extraEnv: EnvVar[];
   /** Per-server SteamGridDB art override (each field null = use the game default). */
   artwork?: GameArtwork | null;
   createdAt: string;
@@ -157,6 +165,9 @@ export interface CreateServerDto {
   /** Advanced: pin the game image to a specific tag instead of the shipped default
    *  (null clears the pin). Applied on the next start (pull + recreate). */
   imageTag?: string | null;
+  /** User-defined extra env vars injected into the game container. Replaces the
+   *  full list on every save. */
+  extraEnv?: EnvVar[];
 }
 
 export type UpdateServerDto = Partial<CreateServerDto> & {

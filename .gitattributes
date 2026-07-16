@@ -1,0 +1,6 @@
+# Normalise all text files to LF on checkout (prevents CRLF in shell scripts
+# breaking bash inside Linux containers).
+* text=auto eol=lf
+
+# Shell scripts must always be LF.
+*.sh text eol=lf
