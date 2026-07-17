@@ -510,7 +510,7 @@ function buildPalworldSpec(input: RuntimeSpecInput): Docker.ContainerCreateOptio
     `MULTITHREADING=true`,
     // The manager owns updates/backups/restarts — turn off the image's own loops.
     // (A fresh instance still installs on first boot regardless of UPDATE_ON_BOOT.)
-    `UPDATE_ON_BOOT=false`,
+    `UPDATE_ON_BOOT=true`,
     `BACKUP_ENABLED=false`,
     `AUTO_REBOOT_ENABLED=false`,
     // NOTE: the UE4SS mod framework is NOT preloaded via a container-wide LD_PRELOAD.
