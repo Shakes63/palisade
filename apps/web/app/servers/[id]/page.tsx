@@ -36,6 +36,7 @@ import { useRole } from "@/lib/use-role";
 import { ArtworkPicker } from "@/components/artwork-picker";
 import { BackupsTab } from "@/components/backups-tab";
 import { PlayersTab } from "@/components/players-tab";
+import { EnvVarsCard } from "@/components/env-vars-card";
 
 const TABS = ["Overview", "Settings", "Mods", "Players", "Console", "Logs", "Schedules", "Backups"] as const;
 type Tab = (typeof TABS)[number];
@@ -580,6 +581,7 @@ function Overview({ server, onChanged }: { server: ServerSummary; onChanged: () 
       <ServerAccessCard server={server} onSaved={onChanged} />
       {!isCoreKeeper && <PortsCard server={server} onSaved={onChanged} />}
       <ImageVersionCard server={server} onSaved={onChanged} />
+      <EnvVarsCard server={server} onSaved={onChanged} />
       {!isCoreKeeper && <PortForwardsCard serverId={server.id} />}
       {/* File-managed access lists (Valheim/Bedrock/7DTD); RCON games use the Console. */}
       {(isValheim || isBedrock || isSdtd) && <AccessListsCard serverId={server.id} />}

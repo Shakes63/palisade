@@ -7,6 +7,7 @@ import {
   type ServerConfigValues,
   type SettingsCatalog,
   type MotdValue,
+  type EnvVar,
 } from "@ark/shared";
 import { buildCustomArgs, isBattlEyeDisabled } from "../catalog/command-line";
 import { VALHEIM_MODIFIER_CATEGORY } from "../catalog/valheim.catalog";
@@ -83,6 +84,9 @@ export interface RuntimeSpecInput {
   /** Advanced: pin the game image to a specific tag (e.g. a prior version) instead of
    *  the shipped default. Invalid/blank falls back to the default tag. */
   imageTag?: string | null;
+  /** User-defined extra env vars to inject into the container (appended last so they
+   *  can override any built-in variable). */
+  extraEnv?: EnvVar[];
 }
 
 /** Build the Docker create spec for a game-server container. */
@@ -91,6 +95,13 @@ export function buildContainerSpec(input: RuntimeSpecInput): Docker.ContainerCre
   // Each game spec sets Image to its shipped default; apply a pinned tag here (one
   // choke point) so an advanced user can run a specific version.
   spec.Image = imageRefFor(input.game, input.imageTag);
+  // Append user-defined extra env vars last so they can override any built-in key.
+  if (input.extraEnv && input.extraEnv.length > 0) {
+    spec.Env = [
+      ...(spec.Env ?? []),
+      ...input.extraEnv.map(({ key, value }) => `${key}=${value}`),
+    ];
+  }
   return spec;
 }
 
@@ -509,8 +520,11 @@ function buildPalworldSpec(input: RuntimeSpecInput): Docker.ContainerCreateOptio
     `PLAYERS=${input.maxPlayers}`,
     `MULTITHREADING=true`,
     // The manager owns updates/backups/restarts — turn off the image's own loops.
+    // Exception: when TARGET_MANIFEST_ID is set via extraEnv we must let SteamCMD
+    // run (UPDATE_ON_BOOT=true) so it can download the pinned manifest. Without it
+    // the manifest ID env var is present but completely ignored by the image.
     // (A fresh instance still installs on first boot regardless of UPDATE_ON_BOOT.)
-    `UPDATE_ON_BOOT=false`,
+    `UPDATE_ON_BOOT=${(input.extraEnv ?? []).some((e) => e.key === "TARGET_MANIFEST_ID") ? "true" : "false"}`,
     `BACKUP_ENABLED=false`,
     `AUTO_REBOOT_ENABLED=false`,
     // NOTE: the UE4SS mod framework is NOT preloaded via a container-wide LD_PRELOAD.
@@ -613,7 +627,9 @@ function buildPalworldWineSpec(input: RuntimeSpecInput): Docker.ContainerCreateO
     `MAX_PLAYERS=${input.maxPlayers}`,
     `MULTITHREAD_ENABLED=true`,
     // The manager owns updates/backups/restarts — silence the image's own loops.
-    `ALWAYS_UPDATE_ON_START=false`,
+    // Exception: when TARGET_MANIFEST_ID is set via extraEnv we must let SteamCMD
+    // run so it can download the pinned manifest.
+    `ALWAYS_UPDATE_ON_START=${(input.extraEnv ?? []).some((e) => e.key === "TARGET_MANIFEST_ID") ? "true" : "false"}`,
     `BACKUP_ENABLED=false`,
     `RESTART_ENABLED=false`,
     ...palworldCatalogEnv(input, "true"),

@@ -77,5 +77,8 @@ COPY --from=build /app/docker ./docker
 # Strip it from the shipped image: less to scan, less to attack.
 RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 EXPOSE 3000 8787
+# Strip any Windows CR from the start script — a CRLF-encoded file makes bash
+# see `pipefail\r` as the option name and fail immediately at startup.
+RUN sed -i 's/\r//' docker/start.sh
 # gosu + tini would be added here for PUID/PGID drop + signal handling.
 CMD ["bash", "docker/start.sh"]
