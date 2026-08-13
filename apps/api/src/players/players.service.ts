@@ -5,7 +5,7 @@ import { RconService } from "../rcon/rcon.service";
 import { CryptoService } from "../crypto/crypto.service";
 import { satisfactoryQueryState } from "./satisfactory-api";
 import { containerName } from "../common/naming";
-import { loadEnv } from "../config/env";
+import { GameEndpointService } from "../docker/game-endpoint.service";
 import { a2sInfo, raknetPing, type QueryCount } from "./query-protocols";
 import { ProbeHealthTracker } from "./probe-health";
 
@@ -55,6 +55,7 @@ export class PlayersService {
     private readonly prisma: PrismaService,
     private readonly rcon: RconService,
     private readonly crypto: CryptoService,
+    private readonly endpoints: GameEndpointService,
   ) {}
 
   /**
@@ -104,23 +105,26 @@ export class PlayersService {
     server: NonNullable<Awaited<ReturnType<PrismaService["server"]["findUnique"]>>>,
   ): Promise<QueryCount | null> {
     const game = server.game as Game;
-    // Same reachability rule as RCON: host networking → via the host gateway;
-    // bridge → the container name resolves on ark-net.
-    const host = loadEnv().GAME_HOST_NETWORK
-      ? "host.docker.internal"
-      : containerName(serverId, game, server.name);
+    // Same reachability rule as RCON, and derived the same way — from the container's
+    // real networking rather than a global flag (GH #21). Resolved per probe because
+    // each protocol below targets a different port.
+    const fallbackHost = containerName(serverId, game, server.name);
+    const at = (port: number, protocol: "tcp" | "udp") =>
+      this.endpoints.resolve(serverId, port, fallbackHost, protocol);
     try {
       if (A2S_GAMES.has(game)) {
-        const count = await a2sInfo(host, server.queryPort);
+        const { host, port } = await at(server.queryPort, "udp");
+        const count = await a2sInfo(host, port);
         return { online: count.online, max: count.max ?? server.maxPlayers };
       }
       if (game === Game.VALHEIM) {
         // The lloesche image's built-in HTTP status endpoint (STATUS_HTTP), on
         // game port + 3 by our convention (set in buildValheimSpec).
+        const { host, port } = await at(server.gamePort + 3, "tcp");
         const controller = new AbortController();
         const t = setTimeout(() => controller.abort(), 2500);
         try {
-          const res = await fetch(`http://${host}:${server.gamePort + 3}/status.json`, {
+          const res = await fetch(`http://${host}:${port}/status.json`, {
             signal: controller.signal,
           });
           if (!res.ok) return null;
@@ -132,7 +136,8 @@ export class PlayersService {
         }
       }
       if (game === Game.BEDROCK) {
-        const count = await raknetPing(host, server.gamePort);
+        const { host, port } = await at(server.gamePort, "udp");
+        const count = await raknetPing(host, port);
         return { online: count.online, max: count.max ?? server.maxPlayers };
       }
       if (game === Game.TERRARIA) {
@@ -140,11 +145,12 @@ export class PlayersService {
         // returns playercount + maxplayers as JSON.
         if (!server.adminPasswordEnc) return null;
         const token = this.crypto.decrypt(server.adminPasswordEnc);
+        const { host, port } = await at(server.rconPort, "tcp");
         const controller = new AbortController();
         const t = setTimeout(() => controller.abort(), 2500);
         try {
           const res = await fetch(
-            `http://${host}:${server.rconPort}/v2/server/status?token=${encodeURIComponent(token)}`,
+            `http://${host}:${port}/v2/server/status?token=${encodeURIComponent(token)}`,
             { signal: controller.signal },
           );
           if (!res.ok) return null;
@@ -158,9 +164,10 @@ export class PlayersService {
       if (game === Game.SATISFACTORY) {
         // The game's HTTPS API on the game port (no A2S). Passwordless Client
         // login unless a join password forces the admin-password fallback.
+        const { host, port } = await at(server.gamePort, "tcp");
         const state = await satisfactoryQueryState(
           host,
-          server.gamePort,
+          port,
           server.adminPasswordEnc ? this.crypto.decrypt(server.adminPasswordEnc) : null,
         );
         return state ? { online: state.online, max: state.max || server.maxPlayers } : null;

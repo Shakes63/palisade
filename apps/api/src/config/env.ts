@@ -40,8 +40,12 @@ const schema = z.object({
   // Run game-server containers on the host network instead of the ark-net
   // bridge. Removes the Docker NAT layer so ASA/EOS advertises the host's real
   // address (more reliable public/Unofficial listing + join). When on, the
-  // manager reaches RCON via the host gateway instead of the container name, so
-  // the manager must be started with `--add-host host.docker.internal:host-gateway`.
+  // manager reaches RCON via the host gateway, so it must be started with
+  // `--add-host host.docker.internal:host-gateway`.
+  //
+  // This flag decides how containers are CREATED only. How the manager then
+  // reaches them is read back off each container (common/game-endpoint.ts), so a
+  // flag flipped after a container was created no longer strands RCON (GH #21).
   GAME_HOST_NETWORK: z
     .string()
     .default("false")

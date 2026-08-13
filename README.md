@@ -261,6 +261,27 @@ can't see it. Opting in and out is just which tag your container tracks:
 point the image at `ghcr.io/shakes63/palisade:nightly` to ride prereleases,
 and back at `:latest` to rejoin stable at the next release.
 
+### Troubleshooting
+
+**Player counts stay empty, or RCON says `getaddrinfo ENOTFOUND <container name>`.**
+The manager couldn't resolve the game container by name. Games with no usable query
+protocol (Palworld, ASA, Minecraft) read their player list over RCON, so this shows
+up as "no players" rather than an obvious error.
+
+Palisade works out how to reach each container from the container itself — its IP on
+a network you share, the host gateway when it uses host networking or publishes the
+port — so this only bites when none of those apply. The usual cause is the manager
+not being attached to `ark-net` while game servers are. Check `GET /api/health`: it
+reports a warning naming this exact condition. To fix:
+
+```bash
+docker network connect ark-net <manager container>
+```
+
+On Unraid, make sure the Palisade container's **Network Type** is `ark-net` (the
+template sets it, but it's easy to change). If you use `GAME_HOST_NETWORK=true`,
+the manager instead needs `--add-host host.docker.internal:host-gateway`.
+
 ---
 
 ## Integrations (all optional, all in Settings)

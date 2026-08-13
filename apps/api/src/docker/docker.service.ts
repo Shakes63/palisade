@@ -11,6 +11,16 @@ export interface RunResult {
 /** Strip ANSI colour/escape sequences so log lines render cleanly in the UI. */
 const stripAnsi = (s: string): string => s.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, "");
 
+/**
+ * Which of a server's labelled containers to inspect for live networking. A running
+ * one always wins: a stopped container has no IP and isn't in Docker's DNS, and more
+ * than one can carry the label (an adoption leaves the original behind, stopped).
+ * Returns null when there is nothing labelled for that server.
+ */
+export function pickServerContainer(list: Array<{ Id: string; State?: string }>): string | null {
+  return (list.find((c) => c.State === "running") ?? list[0])?.Id ?? null;
+}
+
 /** Demultiplex Docker's non-TTY log buffer (8-byte frame header per chunk). */
 function demuxLog(buf: Buffer): string {
   let out = "";
@@ -235,6 +245,15 @@ export class DockerService {
     for (const c of list) {
       await this.docker.getContainer(c.Id).remove({ force }).catch(() => undefined);
     }
+  }
+
+  /** A server's container id by the ark.serverId label — like removeByServerId, robust
+   *  to renames. */
+  async findContainerIdByServerId(serverId: string): Promise<string | null> {
+    const list = await this.docker
+      .listContainers({ all: true, filters: { label: [`ark.serverId=${serverId}`] } })
+      .catch(() => [] as Docker.ContainerInfo[]);
+    return pickServerContainer(list);
   }
 
   async inspect(id: string) {

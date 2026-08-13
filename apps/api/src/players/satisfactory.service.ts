@@ -4,7 +4,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import { CryptoService } from "../crypto/crypto.service";
 import { EventsService } from "../events/events.service";
 import { containerName } from "../common/naming";
-import { loadEnv } from "../config/env";
+import { GameEndpointService } from "../docker/game-endpoint.service";
 import { satisfactoryClaim } from "./satisfactory-api";
 
 const POLL_MS = 60_000;
@@ -26,6 +26,7 @@ export class SatisfactoryService implements OnModuleInit {
     private readonly prisma: PrismaService,
     private readonly crypto: CryptoService,
     private readonly events: EventsService,
+    private readonly endpoints: GameEndpointService,
   ) {}
 
   onModuleInit(): void {
@@ -38,13 +39,15 @@ export class SatisfactoryService implements OnModuleInit {
       .catch(() => []);
     for (const s of rows) {
       if (!s.adminPasswordEnc) continue; // nothing to claim with — in-game claim applies
-      const host = loadEnv().GAME_HOST_NETWORK
-        ? "host.docker.internal"
-        : containerName(s.id, Game.SATISFACTORY, s.name);
       try {
+        const { host, port } = await this.endpoints.resolve(
+          s.id,
+          s.gamePort,
+          containerName(s.id, Game.SATISFACTORY, s.name),
+        );
         const result = await satisfactoryClaim(
           host,
-          s.gamePort,
+          port,
           s.name,
           this.crypto.decrypt(s.adminPasswordEnc),
           s.serverPasswordEnc ? this.crypto.decrypt(s.serverPasswordEnc) : null,

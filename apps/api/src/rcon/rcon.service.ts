@@ -10,7 +10,8 @@ import { SourceRcon } from "./source-rcon";
 import { TelnetRcon } from "./telnet-rcon";
 import { rconArg } from "./rcon-arg";
 import { containerName } from "../common/naming";
-import { loadEnv } from "../config/env";
+import { GameEndpointService } from "../docker/game-endpoint.service";
+import type { ResolvedEndpoint } from "../common/game-endpoint";
 
 /** The slice of a connection RconService uses — satisfied by both rcon-client's
  *  Rcon (ARK/ASE) and our lenient SourceRcon (Conan). */
@@ -29,6 +30,9 @@ interface RconConn {
 export class RconService {
   private readonly logger = new Logger(RconService.name);
   private readonly pool = new Map<string, RconConn>();
+  /** The endpoint each connection was opened to, so a failure can explain itself in
+   *  terms of the address we actually dialled. Bounded by the server count. */
+  private readonly dialled = new Map<string, ResolvedEndpoint>();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -36,6 +40,7 @@ export class RconService {
     private readonly events: EventsService,
     private readonly realtime: RealtimeGateway,
     private readonly logCapture: LogCaptureService,
+    private readonly endpoints: GameEndpointService,
   ) {}
 
   private async connect(serverId: string): Promise<RconConn> {
@@ -48,12 +53,16 @@ export class RconService {
       throw new BadRequestException("Server has no admin password set");
 
     const password = this.crypto.decrypt(server.adminPasswordEnc);
-    // On the bridge, game containers are reachable by name on ark-net. With host
-    // networking they bind on the host, so reach RCON via the host gateway (the
-    // manager must run with --add-host host.docker.internal:host-gateway).
-    const host = loadEnv().GAME_HOST_NETWORK
-      ? "host.docker.internal"
-      : containerName(serverId, server.game as Game, server.name);
+    // Derived from the container's real networking — its IP on a network we share,
+    // the host gateway when it's on the host or its port is published, and only then
+    // the container name. Guessing this from GAME_HOST_NETWORK alone broke every
+    // deployment where the flag and reality disagreed (GH #21).
+    const endpoint = await this.endpoints.resolve(
+      serverId,
+      server.rconPort,
+      containerName(serverId, server.game as Game, server.name),
+    );
+    this.dialled.set(serverId, endpoint);
     // 2s (the lib default) is too tight over the container network; 10s keeps
     // interactive commands snappy without spurious timeouts. (The world save on
     // stop is handled by the container's graceful SIGTERM shutdown, not by waiting
@@ -70,7 +79,7 @@ export class RconService {
     // makes rcon-client's strict id matching time out on every command (auth still
     // succeeds). Route Conan through our lenient SourceRcon; ARK/ASE keep
     // rcon-client, which they work with. (See source-rcon.ts.)
-    const opts = { host, port: server.rconPort, password, timeout: 10_000 };
+    const opts = { host: endpoint.host, port: endpoint.port, password, timeout: 10_000 };
     // Conan AND Palworld reply with non-matching packet ids that time out
     // rcon-client's strict matching — route both through the lenient SourceRcon.
     // 7 Days to Die has no Source RCON at all — its console is telnet on 8081, so it
@@ -110,8 +119,20 @@ export class RconService {
       return response;
     } catch (err) {
       this.pool.delete(serverId);
-      throw new BadRequestException(`RCON failed: ${(err as Error).message}`);
+      throw new BadRequestException(`RCON failed: ${await this.describeFailure(serverId, err as Error)}`);
     }
+  }
+
+  /**
+   * The raw error, plus a plain-English cause when the failure is one we can pin on
+   * how the manager reaches the container. A bare `getaddrinfo ENOTFOUND palworld-…`
+   * told users nothing about what to change (GH #21).
+   */
+  private async describeFailure(serverId: string, err: Error): Promise<string> {
+    const endpoint = this.dialled.get(serverId);
+    if (!endpoint) return err.message;
+    const hint = await this.endpoints.explain(serverId, err, endpoint).catch(() => null);
+    return hint ? `${err.message} — ${hint}` : err.message;
   }
 
   // ── Convenience wrappers ───────────────────────────────────────────────────

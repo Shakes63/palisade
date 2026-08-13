@@ -45,8 +45,9 @@ function connect(): Docker {
 
 /** Our own container id: the hostname is the short id by default; if that's been
  *  overridden, the full id still appears in /proc/self/{mountinfo,cgroup}. Each
- *  candidate is confirmed by an inspect() so we never guess wrong. */
-async function findSelfContainerId(docker: Docker): Promise<string | null> {
+ *  candidate is confirmed by an inspect() so we never guess wrong. Returns null
+ *  when we aren't running in a container at all (dev on the host). */
+export async function findSelfContainerId(docker: Docker): Promise<string | null> {
   const candidates: string[] = [];
   const hn = hostname();
   if (/^[0-9a-f]{12,64}$/i.test(hn)) candidates.push(hn);
