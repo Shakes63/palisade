@@ -3,7 +3,14 @@ import { mkdtemp, readFile, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Game } from "@ark/shared";
-import { PalModsService, UE4SS_LINUX, UE4SS_WINDOWS, PAL_FRAMEWORK_WINE_LOADER } from "./palmods.service";
+import {
+  PalModsService,
+  UE4SS_LINUX,
+  UE4SS_WINDOWS,
+  PAL_FRAMEWORK_WINE_LOADER,
+  PAL_WINE_PROXY_DLLS,
+  filterWineProxyDlls,
+} from "./palmods.service";
 
 /** UE4SS ships GuiConsoleEnabled=1 (no display on a dedicated server) and
  *  bUseUObjectArrayCache=true (crashes Palworld). Both must be flipped on install. */
@@ -80,5 +87,48 @@ describe("framework dir routing by game", () => {
   it("targets Win64 for Wine and Linux for native", () => {
     expect(fwDir("srv1", true).endsWith("Pal/Binaries/Win64")).toBe(true);
     expect(fwDir("srv1", false).endsWith("Pal/Binaries/Linux")).toBe(true);
+  });
+});
+
+/** GH #20: proxy-loader mods (PalDefender's d3d9.dll) only load under Wine when their
+ *  DLL name is in WINEDLLOVERRIDES — detection has to catch them, and ONLY them. */
+describe("filterWineProxyDlls", () => {
+  it("finds PalDefender's d3d9 loader among the game's own files", () => {
+    // A realistic Win64 listing: game exe, Steam + VC runtimes, the mod's loader,
+    // and its payload. Only the loader needs (or may get) an override.
+    expect(
+      filterWineProxyDlls([
+        "PalServer-Win64-Shipping-Cmd.exe",
+        "steam_api64.dll",
+        "vcruntime140.dll",
+        "msvcp140.dll",
+        "d3d9.dll",
+        "PalDefender.dll",
+      ]),
+    ).toEqual(["d3d9"]);
+  });
+
+  it("matches case-insensitively (Windows filenames arrive in any casing)", () => {
+    expect(filterWineProxyDlls(["D3D9.DLL", "DWMAPI.dll"])).toEqual(["dwmapi", "d3d9"]);
+  });
+
+  it("never flags payload or runtime DLLs — overriding those would break the server", () => {
+    // steam_api64/vcruntime natively-overridden would break Steam init; PalDefender.dll
+    // is loaded by its d3d9 proxy, not by Wine.
+    expect(filterWineProxyDlls(["steam_api64.dll", "vcruntime140.dll", "PalDefender.dll", "PalGuard.dll"])).toEqual([]);
+  });
+
+  it("returns list order regardless of directory order, for a stable env string", () => {
+    const a = filterWineProxyDlls(["version.dll", "d3d9.dll"]);
+    const b = filterWineProxyDlls(["d3d9.dll", "version.dll"]);
+    expect(a).toEqual(b);
+    expect(a).toEqual(["d3d9", "version"]);
+  });
+
+  it("covers the two loaders in the wild today", () => {
+    // dwmapi = UE4SS, d3d9 = PalDefender ≥1.5.2. If either leaves the list, those
+    // mods silently stop loading again.
+    expect(PAL_WINE_PROXY_DLLS).toContain("dwmapi");
+    expect(PAL_WINE_PROXY_DLLS).toContain("d3d9");
   });
 });

@@ -49,6 +49,7 @@ import { LogCaptureService, LOG_CAPTURE_MAX } from "../logs/log-capture.service"
 import { BackupsService } from "../backups/backups.service";
 import { PlayersService } from "../players/players.service";
 import { buildContainerSpec, ONE_SHOT_UPDATE_ENV } from "./runtime-spec";
+import { detectPalWineProxyDlls } from "../palmods/palmods.service";
 import { portsFor, serverPortSet } from "../catalog/ports";
 import { LocalPaths } from "../common/paths";
 import { containerName } from "../common/naming";
@@ -1150,6 +1151,12 @@ export class ServersService implements OnApplicationBootstrap, OnApplicationShut
       });
     }
 
+    // Palworld Wine: proxy-loader mods (PalDefender's d3d9.dll) only load if Wine is
+    // told to prefer them — scan Win64 now so this start's WINEDLLOVERRIDES covers
+    // whatever is installed (GH #20).
+    const palWineProxyDlls =
+      game === Game.PALWORLD_WINE ? await detectPalWineProxyDlls(server.id) : undefined;
+
     // Unraid dashboard icon: per-server pick, else the game's SGDB default.
     const override = server.artworkJson ? (JSON.parse(server.artworkJson) as GameArtwork) : null;
     const gameArt = (await this.artwork.getAll().catch(() => ({}) as Partial<Record<Game, GameArtwork>>))[game];
@@ -1182,6 +1189,7 @@ export class ServersService implements OnApplicationBootstrap, OnApplicationShut
       curseForgeApiKey:
         game === Game.MINECRAFT ? await this.settings.get(SettingKeys.CurseForgeApiKey) : null,
       pzModNames,
+      palWineProxyDlls,
       iconUrl,
       imageTag: server.imageTag,
       updateRequested: server.updateRequested,

@@ -301,7 +301,9 @@ export function PalworldModsTab({ serverId }: { serverId: string }) {
             This server runs the <span className="text-slate-300">Windows</span> Palworld binary under
             Wine; UE4SS lives in <span className="font-mono">Pal/Binaries/Win64</span> and auto-loads via
             the <span className="font-mono">dwmapi.dll</span> proxy — no LD_PRELOAD. Drop DLL mods into{" "}
-            <span className="font-mono">Pal/Binaries/Win64/Mods</span>. Restart to apply.{" "}
+            <span className="font-mono">Pal/Binaries/Win64/Mods</span>; mods that ship their own proxy
+            loader (PalDefender&apos;s <span className="font-mono">d3d9.dll</span>) go next to the server
+            exe in <span className="font-mono">Win64</span> and are detected on start. Restart to apply.{" "}
             <span className="text-slate-400">
               Lua, Blueprint <em>and</em> DLL mods (PalGuard, PalDefender) all work here.
             </span>

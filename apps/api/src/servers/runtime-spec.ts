@@ -79,6 +79,10 @@ export interface RuntimeSpecInput {
   curseForgeApiKey?: string | null;
   /** Zomboid only: the in-game "Mod ID" names (Mods=) matching modIds (WorkshopItems=). */
   pzModNames?: string[];
+  /** Palworld Wine only: proxy-loader DLLs found in Pal/Binaries/Win64 at start
+   *  (detectPalWineProxyDlls). Each needs a WINEDLLOVERRIDES entry or Wine ignores
+   *  it — how PalDefender's d3d9.dll loader sat inert (GH #20). */
+  palWineProxyDlls?: string[];
   /** Square icon for the Unraid Docker dashboard (per-server pick or SGDB game
    *  default); falls back to the game's Steam header when absent. */
   iconUrl?: string | null;
@@ -629,6 +633,12 @@ function palworldCatalogEnv(input: RuntimeSpecInput, boolStyle: "True" | "true" 
  * patch), so config-writer treats it as env-only. Uses gosu (not sudo) → the
  * no-new-privileges hardening is safe here.
  */
+/** The WINEDLLOVERRIDES value for a Wine Palworld server: dwmapi always (UE4SS may be
+ *  installed later without a recreate), plus each detected proxy DLL, deduped. */
+export function wineDllOverrides(proxyDlls: string[] | undefined): string {
+  return [...new Set(["dwmapi", ...(proxyDlls ?? [])])].map((n) => `${n}=n,b`).join(";");
+}
+
 function buildPalworldWineSpec(input: RuntimeSpecInput): Docker.ContainerCreateOptions {
   const env = loadEnv();
   const { ports } = input;
@@ -639,11 +649,13 @@ function buildPalworldWineSpec(input: RuntimeSpecInput): Docker.ContainerCreateO
     `TZ=${input.timezone || env.TZ}`,
     `PUID=${env.PUID}`,
     `PGID=${env.PGID}`,
-    // UE4SS ships as a dwmapi.dll proxy in Pal/Binaries/Win64; Wine only loads it if told
-    // to prefer the native (proxy) dwmapi over its builtin. "n,b" = native-then-builtin,
-    // so vanilla servers (no proxy on disk) still fall back to Wine's builtin. Without
-    // this the framework files sit inert and DLL mods never load.
-    `WINEDLLOVERRIDES=dwmapi=n,b`,
+    // Wine only loads a native (on-disk) DLL over its builtin when its name is listed
+    // here. dwmapi (UE4SS's proxy) is unconditional; the rest are the proxy-loader
+    // DLLs actually present in Pal/Binaries/Win64 at this start (PalDefender ≥1.5.2
+    // is d3d9 — GH #20). "n,b" = native-then-builtin, so a name with no proxy on disk
+    // (or a broken one) still falls back to Wine's builtin. Installing a proxy mod
+    // takes effect on the next restart, same as every other mod change.
+    `WINEDLLOVERRIDES=${wineDllOverrides(input.palWineProxyDlls)}`,
     // Without this the image defaults to SERVER_SETTINGS_MODE=manual and IGNORES every
     // env var above (ports, RCON, passwords, catalog) — the server then boots on its
     // hard-coded defaults (game 8211, RCON off). "auto" makes it envsubst our values

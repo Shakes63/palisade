@@ -42,6 +42,59 @@ export const UE4SS_WINDOWS = {
 /** Wine loads UE4SS via this proxy DLL (auto-loaded, no LD_PRELOAD). */
 export const PAL_FRAMEWORK_WINE_LOADER = "Pal/Binaries/Win64/dwmapi.dll";
 
+/**
+ * Windows system DLL names that proxy-loader mods ship under, dropped next to the
+ * server exe. Wine only loads a native (on-disk) DLL over its builtin when that name
+ * is listed in WINEDLLOVERRIDES, so each of these works on Windows but sits inert
+ * under Wine unless we add an override for it (GH #20 — PalDefender ≥1.5.2 moved its
+ * loader to d3d9.dll and stopped loading, while UE4SS's dwmapi.dll kept working only
+ * because its override is hardcoded in the spec).
+ *
+ * The fix is presence-based: buildPalworldWineSpec adds `<name>=n,b` for each of
+ * these actually found in Pal/Binaries/Win64 at start. Curated rather than "any
+ * .dll in the dir" because the dir legitimately contains DLLs Wine must NOT be told
+ * to prefer native for (steam_api64.dll, the vcruntime/msvcp runtimes) and payload
+ * DLLs the loader itself loads (PalDefender.dll). "n,b" (native-then-builtin) keeps
+ * a broken/removed proxy from taking the server down — Wine falls back to its own.
+ *
+ * dwmapi (UE4SS) + d3d9 (PalDefender) are the two in the wild today; the rest are
+ * the standard proxy names in the UE/ASI modding ecosystem, listed so the next mod
+ * that picks one just works. Extend here if one shows up that isn't covered.
+ */
+export const PAL_WINE_PROXY_DLLS = [
+  "dwmapi",
+  "d3d9",
+  "d3d11",
+  "dxgi",
+  "version",
+  "winmm",
+  "winhttp",
+  "xinput1_3",
+  "dinput8",
+  "dsound",
+] as const;
+
+/** The proxy-loader DLLs present in a Win64 file listing, in PAL_WINE_PROXY_DLLS
+ *  order (deterministic env output). Pure — the fs read lives in the async wrapper. */
+export function filterWineProxyDlls(fileNames: string[]): string[] {
+  const present = new Set(fileNames.map((f) => f.toLowerCase()));
+  return PAL_WINE_PROXY_DLLS.filter((name) => present.has(`${name}.dll`));
+}
+
+/**
+ * Scan a Wine server's Pal/Binaries/Win64 for proxy-loader DLLs, for the spec
+ * builder's WINEDLLOVERRIDES. Best-effort: no dir (fresh instance, game not
+ * installed yet) → empty, and the spec still hardcodes dwmapi regardless.
+ */
+export async function detectPalWineProxyDlls(serverId: string): Promise<string[]> {
+  try {
+    const dir = join(LocalPaths.instanceRoot(serverId), "Pal/Binaries/Win64");
+    return filterWineProxyDlls(await readdir(dir));
+  } catch {
+    return [];
+  }
+}
+
 const UE4SS_DOWNLOAD_TIMEOUT_MS = 60_000;
 
 /**

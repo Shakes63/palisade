@@ -1376,4 +1376,34 @@ describe("buildContainerSpec (Palworld Wine / ripps818)", () => {
     // unlike the native Palworld spec's True/False.
     expect(env).toContain("ALWAYS_UPDATE_ON_START=true");
   });
+
+  // GH #20: Wine ignores an on-disk proxy DLL unless WINEDLLOVERRIDES names it, so
+  // the spec must reflect what's actually installed in Pal/Binaries/Win64.
+  it("adds a d3d9 override when PalDefender's loader is detected", async () => {
+    const { buildContainerSpec } = await import("./runtime-spec");
+    const { PALWORLD_WINE_CATALOG } = await import("../catalog/palworld-wine.catalog");
+    const env = envOf(
+      buildContainerSpec({ ...input, catalog: PALWORLD_WINE_CATALOG, palWineProxyDlls: ["d3d9"] }),
+    );
+    expect(env).toContain("WINEDLLOVERRIDES=dwmapi=n,b;d3d9=n,b");
+  });
+
+  it("keeps the bare dwmapi override when nothing is detected (fresh install, UE4SS later)", async () => {
+    const { buildContainerSpec } = await import("./runtime-spec");
+    const { PALWORLD_WINE_CATALOG } = await import("../catalog/palworld-wine.catalog");
+    // Both undefined (detection skipped/failed) and empty must yield the historical value.
+    for (const palWineProxyDlls of [undefined, [] as string[]]) {
+      const env = envOf(
+        buildContainerSpec({ ...input, catalog: PALWORLD_WINE_CATALOG, palWineProxyDlls }),
+      );
+      expect(env).toContain("WINEDLLOVERRIDES=dwmapi=n,b");
+    }
+  });
+
+  it("does not duplicate dwmapi when detection also reports it", async () => {
+    const { wineDllOverrides } = await import("./runtime-spec");
+    // Once UE4SS is installed, detection sees dwmapi.dll on disk too — the hardcoded
+    // entry and the detected one must collapse to a single override.
+    expect(wineDllOverrides(["dwmapi", "d3d9"])).toBe("dwmapi=n,b;d3d9=n,b");
+  });
 });
