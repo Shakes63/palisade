@@ -54,6 +54,7 @@ function makeService(rows: Row[], containers: Array<{ id: string; serverId: stri
     {} as never, // logCapture
     {} as never, // backups
     { cached: () => null, count: async () => null } as never, // players
+    { addressingNote: () => null } as never, // endpoints
     { writeInis: async () => undefined } as never, // configWriter
     { getAll: async () => ({}) } as never, // artwork
   );

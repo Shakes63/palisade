@@ -22,8 +22,14 @@ export interface ContainerNetworkFacts {
   networkMode: string;
   /** NetworkSettings.Networks — network name → the container's IP on it. */
   networks: Record<string, string | null>;
-  /** NetworkSettings.Ports — "7780/tcp" → host bindings (empty/absent = unpublished). */
+  /** NetworkSettings.Ports — "7780/tcp" → host bindings (empty/absent = unpublished).
+   *  The RUNTIME view of publishing. */
   ports: Record<string, Array<{ HostIp?: string; HostPort?: string }> | null>;
+  /** HostConfig.PortBindings — the same mapping as REQUESTED at create time. Docker
+   *  normally mirrors it into NetworkSettings.Ports once running, but not on every
+   *  version/runtime (and not at all before start), so we consult both before
+   *  concluding a port isn't published. */
+  requestedPorts?: Record<string, Array<{ HostIp?: string; HostPort?: string }> | null>;
 }
 
 /** What the manager itself is attached to, so we know what it can reach. */
@@ -34,6 +40,9 @@ export interface ManagerNetworkFacts {
   hostNetwork: boolean;
   /** Names of the Docker networks the manager is attached to. */
   networks: string[];
+  /** The manager's own container name, so a suggested fix is copy-pasteable rather
+   *  than a `<placeholder>` the user has to go look up. */
+  name?: string | null;
 }
 
 export interface ResolvedEndpoint {
@@ -72,7 +81,8 @@ function sharedNetworkIp(c: ContainerNetworkFacts, manager: ManagerNetworkFacts)
 
 /** The host port `containerPort` is published on, if any. */
 function publishedPort(c: ContainerNetworkFacts, containerPort: number, proto: "tcp" | "udp"): number | null {
-  const binding = c.ports[`${containerPort}/${proto}`]?.[0]?.HostPort;
+  const key = `${containerPort}/${proto}`;
+  const binding = c.ports[key]?.[0]?.HostPort ?? c.requestedPorts?.[key]?.[0]?.HostPort;
   const port = binding ? Number(binding) : NaN;
   return Number.isFinite(port) && port > 0 ? port : null;
 }
@@ -134,7 +144,7 @@ export function explainEndpointFailure(input: {
 
   if (dnsFailure && endpoint.via === "container-name") {
     if (gameOnArkNet && manager.inContainer && !manager.networks.includes(ARK_NETWORK)) {
-      return `the manager container is not attached to the "${ARK_NETWORK}" network, so it cannot resolve game containers by name — run: docker network connect ${ARK_NETWORK} <manager container>`;
+      return `the manager container is not attached to the "${ARK_NETWORK}" network, so it cannot resolve game containers by name, and this server's RCON port is not published to the host either — run: docker network connect ${ARK_NETWORK} ${manager.name || "<manager container>"} (on Unraid: edit the Palisade container and set Network Type to ${ARK_NETWORK}), then restart this server`;
     }
     return `the name "${endpoint.host}" did not resolve — the game container is not on a network this manager shares, and its port is not published to the host`;
   }

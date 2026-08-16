@@ -234,6 +234,7 @@ export async function makeService(row: ServerRow, docker: FakeDocker) {
     logCapture as never,
     { create: noop } as never,
     { count: async () => ({ online: 0 }) } as never,
+    { addressingNote: () => null } as never, // endpoints
     configWriter,
     { getAll: async () => ({}) } as never, // artwork
   );

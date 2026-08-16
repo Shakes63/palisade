@@ -69,6 +69,7 @@ function makeSvc(initialArtworkJson: string | null = null) {
     {} as never,
     {} as never,
     players as never,
+    { addressingNote: () => null } as never, // endpoints
     {} as never,
     { getAll: async () => ({}) } as never, // artwork
   );

@@ -73,6 +73,35 @@ describe("resolveGameEndpoint", () => {
     });
   });
 
+  it("falls back to HostConfig.PortBindings when the runtime view is empty", () => {
+    // Reported on #21 after the first fix shipped: the manager was off ark-net and
+    // resolution still fell through to the container name even though the spec
+    // publishes RCON. NetworkSettings.Ports is Docker's runtime view and isn't always
+    // populated; the requested bindings say the same thing, so consult both.
+    const facts: ContainerNetworkFacts = {
+      networkMode: "ark-net",
+      networks: { "ark-net": "172.20.0.5" },
+      ports: {},
+      requestedPorts: { "7780/tcp": [{ HostIp: "0.0.0.0", HostPort: "7780" }] },
+    };
+    expect(resolve(facts, managerOffArkNet)).toEqual({
+      host: "host.docker.internal",
+      port: 7780,
+      via: "published-port",
+    });
+  });
+
+  it("prefers the runtime binding over the requested one when they disagree", () => {
+    const facts: ContainerNetworkFacts = {
+      networkMode: "ark-net",
+      networks: { "ark-net": "172.20.0.5" },
+      ports: { "7780/tcp": [{ HostPort: "17780" }] },
+      requestedPorts: { "7780/tcp": [{ HostPort: "7780" }] },
+    };
+    // The runtime value is what the host is actually listening on.
+    expect(resolve(facts, managerOffArkNet)).toMatchObject({ port: 17780 });
+  });
+
   it("honours a published port that differs from the container port", () => {
     const facts = onArkNet("172.20.0.5", { "7780/tcp": [{ HostPort: "17780" }] });
     expect(resolve(facts, managerOffArkNet)).toMatchObject({ port: 17780, via: "published-port" });
@@ -163,6 +192,24 @@ describe("explainEndpointFailure", () => {
     });
     expect(hint).toContain("not attached");
     expect(hint).toContain("docker network connect ark-net");
+  });
+
+  it("names the manager's actual container so the command is copy-pasteable", () => {
+    // "<manager container>" made the user go find the name themselves (#21 follow-up).
+    const hint = explainEndpointFailure({
+      error: dns,
+      endpoint: byName,
+      manager: { ...managerOffArkNet, name: "palisade" },
+      gameOnArkNet: true,
+    });
+    expect(hint).toContain("docker network connect ark-net palisade");
+    expect(hint).not.toContain("<manager container>");
+  });
+
+  it("keeps a placeholder when the manager's name is unknown", () => {
+    expect(
+      explainEndpointFailure({ error: dns, endpoint: byName, manager: managerOffArkNet, gameOnArkNet: true }),
+    ).toContain("<manager container>");
   });
 
   it("explains a name failure when the container is off ark-net entirely", () => {

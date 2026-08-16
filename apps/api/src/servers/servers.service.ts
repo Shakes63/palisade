@@ -50,6 +50,7 @@ import { BackupsService } from "../backups/backups.service";
 import { PlayersService } from "../players/players.service";
 import { buildContainerSpec, ONE_SHOT_UPDATE_ENV } from "./runtime-spec";
 import { detectPalWineProxyDlls } from "../palmods/palmods.service";
+import { GameEndpointService } from "../docker/game-endpoint.service";
 import { portsFor, serverPortSet } from "../catalog/ports";
 import { LocalPaths } from "../common/paths";
 import { containerName } from "../common/naming";
@@ -282,6 +283,7 @@ export class ServersService implements OnApplicationBootstrap, OnApplicationShut
     private readonly logCapture: LogCaptureService,
     private readonly backups: BackupsService,
     private readonly players: PlayersService,
+    private readonly endpoints: GameEndpointService,
     private readonly configWriter: ServerConfigWriter,
     private readonly artwork: ArtworkService,
   ) {}
@@ -1849,6 +1851,11 @@ export class ServersService implements OnApplicationBootstrap, OnApplicationShut
         return "Caves shard not linked — waiting for the automatic relink restart after the Klei outage.";
       }
     }
+    // Unreachable by any good path (manager off ark-net, ports unpublished): the
+    // game is fine, but Palisade can't talk to it, so this is exactly the
+    // "running but degraded" case — and it names the fix (GH #21).
+    const addressing = this.endpoints.addressingNote(id);
+    if (addressing) return addressing;
     // Generic (all queryable games): the player-count probe was answering this
     // run and has gone silent — the game process is likely hung even though its
     // container is up. Only fires after a successful probe, so games with no

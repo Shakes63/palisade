@@ -65,6 +65,7 @@ function makeSvc(overrides: Record<string, unknown> = {}) {
     {} as never, // logCapture
     {} as never, // backups
     { cached: () => null, probeFailingSince: () => null } as never, // players
+    { addressingNote: () => null } as never, // endpoints
     { writeInis: async () => undefined } as never, // configWriter
     { getAll: async () => ({}) } as never, // artwork
   );
