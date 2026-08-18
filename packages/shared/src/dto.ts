@@ -119,6 +119,10 @@ export interface ImageTag {
   name: string;
   /** Last-pushed time (Docker Hub only; GHCR doesn't expose it cheaply). */
   updatedAt?: string | null;
+  /** Manifest digest, when the registry lists it (Docker Hub does; GHCR's
+   *  tags/list does not). Tags sharing a digest are aliases for one build, which
+   *  is how a floating tag is resolved to a version — see resolveVersionTag. */
+  digest?: string | null;
 }
 
 /** Available image tags for a game, for the advanced version picker. */

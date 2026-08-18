@@ -2,12 +2,13 @@ import { Injectable, Logger, OnModuleInit } from "@nestjs/common";
 import { readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import * as cron from "node-cron";
-import { Game, EventType, STEAM_APP_ID } from "@ark/shared";
+import { Game, EventType, STEAM_APP_ID, resolveVersionTag } from "@ark/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { EventsService } from "../events/events.service";
 import { LocalPaths } from "../common/paths";
 import { IMAGE_BAKED_GAMES, imageRefFor, splitImageRef } from "../common/images";
 import { DockerService } from "../docker/docker.service";
+import { ImageTagsService } from "../images/image-tags.service";
 import { digestsDiffer, remoteImageDigest } from "./registry-digest";
 
 // Every 3 hours, offset off the top of the hour. ARK ships updates a few times a
@@ -89,6 +90,7 @@ export class UpdatesService implements OnModuleInit {
     private readonly prisma: PrismaService,
     private readonly events: EventsService,
     private readonly docker: DockerService,
+    private readonly imageTags: ImageTagsService,
   ) {}
 
   onModuleInit(): void {
@@ -177,12 +179,29 @@ export class UpdatesService implements OnModuleInit {
     }
     // Once per false→true transition, like the SteamCMD path.
     if (outdated && !server.updateAvailable) {
+      // Name the actual build when the registry publishes a versioned alias for it —
+      // "a newer image" tells an admin nothing about WHICH game version (GH #26).
+      const version = await this.newVersionName(server.game as Game, tag);
       await this.events.emit({
         type: EventType.UpdateAvailable,
-        message: `Update available for "${server.name}": a newer ${repo}:${tag} image has been published (the game server ships inside the image). Restart the server to pull it.`,
+        message:
+          `Update available for "${server.name}": a newer ${repo}:${tag} image has been published` +
+          (version ? ` (${version})` : "") +
+          ". The game server ships inside the image, so restart the server to pull it.",
         serverId: server.id,
-        data: { installed: local, latest: remote },
+        data: { installed: local, latest: remote, ...(version ? { version } : {}) },
       });
+    }
+  }
+
+  /** The versioned tag a floating tag now points at ("42.20.3-release"), or null when
+   *  the registry lists no digests / publishes no version aliases. Best-effort. */
+  private async newVersionName(game: Game, tag: string): Promise<string | null> {
+    try {
+      const { tags } = await this.imageTags.list(game);
+      return resolveVersionTag(tags, tag);
+    } catch {
+      return null;
     }
   }
 

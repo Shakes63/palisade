@@ -4,6 +4,7 @@ import { Boxes, Save, Check, ChevronDown, Loader2 } from "lucide-react";
 import {
   ServerState,
   GAME_VERSION_PINNING,
+  resolveVersionTag,
   GAME_LABELS,
   type ImageTagsResult,
   type ServerSummary,
@@ -27,17 +28,24 @@ export function ImageVersionCard({ server, onSaved }: { server: ServerSummary; o
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!open || data || loading) return;
+    // Fetched on mount, not on expand: the resolved version badge in the collapsed
+    // header is the whole point (GH #26 — "seeing the actual version it will pull
+    // would be a better admin experience"). The endpoint is cached server-side per
+    // repo for 10 minutes, so this is one cheap call per page view.
+    if (data || loading) return;
     setLoading(true);
     apiGet<ImageTagsResult>(`/games/${server.game}/image-tags`)
       .then(setData)
       .catch((e) => setErr((e as Error).message))
       .finally(() => setLoading(false));
-  }, [open, data, loading, server.game]);
+  }, [data, loading, server.game]);
 
   useEffect(() => setChoice(server.imageTag ?? ""), [server.imageTag]);
 
   const current = server.imageTag ?? data?.defaultTag ?? "default";
+  // A floating tag ("latest") says nothing about WHICH game build you're on. When the
+  // registry publishes a versioned alias for the same digest, show it (GH #26).
+  const currentVersion = data ? resolveVersionTag(data.tags, current) : null;
   const changed = (server.imageTag ?? "") !== choice;
 
   const save = async () => {
@@ -72,6 +80,14 @@ export function ImageVersionCard({ server, onSaved }: { server: ServerSummary; o
           <span className="ml-1 rounded bg-slate-700/60 px-1.5 py-0.5 font-mono text-[11px] font-normal normal-case text-slate-300">
             {current}
           </span>
+          {currentVersion && (
+            <span
+              className="rounded bg-slate-800/80 px-1.5 py-0.5 font-mono text-[11px] font-normal normal-case text-slate-400"
+              title={`"${current}" currently points at ${currentVersion}`}
+            >
+              {currentVersion}
+            </span>
+          )}
         </span>
         <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${open ? "rotate-180" : ""}`} />
       </button>

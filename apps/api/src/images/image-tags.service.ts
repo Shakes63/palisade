@@ -43,8 +43,14 @@ export class ImageTagsService {
     const path = repo.includes("/") ? repo : `library/${repo}`; // official images live under library/
     const json = (await this.getJson(
       `https://hub.docker.com/v2/repositories/${path}/tags?page_size=100&ordering=last_updated`,
-    )) as { results?: { name: string; last_updated?: string }[] } | null;
-    return (json?.results ?? []).map((t) => ({ name: t.name, updatedAt: t.last_updated ?? null }));
+    )) as { results?: { name: string; last_updated?: string; digest?: string }[] } | null;
+    // The digest lets a floating tag ("latest") be resolved to the versioned tag
+    // that shares it ("42.20.3-release") — see resolveVersionTag (GH #26).
+    return (json?.results ?? []).map((t) => ({
+      name: t.name,
+      updatedAt: t.last_updated ?? null,
+      digest: t.digest ?? null,
+    }));
   }
 
   /** GHCR: needs an anonymous pull token; tags/list has names only (no timestamps). */

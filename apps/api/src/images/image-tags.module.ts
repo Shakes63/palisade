@@ -7,5 +7,6 @@ import { GameVersionsController } from "./game-versions.controller";
 @Module({
   controllers: [ImageTagsController, GameVersionsController],
   providers: [ImageTagsService, GameVersionsService],
+  exports: [ImageTagsService], // UpdatesService names the version in its notification (GH #26)
 })
 export class ImageTagsModule {}
