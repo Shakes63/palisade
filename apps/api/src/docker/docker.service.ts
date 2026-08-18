@@ -126,6 +126,25 @@ export class DockerService {
     });
   }
 
+  /**
+   * The registry digest of the locally-pulled image, from its RepoDigests
+   * ("repo@sha256:…"). Null when the image isn't present or was built locally
+   * (no digest). Compared against the registry's current digest to spot a new
+   * image for games whose server is baked in (GH #26).
+   */
+  async imageDigest(ref: string): Promise<string | null> {
+    const repo = ref.split(":")[0];
+    try {
+      const info = await this.docker.getImage(ref).inspect();
+      const digests = (info.RepoDigests ?? []) as string[];
+      // Multiple entries when the image is tagged for several repos — take ours.
+      const mine = digests.find((d) => d.startsWith(`${repo}@`)) ?? digests[0];
+      return mine?.split("@")[1] ?? null;
+    } catch {
+      return null;
+    }
+  }
+
   /** Whether an image is already present locally (no registry round-trip). */
   async imageExists(image: string): Promise<boolean> {
     return this.docker

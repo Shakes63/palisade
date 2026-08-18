@@ -1,6 +1,6 @@
 # Project Zomboid
 
-**Image:** `danixu86/project-zomboid-dedicated-server` (by danixu86; B41 stable, server baked into the image) · **Ports (defaults):** 16261/udp (game + Steam query), 16262/udp (direct connection), 8766/udp + 8767/udp (Steam comms, fixed), 27015/tcp (Source RCON — LAN-only, not forwarded)
+**Image:** `danixu86/project-zomboid-dedicated-server` (by danixu86; B42 stable, server baked into the image) · **Ports (defaults):** 16261/udp (game + Steam query), 16262/udp (direct connection), 8766/udp + 8767/udp (Steam comms, fixed), 27015/tcp (Source RCON — LAN-only, not forwarded)
 
 **Join:** In Project Zomboid: Join → Favorites — enter the server IP and port 16261 and save it as a favorite. Online, friends use your public IP with the same port. The join password goes in the Server password field on the Join screen.
 
@@ -15,4 +15,6 @@ Install only pulls the image — the game itself is baked in, so first start is 
 - "Re-apply preset on start" (SERVERPRESETREPLACE) regenerates SandboxVars and overwrites panel sandbox tweaks by design.
 - The internal save name is fixed to `servertest` so the browser-visible display name can change freely; the save directory does not rename with the server.
 - There is no max-players env var — MaxPlayers is synced into the ini by Palisade; 32+ players needs serious JVM memory.
+- Game updates arrive as new IMAGES, because the server ships inside the image rather than being downloaded by SteamCMD. Every start pulls the image first, so **restarting the server is what moves you onto a newer Project Zomboid build** — there is no separate game download step. Palisade watches the image tag and flags an update (badge + notification) when a newer one is published (GH #26).
+- To pin a specific build instead of tracking the newest, set Advanced → image tag to one of the image's versioned tags (e.g. `42.20.3-release`); leave it empty to follow `latest`.
 - Ports 8766/8767 (Steam comms) are fixed and player-facing — they must be forwarded along with 16261/16262. Note 8766 collides with Sons of the Forest's game port; the start-time conflict guard stops you running both at once.

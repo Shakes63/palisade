@@ -213,6 +213,25 @@ export function defaultImageTagFor(game: Game): string {
   return splitImageRef(IMAGES[game]).tag;
 }
 
+/**
+ * Games whose SERVER BINARY ships inside the Docker image rather than being
+ * downloaded by SteamCMD on first boot. For these the image digest IS the game
+ * version, so "is there an update?" is answered by comparing the local image
+ * against the registry — not by reading a SteamCMD appmanifest, which never
+ * exists in the bind mount for them (GH #26: Zomboid could therefore never
+ * report an update, because the manifest probe silently found nothing forever).
+ *
+ * Deliberately NOT every non-SteamCMD game: Minecraft/Bedrock/OpenTTD download
+ * their server at runtime at a version the user picks, so a new image there does
+ * not mean a new game version and flagging one would be noise.
+ */
+export const IMAGE_BAKED_GAMES: ReadonlySet<Game> = new Set([
+  Game.ZOMBOID,
+  Game.BEAMMP,
+  Game.FACTORIO,
+  Game.TERRARIA,
+]);
+
 /** The image ref to actually run: the game's repo with its tag replaced by `pinned`
  *  when the server pins one, else the shipped default tag. */
 export function imageRefFor(game: Game, pinned?: string | null): string {

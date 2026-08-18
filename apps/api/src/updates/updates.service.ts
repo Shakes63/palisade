@@ -6,6 +6,9 @@ import { Game, EventType, STEAM_APP_ID } from "@ark/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { EventsService } from "../events/events.service";
 import { LocalPaths } from "../common/paths";
+import { IMAGE_BAKED_GAMES, imageRefFor, splitImageRef } from "../common/images";
+import { DockerService } from "../docker/docker.service";
+import { digestsDiffer, remoteImageDigest } from "./registry-digest";
 
 // Every 3 hours, offset off the top of the hour. ARK ships updates a few times a
 // week at most, so this is plenty without hammering the API.
@@ -85,6 +88,7 @@ export class UpdatesService implements OnModuleInit {
   constructor(
     private readonly prisma: PrismaService,
     private readonly events: EventsService,
+    private readonly docker: DockerService,
   ) {}
 
   onModuleInit(): void {
@@ -105,6 +109,11 @@ export class UpdatesService implements OnModuleInit {
       );
 
       for (const server of servers) {
+        // Server baked into the image → the image digest is the game version.
+        if (IMAGE_BAKED_GAMES.has(server.game as Game)) {
+          await this.checkBakedImage(server).catch(() => undefined);
+          continue;
+        }
         const newest = latest.get(server.game as Game);
         if (newest === undefined) continue; // couldn't fetch the latest → skip
         const installed = await this.installedBuildId(server.id, server.game as Game);
@@ -129,6 +138,51 @@ export class UpdatesService implements OnModuleInit {
       }
     } catch (err) {
       this.logger.warn(`update check failed: ${(err as Error).message}`);
+    }
+  }
+
+  /**
+   * Update check for a game whose server binary ships inside the image: compare the
+   * digest of the image we pulled against what the tag points at in the registry
+   * now. A difference means a new image — and for these games that IS a new game
+   * build (GH #26).
+   *
+   * `installedBuildId` doubles as the stored digest here (it's a free-form string
+   * column), so no schema change. Both lookups fail soft: an unreachable registry
+   * or a locally-built image leaves the flag exactly as it was rather than
+   * inventing an update.
+   */
+  private async checkBakedImage(server: {
+    id: string;
+    name: string;
+    game: string;
+    imageTag: string | null;
+    installedBuildId: string | null;
+    updateAvailable: boolean;
+  }): Promise<void> {
+    const ref = imageRefFor(server.game as Game, server.imageTag);
+    const { repo, tag } = splitImageRef(ref);
+    const [local, remote] = await Promise.all([
+      this.docker.imageDigest(ref),
+      remoteImageDigest(repo, tag),
+    ]);
+    if (!local || !remote) return; // can't tell — leave the flag untouched
+
+    const outdated = digestsDiffer(local, remote);
+    const data: Record<string, unknown> = {};
+    if (local !== server.installedBuildId) data.installedBuildId = local;
+    if (outdated !== server.updateAvailable) data.updateAvailable = outdated;
+    if (Object.keys(data).length) {
+      await this.prisma.server.update({ where: { id: server.id }, data }).catch(() => undefined);
+    }
+    // Once per false→true transition, like the SteamCMD path.
+    if (outdated && !server.updateAvailable) {
+      await this.events.emit({
+        type: EventType.UpdateAvailable,
+        message: `Update available for "${server.name}": a newer ${repo}:${tag} image has been published (the game server ships inside the image). Restart the server to pull it.`,
+        serverId: server.id,
+        data: { installed: local, latest: remote },
+      });
     }
   }
 
