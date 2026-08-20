@@ -16,9 +16,14 @@ import Docker from "dockerode";
  * no socket, a locked-down socket-proxy, running outside Docker — just leaves it unset,
  * and paths.ts falls back to DATA_DIR (correct whenever the two coincide, as they do by
  * default). Never throws.
+ *
+ * When it IS set explicitly, that value still wins, but we compare it against the real
+ * mount and warn on a disagreement: a stale/mistyped value silently scatters game
+ * servers into a directory the user never chose, which is baffling from the outside
+ * (GH #29 — files appeared under the old default instead of the configured App data).
  */
 export async function ensureHostDataDir(log: (msg: string) => void = console.log): Promise<void> {
-  if (process.env.HOST_DATA_DIR) return; // explicit value wins
+  const configured = process.env.HOST_DATA_DIR;
   const dataDir = process.env.DATA_DIR || "/data";
   try {
     const docker = connect();
@@ -26,13 +31,59 @@ export async function ensureHostDataDir(log: (msg: string) => void = console.log
     if (!id) return;
     const info = await docker.getContainer(id).inspect();
     const mount = (info.Mounts ?? []).find((m) => m.Destination === dataDir);
-    if (mount?.Source) {
-      process.env.HOST_DATA_DIR = mount.Source;
-      log(`[host-data-dir] auto-detected HOST_DATA_DIR=${mount.Source} from the manager's own ${dataDir} mount`);
+    const detected = mount?.Source;
+    if (!detected) return;
+
+    const action = hostDataDirAction(configured, detected);
+    if (action.kind === "adopt") {
+      process.env.HOST_DATA_DIR = action.value;
+      log(`[host-data-dir] auto-detected HOST_DATA_DIR=${action.value} from the manager's own ${dataDir} mount`);
+    } else if (action.kind === "mismatch") {
+      mismatch = { configured: action.configured, detected: action.detected };
+      log(`[host-data-dir] WARNING: ${mismatchMessage(action.configured, action.detected, dataDir)}`);
     }
   } catch (e) {
     log(`[host-data-dir] auto-detect skipped (${(e as Error).message}) — falling back to DATA_DIR`);
   }
+}
+
+/**
+ * What to do with an explicitly-set HOST_DATA_DIR once we know where /data really
+ * comes from. An explicit value always wins (someone may have a bind layout we can't
+ * model) — but a disagreement is worth shouting about, because the only symptom is
+ * game files appearing in a directory the user never chose (GH #29).
+ */
+export type HostDataDirAction =
+  | { kind: "adopt"; value: string }
+  | { kind: "mismatch"; configured: string; detected: string }
+  | { kind: "ok" };
+
+export function hostDataDirAction(configured: string | undefined, detected: string): HostDataDirAction {
+  if (!configured) return { kind: "adopt", value: detected };
+  return samePath(configured, detected) ? { kind: "ok" } : { kind: "mismatch", configured, detected };
+}
+
+/** The operator-facing explanation, shared by the boot log and /api/health. */
+export function mismatchMessage(configured: string, detected: string, dataDir = "/data"): string {
+  return (
+    `HOST_DATA_DIR is set to "${configured}", but this container's ${dataDir} actually comes from ` +
+    `"${detected}". Game servers will be created under "${configured}" — not where you pointed App data. ` +
+    `Clear HOST_DATA_DIR to auto-detect it, or set it to "${detected}".`
+  );
+}
+
+/** Same host path, ignoring a trailing slash. */
+export function samePath(a: string, b: string): boolean {
+  const trim = (p: string) => p.replace(/\/+$/, "");
+  return trim(a) === trim(b);
+}
+
+let mismatch: { configured: string; detected: string } | null = null;
+
+/** Set when HOST_DATA_DIR disagrees with the manager's real /data mount, so the
+ *  health endpoint can surface the same warning the boot log printed (GH #29). */
+export function hostDataDirMismatch(): { configured: string; detected: string } | null {
+  return mismatch;
 }
 
 /** Same DOCKER_HOST parsing as DockerService, but reads process.env directly (pre-loadEnv). */

@@ -3,6 +3,7 @@ import { Public } from "../auth/public.decorator";
 import { DockerService } from "../docker/docker.service";
 import { GameEndpointService } from "../docker/game-endpoint.service";
 import { ARK_NETWORK } from "../common/naming";
+import { hostDataDirMismatch, mismatchMessage } from "../config/ensure-host-data-dir";
 
 @Controller("health")
 export class HealthController {
@@ -18,16 +19,21 @@ export class HealthController {
     // resolve them by name — which used to surface only as an opaque RCON DNS
     // error (GH #21). Say so up front. Null = we couldn't tell; stay quiet.
     const missingArkNet = await this.endpoints.managerMissingArkNet().catch(() => null);
+    const dataDir = hostDataDirMismatch();
+    const warnings = [
+      ...(missingArkNet
+        ? [
+            `The manager container is not attached to the "${ARK_NETWORK}" network. Game servers on the bridge are reached by IP where possible, but RCON/player counts may fail for containers with unpublished ports. Fix: docker network connect ${ARK_NETWORK} <manager container>`,
+          ]
+        : []),
+      // A HOST_DATA_DIR that disagrees with the real /data mount puts every game
+      // server somewhere the user never configured (GH #29).
+      ...(dataDir ? [mismatchMessage(dataDir.configured, dataDir.detected)] : []),
+    ];
     return {
       status: "ok",
       docker: (await this.docker.ping()) ? "connected" : "unreachable",
-      ...(missingArkNet
-        ? {
-            warnings: [
-              `The manager container is not attached to the "${ARK_NETWORK}" network. Game servers on the bridge are reached by IP where possible, but RCON/player counts may fail for containers with unpublished ports. Fix: docker network connect ${ARK_NETWORK} <manager container>`,
-            ],
-          }
-        : {}),
+      ...(warnings.length ? { warnings } : {}),
       time: new Date().toISOString(),
     };
   }
