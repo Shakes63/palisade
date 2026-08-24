@@ -236,6 +236,54 @@ describe("explainEndpointFailure", () => {
     expect(hint).toContain("host-gateway");
   });
 
+  // GH #31: manager on an Unraid custom/macvlan network. Such a container is isolated
+  // from the Docker host AND from Docker's bridges, so every candidate address is
+  // unroutable — the user saw a bare "EHOSTUNREACH 172.17.0.1" with no explanation.
+  it("explains a no-route failure via the host gateway (macvlan manager)", () => {
+    const err = Object.assign(new Error("connect EHOSTUNREACH 172.17.0.1:27020"), {
+      code: "EHOSTUNREACH",
+    });
+    const hint = explainEndpointFailure({
+      error: err,
+      endpoint: { host: "host.docker.internal", port: 27020, via: "host-network" },
+      manager: { ...managerOffArkNet, networks: ["br0"], name: "palisade" },
+      gameOnArkNet: false,
+    });
+    expect(hint).toContain("no route");
+    expect(hint).toContain("macvlan");
+    expect(hint).toContain("docker network connect ark-net palisade");
+    expect(hint).toContain("GAME_HOST_NETWORK=false");
+  });
+
+  it("explains a no-route failure to a container IP without the host-network advice", () => {
+    // Bridge mode, manager elsewhere: attaching to ark-net is the fix, but telling
+    // them to set GAME_HOST_NETWORK=false would be nonsense — they already have.
+    const err = Object.assign(new Error("connect EHOSTUNREACH 172.19.0.3:27020"), {
+      code: "EHOSTUNREACH",
+    });
+    const hint = explainEndpointFailure({
+      error: err,
+      endpoint: { host: "172.19.0.3", port: 27020, via: "shared-network" },
+      manager: { ...managerOffArkNet, networks: ["br0"], name: "palisade" },
+      gameOnArkNet: true,
+    });
+    expect(hint).toContain("no route");
+    expect(hint).toContain("docker network connect ark-net palisade");
+    expect(hint).not.toContain("GAME_HOST_NETWORK=false");
+  });
+
+  it("treats ENETUNREACH the same as EHOSTUNREACH", () => {
+    const err = Object.assign(new Error("connect ENETUNREACH"), { code: "ENETUNREACH" });
+    expect(
+      explainEndpointFailure({
+        error: err,
+        endpoint: { host: "172.17.0.1", port: 27020, via: "published-port" },
+        manager: managerOffArkNet,
+        gameOnArkNet: false,
+      }),
+    ).toContain("no route");
+  });
+
   it("distinguishes a refused connection from an addressing problem", () => {
     const err = Object.assign(new Error("connect ECONNREFUSED"), { code: "ECONNREFUSED" });
     const hint = explainEndpointFailure({

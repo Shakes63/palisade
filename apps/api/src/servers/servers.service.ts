@@ -1288,6 +1288,7 @@ export class ServersService implements OnApplicationBootstrap, OnApplicationShut
             " — check the image name and your network/registry access.",
         );
       }
+      await this.ensureSpecNetwork(spec);
       const containerId = await this.docker.createContainer(spec);
       // Container now reflects the current config → clear the restart-needed flag.
       // A pending one-shot update was baked into this spec's env — consume it so the
@@ -1831,6 +1832,33 @@ export class ServersService implements OnApplicationBootstrap, OnApplicationShut
     for (const p of paths) {
       await chmod(p, 0o775).catch(() => undefined);
       await chown(p, SERVER_UID[game], SERVER_GID[game]).catch(() => undefined);
+    }
+  }
+
+  /**
+   * Make sure the bridge network this spec attaches to actually exists. Docker's own
+   * failure here is "(HTTP code 404) no such container - network ark-net not found",
+   * which reads like a container problem and sent a user hunting (GH #31). Host-network
+   * specs have no EndpointsConfig, so this is a no-op for them.
+   */
+  private async ensureSpecNetwork(spec: Docker.ContainerCreateOptions): Promise<void> {
+    for (const name of Object.keys(spec.NetworkingConfig?.EndpointsConfig ?? {})) {
+      // null = we couldn't ask (socket-proxy denies network APIs). Only a CONFIRMED
+      // absence is acted on, so a locked-down install keeps working exactly as before
+      // and Docker's own error stays the backstop.
+      const exists = await Promise.resolve()
+        .then(() => this.docker.networkExists(name))
+        .catch(() => null);
+      if (exists !== false) continue;
+      const created =
+        loadEnv().AUTO_CREATE_NETWORK && (await this.docker.createBridgeNetwork(name).catch(() => false));
+      if (!created) {
+        throw new Error(
+          `the Docker network "${name}" does not exist and could not be created ` +
+            `automatically. Create it once on the host with: docker network create ${name} ` +
+            `(or set GAME_HOST_NETWORK=true to run game servers on the host network instead).`,
+        );
+      }
     }
   }
 

@@ -122,8 +122,11 @@ manager injects config, watches logs, and talks RCON/telnet/query protocols.
 
 - Docker on a Linux host (Unraid, Debian/Ubuntu, etc.). 16 GB+ RAM recommended —
   a single populated game server wants 2–16 GB depending on the game.
-- A Docker bridge network for the manager (game containers join it too unless
-  you use host networking):
+- A Docker bridge network, `ark-net` — the manager and the game containers it
+  spawns share it (unless you use host networking). **Palisade creates it on
+  demand**, so there is normally nothing to do. Create it yourself only if you
+  set `AUTO_CREATE_NETWORK=false`, or if Docker access is locked down (a
+  socket-proxy with `NETWORKS=0` can't create networks):
 
   ```bash
   docker network create ark-net
@@ -211,6 +214,7 @@ docker compose up -d
 | `DATABASE_URL` | no | `file:./data/db.sqlite` | SQLite path — keep it inside `DATA_DIR`. |
 | `PUBLIC_BASE_URL` | no | `http://localhost:3000` | The address you actually browse to. Used for links and Unraid WebUI buttons. |
 | `GAME_HOST_NETWORK` | no | `false` | `true` = game containers use host networking (recommended — ASA/EOS and Steam query behave better without Docker NAT). Requires the `--add-host host.docker.internal:host-gateway` flag on the manager so it can still reach RCON/query. |
+| `AUTO_CREATE_NETWORK` | no | `true` | Create the `ark-net` bridge automatically when a game server needs it. Set `false` to manage Docker networks yourself. |
 | `DOCKER_HOST` | no | unix socket | Point at `tcp://socket-proxy:2375` for least-privilege Docker access ([docker-socket-proxy](https://github.com/Tecnativa/docker-socket-proxy)). |
 | `PUID` / `PGID` | no | `99` / `100` | Ownership for game files written by the manager (Unraid's `nobody:users` by default). |
 | `TZ` | no | `UTC` | Manager clock; also the default for game containers and schedules (overridable in Settings). |

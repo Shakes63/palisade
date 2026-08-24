@@ -266,6 +266,41 @@ export class DockerService {
     }
   }
 
+  /**
+   * Whether a Docker network of this exact name exists — or null when we could not
+   * find out (a socket-proxy with NETWORKS=0 denies the list). Null matters: callers
+   * must not treat "couldn't ask" as "missing", or a locked-down but perfectly
+   * working install would be blocked from starting servers (GH #31).
+   */
+  async networkExists(name: string): Promise<boolean | null> {
+    try {
+      const list = await this.docker.listNetworks({ filters: { name: [name] } });
+      // The name filter is a substring match, so confirm an exact hit.
+      return list.some((n: { Name?: string }) => n.Name === name);
+    } catch (err) {
+      this.logger.debug(`could not list networks (${(err as Error).message})`);
+      return null;
+    }
+  }
+
+  /**
+   * Create a user-defined bridge network, ignoring a concurrent create that won it.
+   * Returns false when Docker refuses (a socket-proxy with NETWORKS=0, or no
+   * permission) so the caller can fall back to telling the user to make it (GH #31).
+   */
+  async createBridgeNetwork(name: string): Promise<boolean> {
+    try {
+      await this.docker.createNetwork({ Name: name, Driver: "bridge", CheckDuplicate: true });
+      this.logger.log(`Created Docker network ${name}`);
+      return true;
+    } catch (err) {
+      // Someone else created it between our check and this call — that's success.
+      if (await this.networkExists(name)) return true;
+      this.logger.warn(`Could not create Docker network ${name}: ${(err as Error).message}`);
+      return false;
+    }
+  }
+
   /** A server's container id by the ark.serverId label — like removeByServerId, robust
    *  to renames. */
   async findContainerIdByServerId(serverId: string): Promise<string | null> {

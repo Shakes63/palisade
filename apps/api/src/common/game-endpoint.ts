@@ -153,6 +153,17 @@ export function explainEndpointFailure(input: {
     return "host.docker.internal did not resolve — start the manager with `--add-host host.docker.internal:host-gateway` (required when game servers use host networking)";
   }
 
+  // No route at all — distinct from "nothing listening". The classic cause is a
+  // manager on an Unraid custom/macvlan network: such a container is isolated from
+  // both the Docker host and Docker's bridges, so neither the host gateway nor a
+  // container IP is reachable, whichever way GAME_HOST_NETWORK is set (GH #31).
+  if (code === "EHOSTUNREACH" || code === "ENETUNREACH") {
+    const attach = `docker network connect ${ARK_NETWORK} ${manager.name || "<manager container>"}`;
+    return endpoint.via === "host-network" || endpoint.via === "published-port"
+      ? `no route from the manager to ${endpoint.host} — it is on a network with no path to the Docker host. If the manager runs on an Unraid custom/macvlan network, it cannot reach the host gateway: attach it to "${ARK_NETWORK}" as an additional network (${attach}) and set GAME_HOST_NETWORK=false so game servers share that bridge`
+      : `no route from the manager to ${endpoint.host} — the manager and this server are on networks that cannot reach each other. Attach the manager to "${ARK_NETWORK}" (${attach}), then restart this server`;
+  }
+
   if (code === "ECONNREFUSED") {
     return `nothing is listening on ${endpoint.host}:${endpoint.port} — the server may still be starting, or RCON may be disabled/bound to a different port`;
   }

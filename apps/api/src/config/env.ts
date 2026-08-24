@@ -51,6 +51,17 @@ const schema = z.object({
     .default("false")
     .transform((v) => v === "true" || v === "1"),
 
+  // Create the ark-net bridge network on demand when a game server needs it and it
+  // doesn't exist. Without this the start fails with Docker's raw
+  // "404 no such container - network ark-net not found", which reads like a container
+  // problem rather than a missing prerequisite the README asked you to create (GH #31).
+  // Set false to keep Palisade out of network management (a locked-down socket-proxy
+  // denies it anyway) — you then create it yourself: docker network create ark-net
+  AUTO_CREATE_NETWORK: z
+    .string()
+    .default("true")
+    .transform((v) => v !== "false" && v !== "0"),
+
   // Browsers reach the API same-origin through the Next rewrite proxy, so
   // cross-origin requests are denied by default. If you serve the web UI from a
   // different origin than the API, list the allowed origins here

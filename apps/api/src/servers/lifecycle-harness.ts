@@ -131,6 +131,22 @@ export class FakeDocker {
   async imageExists() {
     return !this.missingImage;
   }
+  /** ark-net preflight (GH #31): true = present, false = confirmed missing,
+   *  null = couldn't ask (a socket-proxy denying the network APIs). */
+  networkPresent: boolean | null = true;
+  /** Networks createBridgeNetwork was asked to make, and whether it may succeed. */
+  createdNetworks: string[] = [];
+  networkCreateFails = false;
+
+  async networkExists() {
+    return this.networkPresent;
+  }
+  async createBridgeNetwork(name: string) {
+    if (this.networkCreateFails) return false;
+    this.createdNetworks.push(name);
+    this.networkPresent = true;
+    return true;
+  }
   async createContainer(spec: Record<string, unknown>) {
     if (this.failCreateOnce) {
       this.failCreateOnce = false;
