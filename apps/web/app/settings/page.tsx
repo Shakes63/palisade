@@ -306,7 +306,7 @@ export default function SettingsPage() {
           <div className="card space-y-4">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-ark-accent2">Backups</h2>
             <div>
-              <label className="label">Keep last N backups (per server)</label>
+              <label className="label">Keep last N automatic backups (per server)</label>
               <input
                 type="number"
                 min={1}
@@ -316,8 +316,19 @@ export default function SettingsPage() {
                 onChange={(e) => setBackupKeep(e.target.value)}
               />
               <p className="mt-1 text-xs text-slate-500">
-                Older snapshots beyond this count are deleted automatically. Default 10. Each backup is
-                just the live world, players, and config (ARK&apos;s own dated copies + logs are skipped).
+                Applies to <span className="text-slate-400">automatic</span> backups only — scheduled
+                ones and the safety copies taken before an update, restart or restore. Older automatic
+                snapshots beyond this count are deleted. Anything up to 500 works here; 10 is just the
+                default, not a limit.
+              </p>
+              <p className="mt-1 text-xs text-slate-500">
+                Backups you take yourself with the <span className="text-slate-400">Backup</span> button
+                are never deleted by retention and don&apos;t count towards this number — remove those
+                from the server&apos;s Backups tab when you no longer want them.
+              </p>
+              <p className="mt-1 text-xs text-slate-500">
+                Each backup is just the live world, players, and config (ARK&apos;s own dated copies +
+                logs are skipped).
               </p>
             </div>
             <CardSave card="backups" onClick={saveBackups} />

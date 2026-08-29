@@ -11,6 +11,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import { EventsService } from "../events/events.service";
 import { ManagerSettingsService, SettingKeys } from "../manager-settings/manager-settings.service";
 import { loadEnv } from "../config/env";
+import { artifactsToPrune } from "../backups/retention";
 
 /** Off-box replication config — stored as one encrypted setting. */
 export interface ReplicationConfig {
@@ -179,9 +180,13 @@ export class ReplicationService implements OnModuleInit {
         await this.uploadTarGz(snap.path, dest, this.remoteJoin(config, serverId, artifact));
         uploaded++;
       }
-      // Remote retention mirrors local keep-N (manifest excluded from the count).
-      const artifacts = (await dest.list(dir)).filter((f) => f.endsWith(".tar.gz")).sort();
-      for (const stale of artifacts.slice(0, Math.max(0, artifacts.length - keep))) {
+      // Remote retention mirrors local keep-N (manifest excluded from the count) —
+      // including the manual exemption, or the copies we just protected locally
+      // would still be deleted off the target (GH #34). Ordering is by the artifact's
+      // timestamp, not its name: names start with the reason, so a plain sort would
+      // delete every "auto-stop-*" before any older "scheduled-*".
+      const artifacts = (await dest.list(dir)).filter((f) => f.endsWith(".tar.gz"));
+      for (const stale of artifactsToPrune(artifacts, keep)) {
         await dest.remove(this.remoteJoin(config, serverId, stale)).catch(() => undefined);
       }
     }

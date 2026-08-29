@@ -116,7 +116,17 @@ export function BackupsTab({ serverId }: { serverId: string }) {
                 <Archive className="h-5 w-5 text-ark-accent2" />
                 <div>
                   <div className="font-medium">{new Date(b.createdAt).toLocaleString()}</div>
-                  <div className="text-xs text-slate-500">{b.reason}</div>
+                  <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                    {b.reason}
+                    {b.reason === "manual" && (
+                      <span
+                        className="rounded bg-slate-700/60 px-1.5 py-0.5 text-[10px] text-slate-300"
+                        title="Backups you take yourself are never removed by retention — delete this one when you no longer want it."
+                      >
+                        kept
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
               <div className="flex gap-2">
