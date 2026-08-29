@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { DEFAULT_BACKUP_KEEP, DEFAULT_MANAGER_BACKUP_KEEP } from "../manager-settings/manager-settings.service";
 import {
   artifactTimestamp,
   artifactsToPrune,
@@ -113,5 +114,40 @@ describe("artifactsToPrune (replication target)", () => {
 
   it("prunes nothing when under the limit", () => {
     expect(artifactsToPrune(["scheduled-2026-06-01T00-00-00-000Z.tar.gz"], 10)).toEqual([]);
+  });
+});
+
+// Retention became PER SERVER: save sizes and useful history differ too much between
+// games for one global number, and the global setting now governs Palisade's own
+// database snapshots instead.
+describe("per-server keep resolution", () => {
+  const resolve = (backupKeep: number | null) => backupKeep ?? DEFAULT_BACKUP_KEEP;
+
+  it("uses the server's own value when set", () => {
+    expect(resolve(25)).toBe(25);
+  });
+
+  it("falls back to the built-in default when the server sets none", () => {
+    expect(resolve(null)).toBe(DEFAULT_BACKUP_KEEP);
+    expect(DEFAULT_BACKUP_KEEP).toBe(10);
+  });
+
+  it("keeps a per-server value independent of the manager-backup default", () => {
+    // The two numbers are unrelated now; a shared constant would re-couple them.
+    expect(DEFAULT_MANAGER_BACKUP_KEEP).toBe(14);
+    expect(DEFAULT_MANAGER_BACKUP_KEEP).not.toBe(DEFAULT_BACKUP_KEEP);
+  });
+
+  it("prunes to the server's own depth, manual backups still exempt", () => {
+    const snaps = [
+      snap("m", "manual", "2026-01-01T00:00:00Z"),
+      snap("a", "scheduled", "2026-06-01T00:00:00Z"),
+      snap("b", "scheduled", "2026-06-02T00:00:00Z"),
+      snap("c", "scheduled", "2026-06-03T00:00:00Z"),
+    ];
+    // A server that asked for 1 keeps one automatic backup; a server that asked for
+    // 3 keeps all three. Neither touches the manual one.
+    expect(snapshotsToPrune(snaps, resolve(1)).map((s) => s.id)).toEqual(["b", "a"]);
+    expect(snapshotsToPrune(snaps, resolve(3))).toEqual([]);
   });
 });

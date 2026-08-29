@@ -12,6 +12,7 @@ import { EventsService } from "../events/events.service";
 import { ManagerSettingsService, SettingKeys } from "../manager-settings/manager-settings.service";
 import { loadEnv } from "../config/env";
 import { artifactsToPrune } from "../backups/retention";
+import { DEFAULT_BACKUP_KEEP } from "../manager-settings/manager-settings.service";
 
 /** Off-box replication config — stored as one encrypted setting. */
 export interface ReplicationConfig {
@@ -151,7 +152,6 @@ export class ReplicationService implements OnModuleInit {
   }
 
   private async syncSnapshots(config: ReplicationConfig, dest: Destination): Promise<number> {
-    const keep = await this.settings.getBackupKeep();
     const snapshots = await this.prisma.snapshot.findMany({ include: { server: true } });
     const byServer = new Map<string, typeof snapshots>();
     for (const s of snapshots) {
@@ -185,6 +185,9 @@ export class ReplicationService implements OnModuleInit {
       // would still be deleted off the target (GH #34). Ordering is by the artifact's
       // timestamp, not its name: names start with the reason, so a plain sort would
       // delete every "auto-stop-*" before any older "scheduled-*".
+      // Retention is the SERVER's own (GH #34 follow-up) — mirroring a single global
+      // number would prune a target back to the wrong depth for every server.
+      const keep = server.backupKeep ?? DEFAULT_BACKUP_KEEP;
       const artifacts = (await dest.list(dir)).filter((f) => f.endsWith(".tar.gz"));
       for (const stale of artifactsToPrune(artifacts, keep)) {
         await dest.remove(this.remoteJoin(config, serverId, stale)).catch(() => undefined);

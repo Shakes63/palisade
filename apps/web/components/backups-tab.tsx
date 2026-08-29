@@ -1,7 +1,12 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Archive, DatabaseBackup, Download, RotateCcw, Trash2, Upload, Loader2 } from "lucide-react";
-import { apiDelete, apiDownload, apiGet, apiPost, apiUpload } from "@/lib/api";
+import { apiDelete, apiDownload, apiGet, apiPatch, apiPost, apiUpload } from "@/lib/api";
+import type { ServerSummary } from "@ark/shared";
+
+/** Matches the API's own bound and the built-in default when a server sets none. */
+const KEEP_MAX = 500;
+const KEEP_DEFAULT = 10;
 
 interface Snapshot {
   id: string;
@@ -10,8 +15,21 @@ interface Snapshot {
   createdAt: string;
 }
 
-export function BackupsTab({ serverId }: { serverId: string }) {
+export function BackupsTab({
+  serverId,
+  server,
+  onChanged,
+}: {
+  serverId: string;
+  server: ServerSummary;
+  onChanged: () => void;
+}) {
   const [backups, setBackups] = useState<Snapshot[]>([]);
+  // "" means "use the default" — retention is per-server (the global setting now
+  // governs Palisade's own database backups).
+  const [keep, setKeep] = useState<string>(server.backupKeep == null ? "" : String(server.backupKeep));
+  const [savingKeep, setSavingKeep] = useState(false);
+  const [keepSaved, setKeepSaved] = useState(false);
   const [busy, setBusy] = useState(false);
   const [downloading, setDownloading] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -21,6 +39,25 @@ export function BackupsTab({ serverId }: { serverId: string }) {
     apiGet<Snapshot[]>(`/servers/${serverId}/backups`).then(setBackups).catch(() => undefined);
   }, [serverId]);
   useEffect(() => refresh(), [refresh]);
+  useEffect(() => setKeep(server.backupKeep == null ? "" : String(server.backupKeep)), [server.backupKeep]);
+
+  const keepDirty = (server.backupKeep == null ? "" : String(server.backupKeep)) !== keep.trim();
+  const keepValid =
+    keep.trim() === "" || (Number.isInteger(Number(keep)) && Number(keep) >= 1 && Number(keep) <= KEEP_MAX);
+
+  const saveKeep = async () => {
+    setSavingKeep(true);
+    try {
+      await apiPatch(`/servers/${serverId}`, { backupKeep: keep.trim() === "" ? null : Number(keep) });
+      setKeepSaved(true);
+      setTimeout(() => setKeepSaved(false), 1500);
+      onChanged();
+    } catch (err) {
+      alert((err as Error).message);
+    } finally {
+      setSavingKeep(false);
+    }
+  };
 
   const create = async () => {
     setBusy(true);
@@ -78,8 +115,8 @@ export function BackupsTab({ serverId }: { serverId: string }) {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-slate-400">
-          Backups copy the saved world. The newest 10 are kept; scheduled/disruptive actions
-          snapshot automatically.
+          Backups copy the saved world. Scheduled and disruptive actions snapshot
+          automatically; backups you take here are kept until you delete them.
         </p>
         <div className="flex gap-2">
           <button className="btn-secondary" onClick={() => uploadInput.current?.click()} disabled={uploading}>
@@ -101,6 +138,37 @@ export function BackupsTab({ serverId }: { serverId: string }) {
             <DatabaseBackup className="h-4 w-4" /> {busy ? "Backing up…" : "Back up now"}
           </button>
         </div>
+      </div>
+
+      {/* Retention is per-server: save sizes and how much history is worth keeping
+          differ wildly between games. The global setting covers Palisade's own
+          database backups instead. */}
+      <div className="card flex flex-wrap items-center gap-3">
+        <label className="text-sm text-slate-300" htmlFor="backup-keep">
+          Keep last
+        </label>
+        <input
+          id="backup-keep"
+          type="number"
+          min={1}
+          max={KEEP_MAX}
+          placeholder={`${KEEP_DEFAULT}`}
+          className={`input w-24 ${keepValid ? "" : "border-rose-500/60"}`}
+          value={keep}
+          onChange={(e) => setKeep(e.target.value)}
+        />
+        <span className="text-sm text-slate-300">automatic backups for this server</span>
+        {keepDirty && (
+          <button className="btn-primary text-xs" disabled={!keepValid || savingKeep} onClick={() => void saveKeep()}>
+            {savingKeep ? "Saving…" : "Save"}
+          </button>
+        )}
+        {keepSaved && <span className="text-xs text-emerald-400">Saved</span>}
+        <p className="w-full text-[11px] leading-snug text-slate-500">
+          Leave blank for the default ({KEEP_DEFAULT}). Anything from 1 to {KEEP_MAX} works. Only
+          automatic backups are counted and rotated — the ones you take with{" "}
+          <span className="text-slate-400">Back up now</span> are never removed by retention.
+        </p>
       </div>
 
       {backups.length === 0 ? (

@@ -810,6 +810,9 @@ export class ServersService implements OnApplicationBootstrap, OnApplicationShut
       data.configJson = JSON.stringify(merged);
       launchChanged = true; // settings feed the generated INI / command line
     }
+    // Retention is not a launch parameter — it changes what the next backup prunes,
+    // so no restart is needed.
+    if (dto.backupKeep !== undefined) data.backupKeep = dto.backupKeep;
     if (launchChanged) data.configDirty = true; // → UI shows the Restart button
 
     const updated = await this.prisma.server.update({
@@ -1987,6 +1990,7 @@ export class ServersService implements OnApplicationBootstrap, OnApplicationShut
       modIds: JSON.parse(row.modIds) as number[],
       ramLimitMb: row.ramLimitMb,
       cpuLimit: row.cpuLimit,
+      backupKeep: row.backupKeep,
       // Names only. Values are secrets (Steam credentials, API keys) and are
       // readable solely through the admin-gated extra-env endpoint.
       extraEnvKeys: this.readExtraEnv(row.extraEnvEnc).map((e) => e.key),

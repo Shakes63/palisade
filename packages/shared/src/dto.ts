@@ -51,6 +51,9 @@ export interface ServerSummary {
   modIds: number[];
   ramLimitMb?: number | null;
   cpuLimit?: number | null;
+  /** How many AUTOMATIC backups to keep for this server. Null = the built-in
+   *  default. Manual backups are exempt and uncounted (GH #34). */
+  backupKeep?: number | null;
   /** NAMES of the user-defined env vars injected into the game container at start.
    *  Values are deliberately absent: they routinely hold credentials (Steam login
    *  for a pinned build), and this summary is readable by every role. Read them
@@ -177,6 +180,8 @@ export interface CreateServerDto {
   /** Advanced: pin the game image to a specific tag instead of the shipped default
    *  (null clears the pin). Applied on the next start (pull + recreate). */
   imageTag?: string | null;
+  /** How many automatic backups to keep for this server (null = default). */
+  backupKeep?: number | null;
 }
 
 export type UpdateServerDto = Partial<CreateServerDto> & {

@@ -14,7 +14,10 @@ export const SettingKeys = {
   BackupReplicationStatus: "backup_replication_status", // non-secret sync status JSON
   SteamGridDbApiKey: "steamgriddb_api_key", // secret
   ArtworkCache: "artwork_cache", // non-secret JSON: per-game SGDB art URLs
-  BackupKeep: "backup_keep",
+  // Palisade's OWN database backups (backups/_manager). Game-server retention is
+  // per-server (Server.backupKeep) — the legacy "backup_keep" row is migrated onto
+  // each server and no longer read.
+  ManagerBackupKeep: "manager_backup_keep",
   AutoStopOnStart: "auto_stop_on_start",
   // pfSense REST API (jaredhendrickson13 package) for one-click port-forwards.
   PfsenseHost: "pfsense_host",
@@ -23,8 +26,13 @@ export const SettingKeys = {
   Initialized: "initialized",
 } as const;
 
-/** Default number of backups kept per server (newest N) when unset. */
+/** Default number of AUTOMATIC backups kept per game server (newest N) when the
+ *  server doesn't set its own. Manual backups are exempt entirely (GH #34). */
 export const DEFAULT_BACKUP_KEEP = 10;
+
+/** Default number of Palisade database snapshots kept (newest N). Matches the
+ *  count this was hardcoded to before it became configurable. */
+export const DEFAULT_MANAGER_BACKUP_KEEP = 14;
 
 const SECRET_KEYS = new Set<string>([
   SettingKeys.CurseForgeApiKey,
@@ -61,10 +69,11 @@ export class ManagerSettingsService {
     return (await this.get(SettingKeys.Timezone)) || DEFAULT_TIMEZONE;
   }
 
-  /** How many backups to keep per server (newest N). Clamped to a sane floor. */
-  async getBackupKeep(): Promise<number> {
-    const n = parseInt((await this.get(SettingKeys.BackupKeep)) ?? "", 10);
-    return Number.isFinite(n) && n >= 1 ? n : DEFAULT_BACKUP_KEEP;
+  /** How many of Palisade's own database snapshots to keep (newest N). Clamped to
+   *  a sane floor. Game-server retention lives on each server. */
+  async getManagerBackupKeep(): Promise<number> {
+    const n = parseInt((await this.get(SettingKeys.ManagerBackupKeep)) ?? "", 10);
+    return Number.isFinite(n) && n >= 1 ? n : DEFAULT_MANAGER_BACKUP_KEEP;
   }
 
   /** Whether starting a server may offer to back up + stop a running one to free

@@ -8,7 +8,7 @@ import { ServerState, EventType, Game } from "@ark/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { EventsService } from "../events/events.service";
 import { RconService } from "../rcon/rcon.service";
-import { ManagerSettingsService } from "../manager-settings/manager-settings.service";
+import { ManagerSettingsService, DEFAULT_BACKUP_KEEP } from "../manager-settings/manager-settings.service";
 import { LocalPaths } from "../common/paths";
 import { snapshotsToPrune } from "./retention";
 import { extractTarGzSafe } from "../common/safe-extract";
@@ -291,13 +291,14 @@ export class BackupsService {
   }
 
   /**
-   * Keep the newest N AUTOMATIC backups per server (N from settings); delete the
-   * rest. Manual backups are exempt and uncounted — a backup someone took on
+   * Keep the newest N AUTOMATIC backups for this server (N from the server's own
+   * backupKeep, else the built-in default); delete the rest. Manual backups are exempt and uncounted — a backup someone took on
    * purpose shouldn't be rotated away by the scheduled ones that follow it, and
    * "keep 10" should still mean ten automatic restore points (GH #34).
    */
   private async applyRetention(serverId: string): Promise<void> {
-    const keep = await this.settings.getBackupKeep();
+    const server = await this.prisma.server.findUnique({ where: { id: serverId } });
+    const keep = server?.backupKeep ?? DEFAULT_BACKUP_KEEP;
     const all = await this.prisma.snapshot.findMany({ where: { serverId } });
     for (const old of snapshotsToPrune(all, keep)) {
       await rm(old.path, { recursive: true, force: true }).catch(() => undefined);

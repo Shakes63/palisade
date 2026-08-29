@@ -91,6 +91,11 @@ model Server {
   configDirty      Boolean @default(false)
   ramLimitMb       Int?
   cpuLimit         Float?
+  // How many AUTOMATIC backups to keep for this server (newest N). Null = the
+  // built-in default. Retention is per-server because servers differ wildly in
+  // save size and how much history is worth keeping; the global setting now
+  // governs Palisade's own database backups instead.
+  backupKeep       Int?
   // User-defined extra environment variables injected into the game container.
   // ENCRYPTED at rest (AES-256-GCM via SECRETS_KEY), like the password columns:
   // the headline use case for this feature is pinning a Palworld build, which

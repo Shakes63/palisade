@@ -12,7 +12,8 @@ import { ManagerSettingsService } from "../manager-settings/manager-settings.ser
 const execFileP = promisify(execFile);
 
 /** Newest N manager-DB snapshots kept (one per day → two weeks of history). */
-const KEEP = 14;
+// Retention is configurable (Settings -> Backups). This constant is gone; see
+// ManagerSettingsService.getManagerBackupKeep().
 
 /**
  * Self-backup of the manager's own SQLite DB (server definitions, schedules,
@@ -92,10 +93,11 @@ export class DbBackupService implements OnModuleInit {
     }
   }
 
-  /** Keep the newest KEEP snapshots (a snapshot = db-*.sqlite plus its sidecars). */
+  /** Keep the newest N snapshots (a snapshot = db-*.sqlite plus its sidecars). */
   private async prune(dir: string): Promise<void> {
+    const keep = await this.settings.getManagerBackupKeep();
     const entries = (await readdir(dir)).filter((f) => /^db-.*\.sqlite$/.test(f)).sort();
-    for (const stale of entries.slice(0, Math.max(0, entries.length - KEEP))) {
+    for (const stale of entries.slice(0, Math.max(0, entries.length - keep))) {
       await rm(join(dir, stale), { force: true });
       await rm(join(dir, `${stale}-wal`), { force: true }).catch(() => undefined);
       await rm(join(dir, `${stale}-shm`), { force: true }).catch(() => undefined);

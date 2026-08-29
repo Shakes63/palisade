@@ -19,7 +19,7 @@ export default function SettingsPage() {
   const [steamWebApiKey, setSteamWebApiKey] = useState("");
   const [steamGridDbApiKey, setSteamGridDbApiKey] = useState("");
   const [artMsg, setArtMsg] = useState<string | null>(null);
-  const [backupKeep, setBackupKeep] = useState("10");
+  const [managerBackupKeep, setManagerBackupKeep] = useState("14");
   const [autoStop, setAutoStop] = useState(true);
   const [pfsenseHost, setPfsenseHost] = useState("");
   const [pfsenseApiKey, setPfsenseApiKey] = useState("");
@@ -36,7 +36,8 @@ export default function SettingsPage() {
         // Pre-select the user's detected zone when nothing is saved yet, so they
         // rarely have to touch it.
         setTimezone(typeof v.timezone === "string" && v.timezone ? v.timezone : detectZone());
-        if (typeof v.backup_keep === "string" && v.backup_keep) setBackupKeep(v.backup_keep);
+        if (typeof v.manager_backup_keep === "string" && v.manager_backup_keep)
+          setManagerBackupKeep(v.manager_backup_keep);
         setAutoStop(v.auto_stop_on_start !== "false"); // default on when unset
         if (typeof v.pfsense_host === "string") setPfsenseHost(v.pfsense_host);
         if (typeof v.pfsense_target_ip === "string") setPfsenseTargetIp(v.pfsense_target_ip);
@@ -100,9 +101,9 @@ export default function SettingsPage() {
   };
 
   const saveBackups = () => {
-    const keep = parseInt(backupKeep, 10);
+    const keep = parseInt(managerBackupKeep, 10);
     if (!Number.isFinite(keep) || keep < 1) return alert("Keep count must be a number ≥ 1.");
-    void saveCard("backups", { backupKeep: keep });
+    void saveCard("backups", { managerBackupKeep: keep });
   };
 
   const saveGeneral = () => void saveCard("general", timezone ? { timezone } : {});
@@ -306,29 +307,24 @@ export default function SettingsPage() {
           <div className="card space-y-4">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-ark-accent2">Backups</h2>
             <div>
-              <label className="label">Keep last N automatic backups (per server)</label>
+              <label className="label">Keep last N Palisade database backups</label>
               <input
                 type="number"
                 min={1}
                 max={500}
                 className="input w-32"
-                value={backupKeep}
-                onChange={(e) => setBackupKeep(e.target.value)}
+                value={managerBackupKeep}
+                onChange={(e) => setManagerBackupKeep(e.target.value)}
               />
               <p className="mt-1 text-xs text-slate-500">
-                Applies to <span className="text-slate-400">automatic</span> backups only — scheduled
-                ones and the safety copies taken before an update, restart or restore. Older automatic
-                snapshots beyond this count are deleted. Anything up to 500 works here; 10 is just the
-                default, not a limit.
+                Palisade snapshots its own database (servers, settings, schedules, players)
+                nightly into <span className="font-mono">backups/_manager</span>. This is how many
+                of those to keep. Default 14; anything from 1 to 500 works.
               </p>
               <p className="mt-1 text-xs text-slate-500">
-                Backups you take yourself with the <span className="text-slate-400">Backup</span> button
-                are never deleted by retention and don&apos;t count towards this number — remove those
-                from the server&apos;s Backups tab when you no longer want them.
-              </p>
-              <p className="mt-1 text-xs text-slate-500">
-                Each backup is just the live world, players, and config (ARK&apos;s own dated copies +
-                logs are skipped).
+                <span className="text-slate-400">Game-server backups are configured per server</span>
+                , on each server&apos;s Backups tab — save sizes and useful history differ too much
+                between games for one number. Backups you take by hand are never rotated away.
               </p>
             </div>
             <CardSave card="backups" onClick={saveBackups} />

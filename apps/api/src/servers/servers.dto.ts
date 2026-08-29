@@ -8,7 +8,9 @@ import {
   IsOptional,
   IsString,
   Matches,
+  Max,
   Min,
+  ValidateIf,
   ValidateNested,
   ArrayMaxSize,
 } from "class-validator";
@@ -70,6 +72,8 @@ export class UpdateServerBody {
   @IsOptional() @IsObject() config?: Record<string, unknown>;
   /** Advanced: pin the game image to a specific tag (null clears the pin). */
   @IsOptional() @ImageTagField() imageTag?: string | null;
+  /** Automatic-backup retention for this server; null clears it back to the default. */
+  @IsOptional() @ValidateIf((_o, v) => v !== null) @IsInt() @Min(1) @Max(500) backupKeep?: number | null;
 }
 
 /**

@@ -82,11 +82,12 @@ player administration, and even your router's port-forwards.
 - Live player counts for every game (A2S / RakNet ping / RCON / Valheim status
   endpoint) with 1-hour sparklines, plus a **Players** roster captured from
   player lists and join logs — kick / ban / whitelist / admin per game.
-- Backups: manual + scheduled with retention, restore, browser download, and
-  saves import. Retention (default 10, up to 500) rotates only the **automatic**
-  snapshots — scheduled ones and the safety copies taken before an update, restart
-  or restore. Backups you take yourself are kept until you delete them, on the
-  replication target too. The manager also snapshots its own database nightly.
+- Backups: manual + scheduled with restore, browser download, and saves import.
+  **Retention is set per server** (on its Backups tab; default 10, up to 500) and
+  rotates only the **automatic** snapshots — scheduled ones and the safety copies
+  taken before an update, restart or restore. Backups you take yourself are kept
+  until you delete them, on the replication target too. The manager also snapshots
+  its own database nightly, with its own retention in Settings → Backups.
 - Schedules (restart / update / backup / stop / start) with in-game countdown
   warnings, pre-action snapshots, and a "skip while players are online" guard.
 - **Version pinning** from registry-populated dropdowns: pin the **game version /
@@ -237,8 +238,8 @@ Everything lives under your data dir — one directory to back up:
 /data
 ├── db.sqlite            # server definitions, schedules, players, settings
 ├── instances/<id>/      # each server's game files + world saves
-├── backups/<id>/        # world snapshots (automatic ones retention-rotated)
-├── backups/_manager/    # nightly self-backups of db.sqlite (newest 14)
+├── backups/<id>/        # world snapshots (automatic ones rotated per server)
+├── backups/_manager/    # nightly self-backups of db.sqlite (retention in Settings)
 └── clusters/<id>/       # ARK cluster transfer dirs
 ```
 

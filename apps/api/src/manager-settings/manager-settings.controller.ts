@@ -10,7 +10,8 @@ class UpdateSettingsBody {
   @IsOptional() @IsString() curseForgeApiKey?: string;
   @IsOptional() @IsString() steamWebApiKey?: string;
   @IsOptional() @IsString() steamGridDbApiKey?: string;
-  @IsOptional() @IsInt() @Min(1) @Max(500) backupKeep?: number;
+  /** Palisade's own database snapshots. Game-server retention is per-server. */
+  @IsOptional() @IsInt() @Min(1) @Max(500) managerBackupKeep?: number;
   @IsOptional() @IsBoolean() autoStopOnStart?: boolean;
   @IsOptional() @IsString() pfsenseHost?: string;
   @IsOptional() @IsString() pfsenseApiKey?: string;
@@ -49,8 +50,8 @@ export class ManagerSettingsController {
       await this.settings.set(SettingKeys.SteamWebApiKey, body.steamWebApiKey);
     if (body.steamGridDbApiKey)
       await this.settings.set(SettingKeys.SteamGridDbApiKey, body.steamGridDbApiKey);
-    if (body.backupKeep !== undefined)
-      await this.settings.set(SettingKeys.BackupKeep, String(body.backupKeep));
+    if (body.managerBackupKeep !== undefined)
+      await this.settings.set(SettingKeys.ManagerBackupKeep, String(body.managerBackupKeep));
     if (body.autoStopOnStart !== undefined)
       await this.settings.set(SettingKeys.AutoStopOnStart, String(body.autoStopOnStart));
     if (body.pfsenseHost !== undefined) await this.settings.set(SettingKeys.PfsenseHost, body.pfsenseHost);
