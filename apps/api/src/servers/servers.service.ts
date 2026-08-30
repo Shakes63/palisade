@@ -1574,6 +1574,23 @@ export class ServersService implements OnApplicationBootstrap, OnApplicationShut
   }
 
   /**
+   * Restart for the HTTP layer — the sibling of startDetached, and affected by the
+   * same thing: a relaunch pulls the game image, so restart could outlive Node's
+   * 5-minute requestTimeout and report a failure for a restart that worked.
+   *
+   * Only the relaunch is detached. The stop is awaited because it is already
+   * bounded — a 30s wait for the world save, then Docker's 60s stop grace — so it
+   * cannot be what blows the budget, and awaiting it keeps the restart ordered.
+   *
+   * restart() itself is unchanged: the scheduler, the cluster restart and the
+   * crash-recovery path all rely on it awaiting completion.
+   */
+  async restartDetached(id: string): Promise<void> {
+    await this.stop(id).catch(() => undefined);
+    return this.startDetached(id, { force: true });
+  }
+
+  /**
    * The manager is going down (docker stop, deploy, array shutdown). Fire a
    * best-effort world-save at every RUNNING server so a host reboot costs at
    * most a few seconds of progress instead of everything since the last

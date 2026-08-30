@@ -103,3 +103,61 @@ describe("startDetached", () => {
     expect(docker.createdSpecs.length).toBe(0);
   });
 });
+
+describe("restartDetached", () => {
+  let docker: FakeDocker;
+  beforeEach(() => {
+    docker = new FakeDocker();
+  });
+
+  /** Stop is stubbed the way the existing restart e2e does — the real one waits up
+   *  to 30s for a save marker the fake never emits. It records the call so ordering
+   *  is still asserted. */
+  const withRecordedStop = (service: unknown, row: { state: string }, calls: string[]) => {
+    (service as Record<string, unknown>).stop = async (id: string) => {
+      calls.push(`stop:${id}`);
+      row.state = ServerState.Stopped; // what a real stop leaves behind
+    };
+  };
+
+  it("returns while the relaunch is still pulling", async () => {
+    // The same bug start had, in its sibling: a restart pulls the image too.
+    const row = makeRow({ state: ServerState.Running, containerId: "c1" });
+    const { service } = await makeService(row, docker);
+    neuterGuards(service);
+    withRecordedStop(service, row, []);
+
+    let releasePull!: () => void;
+    const pulling = new Promise<void>((res) => (releasePull = res));
+    docker.pullImage = async () => {
+      await pulling;
+    };
+
+    await service.restartDetached(row.id);
+    // Still mid-pull, so the relaunch has not created anything yet.
+    expect(docker.createdSpecs.length).toBe(0);
+
+    releasePull();
+  });
+
+  it("stops first, then commits to Starting before returning", async () => {
+    const row = makeRow({ state: ServerState.Running, containerId: "c1" });
+    const { service, prisma } = await makeService(row, docker);
+    neuterGuards(service);
+    const calls: string[] = [];
+    withRecordedStop(service, row, calls);
+
+    let releasePull!: () => void;
+    const pulling = new Promise<void>((res) => (releasePull = res));
+    docker.pullImage = async () => {
+      await pulling;
+    };
+
+    await service.restartDetached(row.id);
+    expect(calls).toEqual([`stop:${row.id}`]);
+    const after = await prisma.server.findUnique();
+    expect(after?.state).toBe(ServerState.Starting);
+
+    releasePull();
+  });
+});

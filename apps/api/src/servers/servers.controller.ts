@@ -199,6 +199,8 @@ export class ServersController {
 
   @Post(":id/restart")
   restart(@Param("id") id: string) {
-    return this.servers.restart(id);
+    // Detached for the same reason as start: the relaunch pulls an image and would
+    // otherwise outlive the request timeout.
+    return this.servers.restartDetached(id);
   }
 }
