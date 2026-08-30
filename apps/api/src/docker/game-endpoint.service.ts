@@ -3,6 +3,7 @@ import type Docker from "dockerode";
 import { DockerService } from "./docker.service";
 import { findSelfContainerId } from "../config/ensure-host-data-dir";
 import { ARK_NETWORK } from "../common/naming";
+import { loadEnv } from "../config/env";
 import {
   ContainerNetworkFacts,
   ManagerNetworkFacts,
@@ -78,6 +79,45 @@ export class GameEndpointService {
       manager,
       gameOnArkNet: facts ? ARK_NETWORK in facts.networks : false,
     });
+  }
+
+  /**
+   * Attach the manager itself to ark-net when it isn't already, so game containers
+   * on that bridge become reachable (GH #31 — the reporter's fix was to run
+   * `docker network connect ark-net Palisade` by hand, which is not a reasonable
+   * thing to expect after an install).
+   *
+   * Docker adds the interface live: no restart, and existing networks are kept, so
+   * a manager on an Unraid custom/macvlan network keeps its static LAN IP and just
+   * gains a route to the bridge. Returns true when the manager ends up attached.
+   *
+   * Deliberately conservative — it does nothing when:
+   *  - the flag is off (someone managing their own networking),
+   *  - the manager isn't containerised, or runs on the host network (already fine),
+   *  - we can't read our own networking (a locked-down socket-proxy), or
+   *  - ark-net doesn't exist yet — nothing to join until a server needs it.
+   */
+  async ensureManagerOnArkNet(): Promise<boolean> {
+    if (!loadEnv().AUTO_CREATE_NETWORK) return false;
+    const manager = await this.manager();
+    if (!manager.inContainer || manager.hostNetwork) return false;
+    if (!manager.networks.length) return false; // couldn't inspect ourselves
+    if (manager.networks.includes(ARK_NETWORK)) return true;
+    if ((await this.docker.networkExists(ARK_NETWORK)) !== true) return false;
+
+    const id = await findSelfContainerId(this.docker.client).catch(() => null);
+    if (!id) return false;
+    const ok = await this.docker.connectToNetwork(ARK_NETWORK, id);
+    if (ok) {
+      this.logger.log(
+        `Attached the manager to "${ARK_NETWORK}" so game servers on that bridge are reachable`,
+      );
+      // Our cached view of our own networking is now stale — the next resolve (and
+      // the health check) must see the new interface.
+      this.managerFacts = null;
+      this.missingArkNet = false;
+    }
+    return ok;
   }
 
   /** True when the manager runs in a container that ISN'T on ark-net — the setup

@@ -5,6 +5,7 @@ import {
   Plus, Play, Square, Download, Settings2, Boxes, Loader2, RotateCw,
   Cpu, MemoryStick, HardDrive, Users, Import,
 } from "lucide-react";
+import { SetupWarnings } from "@/components/setup-warnings";
 import {
   Game,
   ServerState,
@@ -153,6 +154,8 @@ export default function DashboardPage() {
           </span>
         </div>
       )}
+      {/* Host-setup problems Palisade can see but can't fix itself (GH #21/#29/#31). */}
+      <SetupWarnings />
       <div className="flex items-center justify-between gap-2">
         <h1 className="text-xl font-semibold">Servers</h1>
         <div className="flex gap-2">

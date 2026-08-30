@@ -51,12 +51,17 @@ const schema = z.object({
     .default("false")
     .transform((v) => v === "true" || v === "1"),
 
-  // Create the ark-net bridge network on demand when a game server needs it and it
-  // doesn't exist. Without this the start fails with Docker's raw
-  // "404 no such container - network ark-net not found", which reads like a container
-  // problem rather than a missing prerequisite the README asked you to create (GH #31).
-  // Set false to keep Palisade out of network management (a locked-down socket-proxy
-  // denies it anyway) — you then create it yourself: docker network create ark-net
+  // Let Palisade manage the ark-net bridge for you: create it on demand when a game
+  // server needs it, and attach ITSELF to it when it isn't already (GH #31). Without
+  // the first, a start fails on Docker's raw "404 no such container - network ark-net
+  // not found"; without the second, the manager can't reach the servers it just
+  // started and the user has to run `docker network connect` by hand.
+  //
+  // Self-attach is additive — Docker adds an interface live, keeps existing networks
+  // and does not restart the container, so a manager on an Unraid custom/macvlan
+  // network keeps its static LAN IP. Set false to keep Palisade out of network
+  // management (a locked-down socket-proxy denies it anyway); you then run:
+  //   docker network create ark-net && docker network connect ark-net <manager>
   AUTO_CREATE_NETWORK: z
     .string()
     .default("true")

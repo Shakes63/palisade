@@ -301,6 +301,42 @@ export class DockerService {
     }
   }
 
+  /**
+   * Attach a container to an existing network, live. Docker adds an interface
+   * without restarting it, and existing networks are kept — so a manager sitting on
+   * an Unraid custom/macvlan network keeps its static LAN IP and merely gains a
+   * route to the game containers (GH #31).
+   *
+   * Verified by re-inspecting rather than by trusting the response: attaching twice
+   * fails with 403 "endpoint already exists", and a socket-proxy that denies the
+   * network API fails with 403 too. Only the container's actual state distinguishes
+   * "already done" from "not allowed".
+   */
+  async connectToNetwork(networkName: string, containerId: string): Promise<boolean> {
+    try {
+      await this.docker.getNetwork(networkName).connect({ Container: containerId });
+    } catch (err) {
+      const attached = await this.containerOnNetwork(networkName, containerId);
+      if (!attached) {
+        this.logger.warn(
+          `Could not attach ${containerId.slice(0, 12)} to ${networkName}: ${(err as Error).message}`,
+        );
+      }
+      return attached;
+    }
+    return true;
+  }
+
+  /** Whether a container currently has an endpoint on the named network. */
+  async containerOnNetwork(networkName: string, containerId: string): Promise<boolean> {
+    try {
+      const info = await this.docker.getContainer(containerId).inspect();
+      return networkName in (info.NetworkSettings?.Networks ?? {});
+    } catch {
+      return false;
+    }
+  }
+
   /** A server's container id by the ark.serverId label — like removeByServerId, robust
    *  to renames. */
   async findContainerIdByServerId(serverId: string): Promise<string | null> {
