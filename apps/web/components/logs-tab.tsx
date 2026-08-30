@@ -43,7 +43,7 @@ export function LogsTab({ serverId }: { serverId: string }) {
       .catch(() => undefined)
       .finally(() => setLoading(false));
   };
-  useEffect(load, [serverId]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(load, [serverId]);  
 
   // Save the captured log as a text file through the browser (client-side blob —
   // the lines are already in memory).

@@ -99,7 +99,7 @@ function CoreKeeperJoinCard({ serverId, className = "" }: { serverId: string; cl
       )}
       <p className="mt-1 text-[11px] leading-snug text-slate-500">
         In Core Keeper: <span className="font-mono">Multiplayer → Join Game</span> — paste this Game ID.
-        Joins go through Steam's relay, so <span className="text-slate-300">no ports or IP are needed</span>,
+        Joins go through Steam&apos;s relay, so <span className="text-slate-300">no ports or IP are needed</span>,
         online or LAN. Treat the ID like a password: anyone who has it can join.
       </p>
     </div>
@@ -328,7 +328,7 @@ export function ConnectCommand({
         <p className="mt-1 text-[11px] leading-snug text-slate-500">
           Launch BeamNG.drive through the <span className="font-mono">BeamMP launcher</span>, then{" "}
           <span className="font-mono">Multiplayer → Direct Connect</span> with this address (or find the server
-          by name when it isn't Private). Online, friends use your public IP with the same port.
+          by name when it isn&apos;t Private). Online, friends use your public IP with the same port.
         </p>
       </div>
     );
@@ -424,7 +424,7 @@ export function ConnectCommand({
         <CopyRow value={`${hostOr}:${gamePort}`} title="Server address for ATS direct search" />
         <p className="mt-1 text-[11px] leading-snug text-slate-500">
           In the game: <span className="font-mono">Convoy → search sessions</span> — find the
-          server by name (up to 8 players). Everyone needs the same map DLCs as the server's world export.
+          server by name (up to 8 players). Everyone needs the same map DLCs as the server&apos;s world export.
         </p>
         {joinPassword && (
           <div className="mt-3">
@@ -477,7 +477,7 @@ export function ConnectCommand({
         <CopyRow value={`${hostOr}:${gamePort}`} title="Server address for Satisfactory's Server Manager" />
         <p className="mt-1 text-[11px] leading-snug text-slate-500">
           In Satisfactory: <span className="font-mono">Server Manager → Add Server</span> — enter this address.
-          Palisade already claimed the server with your server name + admin password, so it's ready to join.
+          Palisade already claimed the server with your server name + admin password, so it&apos;s ready to join.
           Accept the self-signed certificate when prompted.
         </p>
         {joinPassword && (

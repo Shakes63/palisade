@@ -204,7 +204,7 @@ export function UnofficialListHelp({
             <FilterRow state={hasJoinPassword ? "on" : "off"} label="Password prompt on join" hint={passwordHint} />
             <p className="pt-1 leading-snug text-slate-400">
               Search the name <span className="font-mono text-slate-200">{serverName}</span>. Players need the
-              SAME map DLCs as the server's world export. Name + password apply from the{" "}
+              SAME map DLCs as the server&apos;s world export. Name + password apply from the{" "}
               <span className="text-slate-300">second</span> start — the config file is seeded on the first boot.
             </p>
           </div>
@@ -252,7 +252,7 @@ export function UnofficialListHelp({
             <p className="pt-1 leading-snug text-slate-400">
               Search the name <span className="font-mono text-slate-200">{serverName}</span>. Sons of the
               Forest has no direct-connect field — LAN players see it automatically; online players need the
-              forwarded ports. 'LAN only' in Settings hides it from the internet list.
+              forwarded ports. &apos;LAN only&apos; in Settings hides it from the internet list.
             </p>
           </div>
         ) : vrising ? (
