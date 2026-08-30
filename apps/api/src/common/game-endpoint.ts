@@ -1,4 +1,4 @@
-import { ARK_NETWORK } from "./naming";
+import { LEGACY_NETWORK } from "./naming";
 
 /**
  * Where the manager should connect to reach a game container's admin port (RCON,
@@ -43,6 +43,10 @@ export interface ManagerNetworkFacts {
   /** The manager's own container name, so a suggested fix is copy-pasteable rather
    *  than a `<placeholder>` the user has to go look up. */
   name?: string | null;
+  /** The bridge new game containers are created on (SHARED_NETWORK, or the default).
+   *  Carried with the manager's own networks so resolution and every user-facing fix
+   *  message name the same network without reaching back into config. */
+  sharedNetwork: string;
 }
 
 export interface ResolvedEndpoint {
@@ -67,16 +71,35 @@ function usesHostNetwork(c: ContainerNetworkFacts): boolean {
 }
 
 /**
- * The first network both ends share, preferring ark-net. Connecting to the
- * container's IP on a shared network skips Docker's embedded DNS entirely — which
- * is the specific thing that was failing — and works even if the container was
- * renamed out from under us.
+ * The first network both ends share, preferring the current shared bridge and then
+ * the legacy one. Connecting to the container's IP on a shared network skips
+ * Docker's embedded DNS entirely — which is the specific thing that was failing —
+ * and works even if the container was renamed out from under us.
+ *
+ * The preference order only decides which of several shared networks to use, so a
+ * half-migrated install (some servers still on the legacy bridge) resolves either
+ * way round.
  */
 function sharedNetworkIp(c: ContainerNetworkFacts, manager: ManagerNetworkFacts): string | null {
   const shared = Object.keys(c.networks).filter((n) => manager.networks.includes(n));
-  const preferred = shared.includes(ARK_NETWORK) ? ARK_NETWORK : shared[0];
+  const preferred =
+    [manager.sharedNetwork, LEGACY_NETWORK].find((n) => shared.includes(n)) ?? shared[0];
   const ip = preferred ? c.networks[preferred] : null;
   return ip || null;
+}
+
+/**
+ * The bridge a game container sits on, as a name to quote back to the user. Prefers
+ * the networks we know about so the advice matches whichever era the container was
+ * created in; null for host-network containers and for anything we can't see.
+ */
+export function gameBridgeNetwork(
+  c: ContainerNetworkFacts | null,
+  manager: ManagerNetworkFacts,
+): string | null {
+  if (!c || usesHostNetwork(c)) return null;
+  const names = Object.keys(c.networks);
+  return [manager.sharedNetwork, LEGACY_NETWORK].find((n) => names.includes(n)) ?? names[0] ?? null;
 }
 
 /** The host port `containerPort` is published on, if any. */
@@ -136,15 +159,20 @@ export function explainEndpointFailure(input: {
   error: Error;
   endpoint: ResolvedEndpoint;
   manager: ManagerNetworkFacts;
-  gameOnArkNet: boolean;
+  /** The bridge the game container is on (gameBridgeNetwork), or null when it uses
+   *  host networking or we couldn't inspect it. */
+  gameNetwork: string | null;
 }): string | null {
-  const { endpoint, manager, gameOnArkNet } = input;
+  const { endpoint, manager, gameNetwork } = input;
+  // Name the network the game is actually on: during the migration off "ark-net"
+  // that may not be the one new containers get.
+  const net = gameNetwork ?? manager.sharedNetwork;
   const code = (input.error as NodeJS.ErrnoException).code;
   const dnsFailure = code === "ENOTFOUND" || code === "EAI_AGAIN";
 
   if (dnsFailure && endpoint.via === "container-name") {
-    if (gameOnArkNet && manager.inContainer && !manager.networks.includes(ARK_NETWORK)) {
-      return `the manager container is not attached to the "${ARK_NETWORK}" network, so it cannot resolve game containers by name, and this server's RCON port is not published to the host either — run: docker network connect ${ARK_NETWORK} ${manager.name || "<manager container>"} (on Unraid: edit the Palisade container and set Network Type to ${ARK_NETWORK}), then restart this server`;
+    if (gameNetwork && manager.inContainer && !manager.networks.includes(gameNetwork)) {
+      return `the manager container is not attached to the "${net}" network, so it cannot resolve game containers by name, and this server's RCON port is not published to the host either — run: docker network connect ${net} ${manager.name || "<manager container>"} (on Unraid: edit the Palisade container and set Network Type to ${net}), then restart this server`;
     }
     return `the name "${endpoint.host}" did not resolve — the game container is not on a network this manager shares, and its port is not published to the host`;
   }
@@ -158,10 +186,10 @@ export function explainEndpointFailure(input: {
   // both the Docker host and Docker's bridges, so neither the host gateway nor a
   // container IP is reachable, whichever way GAME_HOST_NETWORK is set (GH #31).
   if (code === "EHOSTUNREACH" || code === "ENETUNREACH") {
-    const attach = `docker network connect ${ARK_NETWORK} ${manager.name || "<manager container>"}`;
+    const attach = `docker network connect ${net} ${manager.name || "<manager container>"}`;
     return endpoint.via === "host-network" || endpoint.via === "published-port"
-      ? `no route from the manager to ${endpoint.host} — it is on a network with no path to the Docker host. If the manager runs on an Unraid custom/macvlan network, it cannot reach the host gateway: attach it to "${ARK_NETWORK}" as an additional network (${attach}) and set GAME_HOST_NETWORK=false so game servers share that bridge`
-      : `no route from the manager to ${endpoint.host} — the manager and this server are on networks that cannot reach each other. Attach the manager to "${ARK_NETWORK}" (${attach}), then restart this server`;
+      ? `no route from the manager to ${endpoint.host} — it is on a network with no path to the Docker host. If the manager runs on an Unraid custom/macvlan network, it cannot reach the host gateway: attach it to "${net}" as an additional network (${attach}) and set GAME_HOST_NETWORK=false so game servers share that bridge`
+      : `no route from the manager to ${endpoint.host} — the manager and this server are on networks that cannot reach each other. Attach the manager to "${net}" (${attach}), then restart this server`;
   }
 
   if (code === "ECONNREFUSED") {

@@ -2,13 +2,21 @@ import { Injectable, Logger } from "@nestjs/common";
 import type Docker from "dockerode";
 import { DockerService } from "./docker.service";
 import { findSelfContainerId } from "../config/ensure-host-data-dir";
-import { ARK_NETWORK } from "../common/naming";
+import { LEGACY_NETWORK } from "../common/naming";
 import { loadEnv } from "../config/env";
+import {
+  NetworkPlanInput,
+  dockerViaProxy,
+  legacyMigrationNote,
+  shouldLeaveLegacy,
+  targetNetwork,
+} from "../common/shared-network";
 import {
   ContainerNetworkFacts,
   ManagerNetworkFacts,
   ResolvedEndpoint,
   explainEndpointFailure,
+  gameBridgeNetwork,
   resolveGameEndpoint,
 } from "../common/game-endpoint";
 
@@ -30,8 +38,10 @@ export class GameEndpointService {
   private readonly lastVia = new Map<string, ResolvedEndpoint["via"]>();
   /** Cached from the manager facts so `addressingNote` can stay synchronous.
    *  Null until the first resolve has loaded them. */
-  private missingArkNet: boolean | null = null;
+  private missingShared: boolean | null = null;
   private managerName: string | null = null;
+  /** Our own container id — resolved once, then reused by every network call. */
+  private selfContainerId: Promise<string | null> | null = null;
 
   constructor(private readonly docker: DockerService) {}
 
@@ -77,73 +87,147 @@ export class GameEndpointService {
       error,
       endpoint,
       manager,
-      gameOnArkNet: facts ? ARK_NETWORK in facts.networks : false,
+      gameNetwork: gameBridgeNetwork(facts, manager),
     });
   }
 
   /**
-   * Attach the manager itself to ark-net when it isn't already, so game containers
-   * on that bridge become reachable (GH #31 — the reporter's fix was to run
-   * `docker network connect ark-net Palisade` by hand, which is not a reasonable
-   * thing to expect after an install).
+   * Put the manager on the network its game containers use, and take it off the one
+   * they no longer use (GH #31). Both halves are safe to run on every boot.
    *
-   * Docker adds the interface live: no restart, and existing networks are kept, so
-   * a manager on an Unraid custom/macvlan network keeps its static LAN IP and just
-   * gains a route to the bridge. Returns true when the manager ends up attached.
+   * Docker attaches a running container to an extra network live: no restart, and
+   * existing networks are kept, so a manager on an Unraid custom/macvlan network
+   * keeps its static LAN IP and just gains a route to the game servers.
    *
-   * Deliberately conservative — it does nothing when:
-   *  - the flag is off (someone managing their own networking),
-   *  - the manager isn't containerised, or runs on the host network (already fine),
-   *  - we can't read our own networking (a locked-down socket-proxy), or
-   *  - ark-net doesn't exist yet — nothing to join until a server needs it.
+   * Deliberately conservative — it does nothing when the flag is off, the manager
+   * isn't containerised or runs on the host network, we can't read our own
+   * networking (a locked-down socket-proxy), or the target network doesn't exist
+   * yet. Returns whether the manager ended up on the target network.
    */
-  async ensureManagerOnArkNet(): Promise<boolean> {
+  async ensureManagerNetworks(): Promise<boolean> {
     if (!loadEnv().AUTO_CREATE_NETWORK) return false;
     const manager = await this.manager();
     if (!manager.inContainer || manager.hostNetwork) return false;
     if (!manager.networks.length) return false; // couldn't inspect ourselves
-    if (manager.networks.includes(ARK_NETWORK)) return true;
-    if ((await this.docker.networkExists(ARK_NETWORK)) !== true) return false;
 
-    const id = await findSelfContainerId(this.docker.client).catch(() => null);
-    if (!id) return false;
-    const ok = await this.docker.connectToNetwork(ARK_NETWORK, id);
-    if (ok) {
-      this.logger.log(
-        `Attached the manager to "${ARK_NETWORK}" so game servers on that bridge are reachable`,
-      );
-      // Our cached view of our own networking is now stale — the next resolve (and
-      // the health check) must see the new interface.
-      this.managerFacts = null;
-      this.missingArkNet = false;
+    const target = manager.sharedNetwork;
+    let joined = manager.networks.includes(target);
+    if (!joined && (await this.docker.networkExists(target)) === true) {
+      const id = await this.selfId();
+      joined = id ? await this.docker.connectToNetwork(target, id) : false;
+      if (joined) {
+        this.logger.log(
+          `Attached the manager to "${target}" so game servers on that bridge are reachable`,
+        );
+        this.forgetManagerFacts();
+      }
     }
-    return ok;
-  }
-
-  /** True when the manager runs in a container that ISN'T on ark-net — the setup
-   *  that silently breaks name-based RCON. Null when we can't tell. */
-  async managerMissingArkNet(): Promise<boolean | null> {
-    const manager = await this.manager();
-    if (!manager.inContainer || manager.hostNetwork) return false;
-    if (!manager.networks.length) return null; // inspect denied — don't cry wolf
-    return !manager.networks.includes(ARK_NETWORK);
+    await this.retireLegacyNetwork().catch(() => undefined);
+    return joined;
   }
 
   /**
-   * Sync note for a server Palisade genuinely cannot reach — the manager is off
-   * ark-net AND this server's last resolve had to fall back to the container name
-   * (no shared network, no published port), so RCON/player counts will fail.
+   * Drop the manager's endpoint on the pre-1.11 "ark-net" network once nothing can
+   * still be depending on it. This is the step that repairs Unraid's WebUI link for
+   * a manager on a custom network — Unraid reads the FIRST of the container's
+   * networks and "ark-net" sorted ahead of "br0" (see DEFAULT_SHARED_NETWORK).
    *
-   * Deliberately narrow: being off ark-net is harmless when ports are published, so
-   * this only speaks up for servers that actually failed. Surfaces in the UI's
+   * Never runs on a guess: if Docker won't tell us who else is on that network, the
+   * endpoint stays. Leaving a spare endpoint attached costs nothing; removing one a
+   * socket-proxy was answering on would cut the manager off from Docker entirely.
+   */
+  private async retireLegacyNetwork(): Promise<void> {
+    const plan = await this.legacyPlan();
+    if (!plan || !shouldLeaveLegacy(plan)) return;
+    const id = await this.selfId();
+    if (!id) return;
+    if (await this.docker.disconnectFromNetwork(LEGACY_NETWORK, id)) {
+      this.logger.log(
+        `Detached the manager from the legacy "${LEGACY_NETWORK}" network — every server now runs on "${targetNetwork(plan.override)}"`,
+      );
+      this.forgetManagerFacts();
+    }
+  }
+
+  /**
+   * How far along the move off "ark-net" this install is, or null when the network
+   * is gone or Docker won't say. Everything the plan decides is derived here once so
+   * the rules themselves stay pure and testable (common/shared-network.ts).
+   */
+  private async legacyPlan(): Promise<NetworkPlanInput | null> {
+    const manager = await this.manager();
+    if (!manager.inContainer) return null;
+    // Docker lists only containers with a LIVE endpoint here, so a stopped server on
+    // the legacy network doesn't count — correctly: every start recreates the
+    // container, so it comes back on the new network regardless.
+    const ids = await this.docker.networkContainerIds(LEGACY_NETWORK);
+    if (ids === null) return null; // network absent, or the API is denied to us
+    const selfId = await this.selfId();
+    const managed = new Set((await this.docker.listManagedServers()).map((s) => s.id));
+    return {
+      override: loadEnv().SHARED_NETWORK,
+      managerNetworks: manager.networks,
+      legacyServers: ids.filter((id) => managed.has(id)).length,
+      otherOnLegacy: ids.some((id) => id !== selfId && !managed.has(id)),
+      dockerViaProxy: dockerViaProxy(loadEnv().DOCKER_HOST),
+    };
+  }
+
+  /** Progress note for the admin while both networks are in play, else null. */
+  async migrationNote(): Promise<string | null> {
+    const plan = await this.legacyPlan().catch(() => null);
+    return plan ? legacyMigrationNote(plan) : null;
+  }
+
+  /** True when the manager runs in a container attached to NEITHER the shared network
+   *  nor the legacy one — the setup that silently breaks name-based RCON. Null when
+   *  we can't tell. */
+  async managerMissingSharedNetwork(): Promise<boolean | null> {
+    const manager = await this.manager();
+    if (!manager.inContainer || manager.hostNetwork) return false;
+    if (!manager.networks.length) return null; // inspect denied — don't cry wolf
+    return !manager.networks.some((n) => n === manager.sharedNetwork || n === LEGACY_NETWORK);
+  }
+
+  /**
+   * Sync note for a server Palisade genuinely cannot reach — the manager is off the
+   * shared network AND this server's last resolve had to fall back to the container
+   * name (no shared network, no published port), so RCON/player counts will fail.
+   *
+   * Deliberately narrow: being off the bridge is harmless when ports are published,
+   * so this only speaks up for servers that actually failed. Surfaces in the UI's
    * health banner because "check /api/health" is not something a panel user should
    * have to know how to do (GH #21).
    */
   addressingNote(serverId: string): string | null {
-    if (this.missingArkNet !== true) return null;
+    if (this.missingShared !== true) return null;
     if (this.lastVia.get(serverId) !== "container-name") return null;
     const target = this.managerName || "<manager container>";
-    return `Palisade can't reach this server's RCON/query port — the manager container isn't attached to the "${ARK_NETWORK}" network and this server's ports aren't published to the host, so player counts and the console won't work. Fix: run \`docker network connect ${ARK_NETWORK} ${target}\` (on Unraid: edit the Palisade container and set Network Type to ${ARK_NETWORK}), then restart this server.`;
+    const net = this.sharedNetworkName();
+    return `Palisade can't reach this server's RCON/query port — the manager container isn't attached to the "${net}" network and this server's ports aren't published to the host, so player counts and the console won't work. Fix: run \`docker network connect ${net} ${target}\` (on Unraid: edit the Palisade container and set Network Type to ${net}), then restart this server.`;
+  }
+
+  /** The bridge new game containers are created on. */
+  sharedNetworkName(): string {
+    return targetNetwork(loadEnv().SHARED_NETWORK);
+  }
+
+  /** Our own container id, memoized — every network call needs it. Only a SUCCESSFUL
+   *  lookup is kept: caching a transient boot-time failure would pin the manager to
+   *  "can't see myself" for the life of the process and quietly skip every attach. */
+  private async selfId(): Promise<string | null> {
+    const id = await (this.selfContainerId ??= findSelfContainerId(this.docker.client).catch(
+      () => null,
+    ));
+    if (!id) this.selfContainerId = null;
+    return id;
+  }
+
+  /** Our cached view of our own networking is stale after we change it — the next
+   *  resolve (and the health check) must see the new interface list. */
+  private forgetManagerFacts(): void {
+    this.managerFacts = null;
+    this.missingShared = null;
   }
 
   /** The game container's networking, or null if we can't see it. */
@@ -164,9 +248,15 @@ export class GameEndpointService {
   }
 
   private async loadManagerFacts(): Promise<ManagerNetworkFacts> {
-    const unknown: ManagerNetworkFacts = { inContainer: false, hostNetwork: false, networks: [] };
+    const sharedNetwork = this.sharedNetworkName();
+    const unknown: ManagerNetworkFacts = {
+      inContainer: false,
+      hostNetwork: false,
+      networks: [],
+      sharedNetwork,
+    };
     try {
-      const id = await findSelfContainerId(this.docker.client);
+      const id = await this.selfId();
       if (!id) return unknown; // not in a container (dev on the host)
       const info = await this.docker.inspect(id);
       const networks = Object.keys(info.NetworkSettings?.Networks ?? {});
@@ -175,9 +265,13 @@ export class GameEndpointService {
         hostNetwork: info.HostConfig?.NetworkMode === "host" || networks.includes("host"),
         networks,
         name: info.Name?.replace(/^\//, "") || null,
+        sharedNetwork,
       };
       this.managerName = facts.name ?? null;
-      this.missingArkNet = facts.hostNetwork ? false : !networks.includes(ARK_NETWORK);
+      // Either bridge counts: mid-migration the servers may still be on the old one.
+      this.missingShared = facts.hostNetwork
+        ? false
+        : !networks.some((n) => n === sharedNetwork || n === LEGACY_NETWORK);
       this.logger.log(
         `manager networking: ${facts.hostNetwork ? "host" : networks.join(", ") || "none detected"}`,
       );

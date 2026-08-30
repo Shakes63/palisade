@@ -55,7 +55,8 @@ import { SOTF_GAME_SETTINGS_KEYS } from "../catalog/sotf.catalog";
 import { LIF_SKILLCAP_GROUPS } from "../catalog/lif.catalog";
 import { TERRARIA_CLI_KEYS } from "../catalog/terraria.catalog";
 import { FACTORIO_ENV_KEYS } from "../catalog/factorio.catalog";
-import { ARK_NETWORK, containerName } from "../common/naming";
+import { containerName } from "../common/naming";
+import { targetNetwork } from "../common/shared-network";
 import { loadEnv } from "../config/env";
 
 export interface RuntimeSpecInput {
@@ -244,6 +245,19 @@ function gameSpecFor(input: RuntimeSpecInput): Docker.ContainerCreateOptions {
   return buildAseSpec(input);
 }
 
+/**
+ * The bridge every non-host-network game container joins, so the manager can reach
+ * its admin ports. Host-network specs get nothing — they share the host's stack.
+ * One helper rather than the same literal in all 26 game specs, so the network name
+ * has exactly one source of truth while installs migrate off "ark-net".
+ */
+function bridgeNetworking(
+  hostNet: boolean,
+): Partial<Pick<Docker.ContainerCreateOptions, "NetworkingConfig">> {
+  if (hostNet) return {};
+  return { NetworkingConfig: { EndpointsConfig: { [targetNetwork(loadEnv().SHARED_NETWORK)]: {} } } };
+}
+
 const portKey = (p: number, proto: "udp" | "tcp") => `${p}/${proto}`;
 
 /**
@@ -371,7 +385,7 @@ function buildPokSpec(input: RuntimeSpecInput): Docker.ContainerCreateOptions {
       // ASA wants a high fd limit; POK warns it can't raise it itself.
       Ulimits: [{ Name: "nofile", Soft: 100000, Hard: 100000 }],
     },
-    ...(hostNet ? {} : { NetworkingConfig: { EndpointsConfig: { [ARK_NETWORK]: {} } } }),
+    ...bridgeNetworking(hostNet),
   };
 }
 
@@ -448,7 +462,7 @@ function buildAseSpec(input: RuntimeSpecInput): Docker.ContainerCreateOptions {
       NanoCpus: input.cpuLimit ? Math.round(input.cpuLimit * 1e9) : undefined,
       Ulimits: [{ Name: "nofile", Soft: 100000, Hard: 100000 }],
     },
-    ...(hostNet ? {} : { NetworkingConfig: { EndpointsConfig: { [ARK_NETWORK]: {} } } }),
+    ...bridgeNetworking(hostNet),
   };
 }
 
@@ -560,7 +574,7 @@ function buildConanSpec(input: RuntimeSpecInput): Docker.ContainerCreateOptions 
       Memory: input.ramLimitMb ? input.ramLimitMb * 1024 * 1024 : undefined,
       NanoCpus: input.cpuLimit ? Math.round(input.cpuLimit * 1e9) : undefined,
     },
-    ...(hostNet ? {} : { NetworkingConfig: { EndpointsConfig: { [ARK_NETWORK]: {} } } }),
+    ...bridgeNetworking(hostNet),
   };
 }
 
@@ -637,7 +651,7 @@ function buildPalworldSpec(input: RuntimeSpecInput): Docker.ContainerCreateOptio
       Memory: input.ramLimitMb ? input.ramLimitMb * 1024 * 1024 : undefined,
       NanoCpus: input.cpuLimit ? Math.round(input.cpuLimit * 1e9) : undefined,
     },
-    ...(hostNet ? {} : { NetworkingConfig: { EndpointsConfig: { [ARK_NETWORK]: {} } } }),
+    ...bridgeNetworking(hostNet),
   };
 }
 
@@ -744,7 +758,7 @@ function buildPalworldWineSpec(input: RuntimeSpecInput): Docker.ContainerCreateO
       Memory: input.ramLimitMb ? input.ramLimitMb * 1024 * 1024 : undefined,
       NanoCpus: input.cpuLimit ? Math.round(input.cpuLimit * 1e9) : undefined,
     },
-    ...(hostNet ? {} : { NetworkingConfig: { EndpointsConfig: { [ARK_NETWORK]: {} } } }),
+    ...bridgeNetworking(hostNet),
   };
 }
 
@@ -834,7 +848,7 @@ function buildMinecraftSpec(input: RuntimeSpecInput): Docker.ContainerCreateOpti
       Memory: input.ramLimitMb ? input.ramLimitMb * 1024 * 1024 : undefined,
       NanoCpus: input.cpuLimit ? Math.round(input.cpuLimit * 1e9) : undefined,
     },
-    ...(hostNet ? {} : { NetworkingConfig: { EndpointsConfig: { [ARK_NETWORK]: {} } } }),
+    ...bridgeNetworking(hostNet),
   };
 }
 
@@ -912,7 +926,7 @@ function buildIcarusSpec(input: RuntimeSpecInput): Docker.ContainerCreateOptions
       Memory: input.ramLimitMb ? input.ramLimitMb * 1024 * 1024 : undefined,
       NanoCpus: input.cpuLimit ? Math.round(input.cpuLimit * 1e9) : undefined,
     },
-    ...(hostNet ? {} : { NetworkingConfig: { EndpointsConfig: { [ARK_NETWORK]: {} } } }),
+    ...bridgeNetworking(hostNet),
   };
 }
 
@@ -985,7 +999,7 @@ function buildBedrockSpec(input: RuntimeSpecInput): Docker.ContainerCreateOption
       Memory: input.ramLimitMb ? input.ramLimitMb * 1024 * 1024 : undefined,
       NanoCpus: input.cpuLimit ? Math.round(input.cpuLimit * 1e9) : undefined,
     },
-    ...(hostNet ? {} : { NetworkingConfig: { EndpointsConfig: { [ARK_NETWORK]: {} } } }),
+    ...bridgeNetworking(hostNet),
   };
 }
 
@@ -1066,7 +1080,7 @@ function buildValheimSpec(input: RuntimeSpecInput): Docker.ContainerCreateOption
       Memory: input.ramLimitMb ? input.ramLimitMb * 1024 * 1024 : undefined,
       NanoCpus: input.cpuLimit ? Math.round(input.cpuLimit * 1e9) : undefined,
     },
-    ...(hostNet ? {} : { NetworkingConfig: { EndpointsConfig: { [ARK_NETWORK]: {} } } }),
+    ...bridgeNetworking(hostNet),
   };
 }
 
@@ -1174,7 +1188,7 @@ function buildSevenDaysSpec(input: RuntimeSpecInput): Docker.ContainerCreateOpti
       Memory: input.ramLimitMb ? input.ramLimitMb * 1024 * 1024 : undefined,
       NanoCpus: input.cpuLimit ? Math.round(input.cpuLimit * 1e9) : undefined,
     },
-    ...(hostNet ? {} : { NetworkingConfig: { EndpointsConfig: { [ARK_NETWORK]: {} } } }),
+    ...bridgeNetworking(hostNet),
   };
 }
 
@@ -1241,7 +1255,7 @@ function buildEnshroudedSpec(input: RuntimeSpecInput): Docker.ContainerCreateOpt
       Memory: input.ramLimitMb ? input.ramLimitMb * 1024 * 1024 : undefined,
       NanoCpus: input.cpuLimit ? Math.round(input.cpuLimit * 1e9) : undefined,
     },
-    ...(hostNet ? {} : { NetworkingConfig: { EndpointsConfig: { [ARK_NETWORK]: {} } } }),
+    ...bridgeNetworking(hostNet),
   };
 }
 
@@ -1364,7 +1378,7 @@ function buildZomboidSpec(input: RuntimeSpecInput): Docker.ContainerCreateOption
       Memory: input.ramLimitMb ? input.ramLimitMb * 1024 * 1024 : undefined,
       NanoCpus: input.cpuLimit ? Math.round(input.cpuLimit * 1e9) : undefined,
     },
-    ...(hostNet ? {} : { NetworkingConfig: { EndpointsConfig: { [ARK_NETWORK]: {} } } }),
+    ...bridgeNetworking(hostNet),
   };
 }
 
@@ -1552,7 +1566,7 @@ function buildVRisingSpec(input: RuntimeSpecInput): Docker.ContainerCreateOption
       Memory: input.ramLimitMb ? input.ramLimitMb * 1024 * 1024 : undefined,
       NanoCpus: input.cpuLimit ? Math.round(input.cpuLimit * 1e9) : undefined,
     },
-    ...(hostNet ? {} : { NetworkingConfig: { EndpointsConfig: { [ARK_NETWORK]: {} } } }),
+    ...bridgeNetworking(hostNet),
   };
 }
 
@@ -1616,7 +1630,7 @@ function buildSotfSpec(input: RuntimeSpecInput): Docker.ContainerCreateOptions {
       Memory: input.ramLimitMb ? input.ramLimitMb * 1024 * 1024 : undefined,
       NanoCpus: input.cpuLimit ? Math.round(input.cpuLimit * 1e9) : undefined,
     },
-    ...(hostNet ? {} : { NetworkingConfig: { EndpointsConfig: { [ARK_NETWORK]: {} } } }),
+    ...bridgeNetworking(hostNet),
   };
 }
 
@@ -1721,7 +1735,7 @@ function buildSatisfactorySpec(input: RuntimeSpecInput): Docker.ContainerCreateO
       Memory: input.ramLimitMb ? input.ramLimitMb * 1024 * 1024 : undefined,
       NanoCpus: input.cpuLimit ? Math.round(input.cpuLimit * 1e9) : undefined,
     },
-    ...(hostNet ? {} : { NetworkingConfig: { EndpointsConfig: { [ARK_NETWORK]: {} } } }),
+    ...bridgeNetworking(hostNet),
   };
 }
 
@@ -1802,7 +1816,7 @@ function buildLifSpec(input: RuntimeSpecInput): Docker.ContainerCreateOptions {
       Memory: input.ramLimitMb ? input.ramLimitMb * 1024 * 1024 : undefined,
       NanoCpus: input.cpuLimit ? Math.round(input.cpuLimit * 1e9) : undefined,
     },
-    ...(hostNet ? {} : { NetworkingConfig: { EndpointsConfig: { [ARK_NETWORK]: {} } } }),
+    ...bridgeNetworking(hostNet),
   };
 }
 
@@ -1869,7 +1883,7 @@ function buildFactorioSpec(input: RuntimeSpecInput): Docker.ContainerCreateOptio
       Memory: input.ramLimitMb ? input.ramLimitMb * 1024 * 1024 : undefined,
       NanoCpus: input.cpuLimit ? Math.round(input.cpuLimit * 1e9) : undefined,
     },
-    ...(hostNet ? {} : { NetworkingConfig: { EndpointsConfig: { [ARK_NETWORK]: {} } } }),
+    ...bridgeNetworking(hostNet),
   };
 }
 
@@ -1989,7 +2003,7 @@ function buildRustSpec(input: RuntimeSpecInput): Docker.ContainerCreateOptions {
       Memory: input.ramLimitMb ? input.ramLimitMb * 1024 * 1024 : undefined,
       NanoCpus: input.cpuLimit ? Math.round(input.cpuLimit * 1e9) : undefined,
     },
-    ...(hostNet ? {} : { NetworkingConfig: { EndpointsConfig: { [ARK_NETWORK]: {} } } }),
+    ...bridgeNetworking(hostNet),
   };
 }
 
@@ -2055,7 +2069,7 @@ function buildBeammpSpec(input: RuntimeSpecInput): Docker.ContainerCreateOptions
       Memory: input.ramLimitMb ? input.ramLimitMb * 1024 * 1024 : undefined,
       NanoCpus: input.cpuLimit ? Math.round(input.cpuLimit * 1e9) : undefined,
     },
-    ...(hostNet ? {} : { NetworkingConfig: { EndpointsConfig: { [ARK_NETWORK]: {} } } }),
+    ...bridgeNetworking(hostNet),
   };
 }
 
@@ -2129,7 +2143,7 @@ function buildTerrariaSpec(input: RuntimeSpecInput): Docker.ContainerCreateOptio
       Memory: input.ramLimitMb ? input.ramLimitMb * 1024 * 1024 : undefined,
       NanoCpus: input.cpuLimit ? Math.round(input.cpuLimit * 1e9) : undefined,
     },
-    ...(hostNet ? {} : { NetworkingConfig: { EndpointsConfig: { [ARK_NETWORK]: {} } } }),
+    ...bridgeNetworking(hostNet),
   };
 }
 
@@ -2228,7 +2242,7 @@ function buildCoreKeeperSpec(input: RuntimeSpecInput): Docker.ContainerCreateOpt
     },
     // Relay mode needs no inbound ports; on the bridge the container still joins
     // ark-net for consistency (harmless — nothing connects to it).
-    ...(hostNet ? {} : { NetworkingConfig: { EndpointsConfig: { [ARK_NETWORK]: {} } } }),
+    ...bridgeNetworking(hostNet),
   };
 }
 
@@ -2299,7 +2313,7 @@ function buildAtsSpec(input: RuntimeSpecInput): Docker.ContainerCreateOptions {
       Memory: input.ramLimitMb ? input.ramLimitMb * 1024 * 1024 : undefined,
       NanoCpus: input.cpuLimit ? Math.round(input.cpuLimit * 1e9) : undefined,
     },
-    ...(hostNet ? {} : { NetworkingConfig: { EndpointsConfig: { [ARK_NETWORK]: {} } } }),
+    ...bridgeNetworking(hostNet),
   };
 }
 
@@ -2365,7 +2379,7 @@ function buildCs2Spec(input: RuntimeSpecInput): Docker.ContainerCreateOptions {
       Memory: input.ramLimitMb ? input.ramLimitMb * 1024 * 1024 : undefined,
       NanoCpus: input.cpuLimit ? Math.round(input.cpuLimit * 1e9) : undefined,
     },
-    ...(hostNet ? {} : { NetworkingConfig: { EndpointsConfig: { [ARK_NETWORK]: {} } } }),
+    ...bridgeNetworking(hostNet),
   };
 }
 
@@ -2425,7 +2439,7 @@ function buildDstSpec(input: RuntimeSpecInput): Docker.ContainerCreateOptions {
       Memory: input.ramLimitMb ? input.ramLimitMb * 1024 * 1024 : undefined,
       NanoCpus: input.cpuLimit ? Math.round(input.cpuLimit * 1e9) : undefined,
     },
-    ...(hostNet ? {} : { NetworkingConfig: { EndpointsConfig: { [ARK_NETWORK]: {} } } }),
+    ...bridgeNetworking(hostNet),
   };
 }
 
@@ -2571,7 +2585,7 @@ function buildOpenttdSpec(input: RuntimeSpecInput): Docker.ContainerCreateOption
       Memory: input.ramLimitMb ? input.ramLimitMb * 1024 * 1024 : undefined,
       NanoCpus: input.cpuLimit ? Math.round(input.cpuLimit * 1e9) : undefined,
     },
-    ...(hostNet ? {} : { NetworkingConfig: { EndpointsConfig: { [ARK_NETWORK]: {} } } }),
+    ...bridgeNetworking(hostNet),
   };
 }
 

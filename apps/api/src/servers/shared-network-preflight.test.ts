@@ -3,17 +3,17 @@ import { FakeDocker, makeRow, makeService, setupE2eEnv, startServer } from "./li
 import { resetEnvCache } from "../config/env";
 
 /**
- * GH #31: with GAME_HOST_NETWORK=false and no ark-net, a start died on Docker's raw
- * "(HTTP code 404) no such container - network ark-net not found" — which reads like a
- * container fault, not a missing prerequisite. Palisade now creates it, and when it
- * can't, says so in words the user can act on.
+ * GH #31: with GAME_HOST_NETWORK=false and no shared bridge, a start died on Docker's
+ * raw "(HTTP code 404) no such container - network palisade-net not found" — which
+ * reads like a container fault, not a missing prerequisite. Palisade now creates it,
+ * and when it can't, says so in words the user can act on.
  */
 beforeAll(async () => {
   await setupE2eEnv();
-  process.env.GAME_HOST_NETWORK = "false"; // specs then carry an ark-net EndpointsConfig
+  process.env.GAME_HOST_NETWORK = "false"; // specs then carry a bridge EndpointsConfig
 });
 
-describe("ark-net preflight", () => {
+describe("shared-network preflight", () => {
   let docker: FakeDocker;
   beforeEach(() => {
     docker = new FakeDocker();
@@ -21,16 +21,16 @@ describe("ark-net preflight", () => {
     resetEnvCache(); // loadEnv memoizes; the flag is read at start time
   });
 
-  it("creates ark-net when it is confirmed missing, and the start proceeds", async () => {
+  it("creates the shared network when it is confirmed missing, and the start proceeds", async () => {
     docker.networkPresent = false;
     const row = makeRow();
     const { service } = await makeService(row, docker);
     await startServer(service, row.id);
-    expect(docker.createdNetworks).toEqual(["ark-net"]);
+    expect(docker.createdNetworks).toEqual(["palisade-net"]);
     expect(docker.createdSpecs.length).toBe(1);
   });
 
-  it("does not touch Docker's networks when ark-net already exists", async () => {
+  it("does not touch Docker's networks when the shared network already exists", async () => {
     docker.networkPresent = true;
     const row = makeRow();
     const { service } = await makeService(row, docker);
@@ -56,7 +56,7 @@ describe("ark-net preflight", () => {
     docker.networkCreateFails = true;
     const row = makeRow();
     const { service } = await makeService(row, docker);
-    await expect(startServer(service, row.id)).rejects.toThrow(/docker network create ark-net/);
+    await expect(startServer(service, row.id)).rejects.toThrow(/docker network create palisade-net/);
     // Nothing was created — the start stopped at the preflight, not mid-launch.
     expect(docker.createdSpecs.length).toBe(0);
   });

@@ -1,7 +1,22 @@
 import { Game } from "@ark/shared";
 
-/** Shared Docker network the manager and all game containers join (for RCON). */
-export const ARK_NETWORK = "ark-net";
+/**
+ * Shared Docker network the manager and all game containers join (for RCON).
+ *
+ * The name is load-bearing on Unraid, which is why it is not "ark-net" any more.
+ * For a manager container on a custom (macvlan/ipvlan) network, Unraid derives the
+ * WebUI button's address from `reset($ct['Networks'])` — the FIRST entry of the
+ * container's network map — and the Docker API returns that map sorted by name. So
+ * "ark-net" sorted ahead of "br0"/"bond0"/"eth0" and the WebUI button pointed at the
+ * bridge IP instead of the LAN one the moment Palisade attached itself (GH #31).
+ * Anything sorting after those interface names, like this, picks the right IP by
+ * itself. SHARED_NETWORK overrides it if a host manages to sort even later.
+ */
+export const DEFAULT_SHARED_NETWORK = "palisade-net";
+
+/** The pre-1.11 network name. Still honoured for installs that have servers on it —
+ *  see common/shared-network.ts for how the two coexist during the migration. */
+export const LEGACY_NETWORK = "ark-net";
 
 /** Container-name prefix per game, so e.g. Conan containers aren't named "ark-…".
  *  Cosmetic only — containers are matched by the `ark.serverId` label. */

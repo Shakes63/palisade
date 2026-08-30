@@ -37,7 +37,7 @@ services:
       TZ: ${TZ:-UTC}
       # Run game containers on the host network (removes Docker NAT → more reliable
       # ASA/EOS public listing). When on, the manager reaches RCON via
-      # host.docker.internal (see extra_hosts below). Default off = ark-net bridge.
+      # host.docker.internal (see extra_hosts below). Default off = palisade-net bridge.
       GAME_HOST_NETWORK: ${GAME_HOST_NETWORK:-false}
     volumes:
       - ${HOST_DATA_DIR:-./data}:/data
@@ -51,7 +51,7 @@ services:
     ports:
       - "3000:3000" # web UI
       - "8787:8787" # API (optional to expose; web can proxy)
-    networks: [ark-net]
+    networks: [palisade-net]
     restart: unless-stopped
 
   # Least-privilege Docker API gateway (opt in — see header comment).
@@ -74,7 +74,9 @@ services:
   #   restart: unless-stopped
 
 networks:
-  ark-net:
-    name: ark-net
+  # Named, not compose-prefixed: the manager creates game containers on this exact
+  # name. It sorts after br0/bond0/eth0 on purpose — see DEFAULT_SHARED_NETWORK.
+  palisade-net:
+    name: palisade-net
   # docker-proxy-net:
   #   internal: true   # no outbound access; only the manager talks to the proxy

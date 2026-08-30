@@ -54,7 +54,7 @@ import { detectPalWineProxyDlls } from "../palmods/palmods.service";
 import { GameEndpointService } from "../docker/game-endpoint.service";
 import { portsFor, serverPortSet } from "../catalog/ports";
 import { LocalPaths } from "../common/paths";
-import { containerName, ARK_NETWORK } from "../common/naming";
+import { containerName } from "../common/naming";
 import { hostStats } from "../common/host-stats";
 import { IMAGES, SERVER_UID, SERVER_GID } from "../common/images";
 import { loadEnv } from "../config/env";
@@ -301,12 +301,13 @@ export class ServersService implements OnApplicationBootstrap, OnApplicationShut
   // ── Startup reconciliation ──────────────────────────────────────────────────
   /** On boot, re-sync DB state + monitors with the Docker reality (see reconcile). */
   async onApplicationBootstrap(): Promise<void> {
-    // Join ark-net ourselves if we aren't on it, so RCON and player counts work
-    // without anyone running `docker network connect` by hand (GH #31). No-op when
-    // the network doesn't exist yet — a first server start creates it and joins then.
+    // Join the shared bridge ourselves if we aren't on it, so RCON and player counts
+    // work without anyone running `docker network connect` by hand, and let go of the
+    // legacy one once nothing needs it (GH #31). No-op when the network doesn't exist
+    // yet — a first server start creates it and joins then.
     await Promise.resolve()
-      .then(() => this.endpoints.ensureManagerOnArkNet())
-      .catch((e) => this.logger.debug(`ark-net self-attach skipped: ${(e as Error).message}`));
+      .then(() => this.endpoints.ensureManagerNetworks())
+      .catch((e) => this.logger.debug(`network self-attach skipped: ${(e as Error).message}`));
     await this.reconcile().catch((e) =>
       this.logger.error(`Startup reconcile failed: ${(e as Error).message}`),
     );
@@ -1898,7 +1899,7 @@ export class ServersService implements OnApplicationBootstrap, OnApplicationShut
 
   /**
    * Make sure the bridge network this spec attaches to actually exists. Docker's own
-   * failure here is "(HTTP code 404) no such container - network ark-net not found",
+   * failure here is "(HTTP code 404) no such container - network palisade-net not found",
    * which reads like a container problem and sent a user hunting (GH #31). Host-network
    * specs have no EndpointsConfig, so this is a no-op for them.
    */
@@ -1913,11 +1914,11 @@ export class ServersService implements OnApplicationBootstrap, OnApplicationShut
       if (exists !== false) continue;
       const created =
         loadEnv().AUTO_CREATE_NETWORK && (await this.docker.createBridgeNetwork(name).catch(() => false));
-      if (created && name === ARK_NETWORK) {
+      if (created && name === this.endpoints.sharedNetworkName()) {
         // We just made the bridge this server will sit on — join it ourselves too,
         // or the manager still couldn't reach the server it is about to start.
         await Promise.resolve()
-          .then(() => this.endpoints.ensureManagerOnArkNet())
+          .then(() => this.endpoints.ensureManagerNetworks())
           .catch(() => undefined);
       }
       if (!created) {

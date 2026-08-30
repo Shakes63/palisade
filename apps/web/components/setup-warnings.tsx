@@ -11,7 +11,8 @@ interface Health {
 
 /**
  * Host-setup problems Palisade can detect but not fix for you — the manager sitting
- * off ark-net, or a HOST_DATA_DIR that disagrees with the real /data mount.
+ * off the shared Docker network, a migration off the old "ark-net" one that still
+ * has servers to move, or a HOST_DATA_DIR that disagrees with the real /data mount.
  *
  * These were already reported by GET /api/health, which is not somewhere a panel
  * user would ever think to look: the #31 reporter had to be told the fix in the

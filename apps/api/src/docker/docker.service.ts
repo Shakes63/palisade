@@ -327,6 +327,46 @@ export class DockerService {
     return true;
   }
 
+  /**
+   * Detach a container from a network. Used only to drop the legacy "ark-net"
+   * endpoint once nothing needs it (common/shared-network.ts) — dropping a network
+   * a socket-proxy answers on would cut the manager off from Docker, so the caller
+   * decides, not this method. Returns whether the container ended up detached.
+   */
+  async disconnectFromNetwork(networkName: string, containerId: string): Promise<boolean> {
+    try {
+      await this.docker.getNetwork(networkName).disconnect({ Container: containerId });
+      return true;
+    } catch (err) {
+      // Same reasoning as connectToNetwork: "already gone" and "not allowed" both
+      // come back as an error, and only the container's state tells them apart.
+      const attached = await this.containerOnNetwork(networkName, containerId);
+      if (attached) {
+        this.logger.warn(
+          `Could not detach ${containerId.slice(0, 12)} from ${networkName}: ${(err as Error).message}`,
+        );
+      }
+      return !attached;
+    }
+  }
+
+  /**
+   * Ids of every container attached to a network, or null when we couldn't ask (a
+   * socket-proxy with NETWORKS=0). Null is not "empty": acting on it would let the
+   * manager walk away from a network that is still in use.
+   */
+  async networkContainerIds(networkName: string): Promise<string[] | null> {
+    try {
+      const info = (await this.docker.getNetwork(networkName).inspect()) as {
+        Containers?: Record<string, unknown>;
+      };
+      return Object.keys(info.Containers ?? {});
+    } catch (err) {
+      this.logger.debug(`could not inspect network ${networkName} (${(err as Error).message})`);
+      return null;
+    }
+  }
+
   /** Whether a container currently has an endpoint on the named network. */
   async containerOnNetwork(networkName: string, containerId: string): Promise<boolean> {
     try {

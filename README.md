@@ -126,7 +126,7 @@ manager injects config, watches logs, and talks RCON/telnet/query protocols.
 
 - Docker on a Linux host (Unraid, Debian/Ubuntu, etc.). 16 GB+ RAM recommended —
   a single populated game server wants 2–16 GB depending on the game.
-- A Docker bridge network, `ark-net` — the manager and the game containers it
+- A Docker bridge network, `palisade-net` — the manager and the game containers it
   spawns share it (unless you use host networking). **Palisade creates it on
   demand and attaches itself to it**, so there is normally nothing to do — including
   when the manager runs on an Unraid custom/macvlan network, where it keeps its own
@@ -135,9 +135,13 @@ manager injects config, watches logs, and talks RCON/telnet/query protocols.
   with `NETWORKS=0` can neither create networks nor attach to them):
 
   ```bash
-  docker network create ark-net
-  docker network connect ark-net <your Palisade container>
+  docker network create palisade-net
+  docker network connect palisade-net <your Palisade container>
   ```
+
+  Installs from before v1.11 use `ark-net`. Nothing to do: each server moves across
+  the next time you start it, and Palisade holds both networks until they all have.
+  See [Moving off `ark-net`](#moving-off-ark-net).
 
 - Two secrets (generate once, keep safe — `SECRETS_KEY` encrypts stored API
   keys/passwords, so losing it means re-entering them):
@@ -161,7 +165,7 @@ Palisade is in [Community Applications](https://ca.unraid.net): open the
 **Apps** tab, search for **Palisade**, and install. The template pre-fills
 everything except your two secrets (`SECRETS_KEY`, `JWT_SECRET` — generators
 above) and the app-data path. The prerequisites above still apply: create the
-`ark-net` network and set the `vm.max_map_count` sysctl once.
+`palisade-net` network and set the `vm.max_map_count` sysctl once.
 
 Two Unraid-specific notes baked into the template:
 - Use a path on the cache disk itself (`/mnt/cache/appdata/...`), **not**
@@ -178,7 +182,7 @@ Two Unraid-specific notes baked into the template:
 ```bash
 docker run -d \
   --name palisade \
-  --network ark-net \
+  --network palisade-net \
   --restart unless-stopped \
   -p 8970:3000 \
   -v /opt/palisade:/data \
@@ -221,7 +225,8 @@ docker compose up -d
 | `DATABASE_URL` | no | `file:./data/db.sqlite` | SQLite path — keep it inside `DATA_DIR`. |
 | `PUBLIC_BASE_URL` | no | `http://localhost:3000` | The address you actually browse to. Used for links and Unraid WebUI buttons. |
 | `GAME_HOST_NETWORK` | no | `false` | `true` = game containers use host networking (recommended — ASA/EOS and Steam query behave better without Docker NAT). Requires the `--add-host host.docker.internal:host-gateway` flag on the manager so it can still reach RCON/query. |
-| `AUTO_CREATE_NETWORK` | no | `true` | Let Palisade manage `ark-net`: create it when a game server needs it, and attach itself to it when it isn't already (added live — existing networks and a static IP are kept). Set `false` to manage Docker networks yourself. |
+| `AUTO_CREATE_NETWORK` | no | `true` | Let Palisade manage its bridge: create it when a game server needs it, attach itself to it when it isn't already (added live — existing networks and a static IP are kept), and drop the legacy `ark-net` once nothing uses it. Set `false` to manage Docker networks yourself. |
+| `SHARED_NETWORK` | no | `palisade-net` | Name of that bridge. The default is chosen so Unraid resolves the manager's WebUI link correctly on a custom network (see [Moving off `ark-net`](#moving-off-ark-net)); change it only if you manage the network yourself. |
 | `DOCKER_HOST` | no | unix socket | Point at `tcp://socket-proxy:2375` for least-privilege Docker access ([docker-socket-proxy](https://github.com/Tecnativa/docker-socket-proxy)). |
 | `PUID` / `PGID` | no | `99` / `100` | Ownership for game files written by the manager (Unraid's `nobody:users` by default). |
 | `TZ` | no | `UTC` | Manager clock; also the default for game containers and schedules (overridable in Settings). |
@@ -286,16 +291,34 @@ up as "no players" rather than an obvious error.
 Palisade works out how to reach each container from the container itself — its IP on
 a network you share, the host gateway when it uses host networking or publishes the
 port — so this only bites when none of those apply. The usual cause is the manager
-not being attached to `ark-net` while game servers are. Check `GET /api/health`: it
-reports a warning naming this exact condition. To fix:
+not being attached to `palisade-net` while game servers are. Check `GET /api/health`:
+it reports a warning naming this exact condition. To fix:
 
 ```bash
-docker network connect ark-net <manager container>
+docker network connect palisade-net <manager container>
 ```
 
-On Unraid, make sure the Palisade container's **Network Type** is `ark-net` (the
-template sets it, but it's easy to change). If you use `GAME_HOST_NETWORK=true`,
+On Unraid, make sure the Palisade container's **Network Type** is `palisade-net`
+(the template sets it, but it's easy to change). If you use `GAME_HOST_NETWORK=true`,
 the manager instead needs `--add-host host.docker.internal:host-gateway`.
+
+### Moving off `ark-net`
+
+The shared bridge was called `ark-net` before v1.11. The rename is not cosmetic: on
+Unraid, a container's WebUI link is built from the **first** of its networks sorted by
+name, so as soon as Palisade attached itself to `ark-net` it sorted ahead of `br0` and
+the button on a custom/macvlan install started pointing at the bridge IP instead of the
+LAN one. `palisade-net` sorts after `br0`, `bond0` and `eth0`, so the link stays right.
+
+It migrates itself, and a half-migrated install works throughout:
+
+- New servers are created on `palisade-net`. Existing ones move the next time you
+  start them — Palisade recreates the container on every start anyway.
+- The manager holds **both** networks until the last server has moved, then drops
+  `ark-net` on its next restart. It never lets go early, and never at all when Docker
+  is reached through a socket-proxy or another container is still on that network —
+  in those cases the Servers page tells you the one step left.
+- To keep the old name, set `SHARED_NETWORK=ark-net`.
 
 ---
 

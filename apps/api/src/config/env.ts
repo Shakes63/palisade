@@ -67,6 +67,13 @@ const schema = z.object({
     .default("true")
     .transform((v) => v !== "false" && v !== "0"),
 
+  // Name of the Docker bridge the manager and its game containers meet on. Leave
+  // unset — the default is chosen so that Unraid picks the right IP for the manager
+  // container's WebUI link (see DEFAULT_SHARED_NETWORK). Set this only to keep a
+  // hand-managed network, or if the host has a custom network whose name sorts after
+  // the default and takes the WebUI link with it.
+  SHARED_NETWORK: z.string().optional(),
+
   // Browsers reach the API same-origin through the Next rewrite proxy, so
   // cross-origin requests are denied by default. If you serve the web UI from a
   // different origin than the API, list the allowed origins here
