@@ -299,10 +299,12 @@ export function SettingsForm({
 
   // Persist the active settings sub-tab in the URL (?section=creatures) so a
   // refresh keeps you on the same section. replaceState — no scroll/navigation.
+  // GROUPS is one of the module-level constants picked by `game`, so it's
+  // referentially stable and this still runs once per mounted form.
   useEffect(() => {
     const p = new URLSearchParams(window.location.search).get("section");
     if (p && GROUPS.some((g) => g.id === p)) setActiveGroup(p);
-  }, []);
+  }, [GROUPS]);
   const changeGroup = (id: string) => {
     setActiveGroup(id);
     const u = new URL(window.location.href);
@@ -312,7 +314,8 @@ export function SettingsForm({
   const toggle = (cat: string) =>
     setCollapsed((s) => {
       const n = new Set(s);
-      n.has(cat) ? n.delete(cat) : n.add(cat);
+      if (n.has(cat)) n.delete(cat);
+      else n.add(cat);
       return n;
     });
 
@@ -1319,7 +1322,8 @@ function WeekdaysField({ def, value, onChange }: WidgetProps) {
   );
   const toggle = (day: string) => {
     const next = new Set(selected);
-    next.has(day) ? next.delete(day) : next.add(day);
+    if (next.has(day)) next.delete(day);
+    else next.add(day);
     onChange(def.key, WEEKDAYS.filter((d) => next.has(d)).join(","));
   };
   return (

@@ -48,7 +48,8 @@ export function CopyMenu({
   const pick = (id: string) =>
     setSel((s) => {
       const n = new Set(mode === "from" ? [] : s); // "from" is single-select
-      n.has(id) ? n.delete(id) : n.add(id);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
       return n;
     });
 

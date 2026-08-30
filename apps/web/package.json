@@ -6,7 +6,7 @@
     "dev": "node ../../scripts/generate-game-docs.mjs && next dev -p 3000",
     "build": "node ../../scripts/generate-game-docs.mjs && next build",
     "start": "next start",
-    "lint": "eslint .",
+    "lint": "eslint . --max-warnings 0",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
