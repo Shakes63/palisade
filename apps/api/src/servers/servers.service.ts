@@ -966,7 +966,10 @@ export class ServersService implements OnApplicationBootstrap, OnApplicationShut
     return { jobId };
   }
 
-  async start(id: string, opts: { force?: boolean; stopFirst?: string } = {}): Promise<void> {
+  async start(
+    id: string,
+    opts: { force?: boolean; stopFirst?: string; onAdmitted?: () => void } = {},
+  ): Promise<void> {
     if (opts.stopFirst && opts.stopFirst !== id) {
       // Swap: back up the outgoing server, then stop it (freeing RAM), then start
       // this one. The backup is best-effort — the graceful stop also saves the world
@@ -985,7 +988,39 @@ export class ServersService implements OnApplicationBootstrap, OnApplicationShut
     // but not a restart-in-place, which re-uses files already on disk. A near-full
     // volume corrupts a fresh install and starves a running server's saves.
     if (!opts.force) await this.assertDiskAvailable(id);
-    return this.withLock(id, () => this.doStart(id));
+    return this.withLock(id, () => this.doStart(id, opts.onAdmitted));
+  }
+
+  /**
+   * Start for the HTTP layer: resolves once the server is committed to Starting,
+   * while the launch itself finishes in the background under the same lock.
+   *
+   * A first start pulls a game image — 3.3 GB for Palworld's Wine variant — which
+   * routinely outlives Node's 5-minute default requestTimeout. The socket was then
+   * torn down mid-pull, the web app's proxy logged ECONNRESET, and the UI reported
+   * "Internal Server Error" for a start that was working fine and did reach Running.
+   *
+   * Validation still answers synchronously, so a bad request is still a 400. Only
+   * the slow half is detached, and its failures are already recorded on the server
+   * (Crashed + crashReason) where the UI reads them. Internal callers keep using
+   * start(): the cluster launcher relies on it awaiting completion so members come
+   * up one at a time rather than all at once.
+   */
+  async startDetached(id: string, opts: { force?: boolean; stopFirst?: string } = {}): Promise<void> {
+    let admit!: () => void;
+    let reject!: (e: unknown) => void;
+    const admitted = new Promise<void>((res, rej) => {
+      admit = res;
+      reject = rej;
+    });
+    // Anything thrown before admission is the caller's answer; anything after it has
+    // already been turned into a crashReason, so it must not become an unhandled
+    // rejection here.
+    // then(admit) as well as the callback: a start that finishes outright still has to
+    // settle this promise, or the request would hang waiting for an admission that
+    // already went by.
+    void this.start(id, { ...opts, onAdmitted: admit }).then(admit, reject);
+    return admitted;
   }
 
   /** Throw a 409 (with the running servers + RAM) if starting `id` would exceed the
@@ -1221,7 +1256,7 @@ export class ServersService implements OnApplicationBootstrap, OnApplicationShut
     });
   }
 
-  private async doStart(id: string): Promise<void> {
+  private async doStart(id: string, onAdmitted?: () => void): Promise<void> {
     const server = (await this.prisma.server.findUnique({
       where: { id },
       include: { cluster: true },
@@ -1241,6 +1276,9 @@ export class ServersService implements OnApplicationBootstrap, OnApplicationShut
     await this.sm.transition(id, ServerState.Starting);
     // Fresh attempt → drop any stale crash reason from a previous failed boot.
     await this.prisma.server.update({ where: { id }, data: { crashReason: null } }).catch(() => undefined);
+    // Committed: every check that can answer the caller has passed, so an HTTP start
+    // can return here rather than hold the request open through the image pull.
+    onAdmitted?.();
     try {
       const game = server.game as Game;
       // Clone game files from the warmed cache if available, so POK boots

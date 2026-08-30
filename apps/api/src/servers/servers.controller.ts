@@ -187,7 +187,9 @@ export class ServersController {
 
   @Post(":id/start")
   start(@Param("id") id: string, @Body() body: StartBody) {
-    return this.servers.start(id, { force: body?.force, stopFirst: body?.stopFirst });
+    // Detached: returns once the server is Starting, so a long image pull can't
+    // outlive the request timeout and surface as an error for a start that worked.
+    return this.servers.startDetached(id, { force: body?.force, stopFirst: body?.stopFirst });
   }
 
   @Post(":id/stop")
