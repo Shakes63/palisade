@@ -1,6 +1,7 @@
 import { Injectable, Logger } from "@nestjs/common";
 import type Docker from "dockerode";
 import { DockerService } from "./docker.service";
+import { ManagerSettingsService } from "../manager-settings/manager-settings.service";
 import { findSelfContainerId } from "../config/ensure-host-data-dir";
 import { LEGACY_NETWORK } from "../common/naming";
 import { loadEnv } from "../config/env";
@@ -43,7 +44,16 @@ export class GameEndpointService {
   /** Our own container id — resolved once, then reused by every network call. */
   private selfContainerId: Promise<string | null> | null = null;
 
-  constructor(private readonly docker: DockerService) {}
+  constructor(
+    private readonly docker: DockerService,
+    private readonly settings: ManagerSettingsService,
+  ) {}
+
+  /** The manager setting if one is stored, else the AUTO_CREATE_NETWORK env var. */
+  private async autoCreateNetwork(): Promise<boolean> {
+    const stored = await this.settings.getAutoCreateNetwork().catch(() => null);
+    return stored ?? loadEnv().AUTO_CREATE_NETWORK;
+  }
 
   /**
    * Where to reach `containerPort` on the given server's container.
@@ -105,7 +115,7 @@ export class GameEndpointService {
    * yet. Returns whether the manager ended up on the target network.
    */
   async ensureManagerNetworks(): Promise<boolean> {
-    if (!loadEnv().AUTO_CREATE_NETWORK) return false;
+    if (!(await this.autoCreateNetwork())) return false;
     const manager = await this.manager();
     if (!manager.inContainer || manager.hostNetwork) return false;
     if (!manager.networks.length) return false; // couldn't inspect ourselves

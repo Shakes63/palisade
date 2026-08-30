@@ -220,16 +220,23 @@ docker compose up -d
 |---|---|---|---|
 | `SECRETS_KEY` | **yes** | — | 64 hex chars (32 bytes). Encrypts stored secrets at rest. |
 | `JWT_SECRET` | **yes** | — | Signs login tokens (sessions last 30 days). |
-| `HOST_DATA_DIR` | no¹ | auto-detected | The data dir **as the host's Docker daemon sees it** (e.g. `/mnt/cache/appdata/palisade` on Unraid). Game-container bind mounts resolve on the host, not inside the manager. Leave it unset: the manager reads it off its own `/data` mount at boot. |
+| `HOST_DATA_DIR` ⚙ | no¹ | auto-detected | The data dir **as the host's Docker daemon sees it** (e.g. `/mnt/cache/appdata/palisade` on Unraid). Game-container bind mounts resolve on the host, not inside the manager. Leave it unset: the manager reads it off its own `/data` mount at boot. |
 | `DATA_DIR` | no | `./data` | Data dir inside the manager container (mount your volume here, conventionally `/data`). |
 | `DATABASE_URL` | no | `file:./data/db.sqlite` | SQLite path — keep it inside `DATA_DIR`. |
-| `PUBLIC_BASE_URL` | no | `http://localhost:3000` | The address you actually browse to. Used for links and Unraid WebUI buttons. |
-| `GAME_HOST_NETWORK` | no | `false` | `true` = game containers use host networking (recommended — ASA/EOS and Steam query behave better without Docker NAT). Requires the `--add-host host.docker.internal:host-gateway` flag on the manager so it can still reach RCON/query. |
-| `AUTO_CREATE_NETWORK` | no | `true` | Let Palisade manage its bridge: create it when a game server needs it, attach itself to it when it isn't already (added live — existing networks and a static IP are kept), and drop the legacy `ark-net` once nothing uses it. Set `false` to manage Docker networks yourself. |
+| `PUBLIC_BASE_URL` ⚙ | no | `http://localhost:3000` | The address you actually browse to. Used for links and Unraid WebUI buttons. |
+| `GAME_HOST_NETWORK` ⚙ | no | `false` | `true` = game containers use host networking (recommended — ASA/EOS and Steam query behave better without Docker NAT). Requires the `--add-host host.docker.internal:host-gateway` flag on the manager so it can still reach RCON/query. Individual servers can override this on their own General card. |
+| `AUTO_CREATE_NETWORK` ⚙ | no | `true` | Let Palisade manage its bridge: create it when a game server needs it, attach itself to it when it isn't already (added live — existing networks and a static IP are kept), and drop the legacy `ark-net` once nothing uses it. Set `false` to manage Docker networks yourself. |
 | `SHARED_NETWORK` | no | `palisade-net` | Name of that bridge. The default is chosen so Unraid resolves the manager's WebUI link correctly on a custom network (see [Moving off `ark-net`](#moving-off-ark-net)); change it only if you manage the network yourself. |
 | `DOCKER_HOST` | no | unix socket | Point at `tcp://socket-proxy:2375` for least-privilege Docker access ([docker-socket-proxy](https://github.com/Tecnativa/docker-socket-proxy)). |
 | `PUID` / `PGID` | no | `99` / `100` | Ownership for game files written by the manager (Unraid's `nobody:users` by default). |
 | `TZ` | no | `UTC` | Manager clock; also the default for game containers and schedules (overridable in Settings). |
+
+⚙ **Also settable in the UI** (Settings → General → Host & networking). The
+environment variable stays the default; a value saved there overrides it, and
+clearing the field hands the decision back to the variable. Anything baked into a
+game container — networking, the WebUI base URL — applies the next time that server
+starts. `HOST_DATA_DIR` applies immediately, to the next server started.
+
 
 ¹ Auto-detected at boot from the manager's own `/data` mount, so leave it blank —
 including on Unraid, where the template ships it empty. Only set it if the log says

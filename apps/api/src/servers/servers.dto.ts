@@ -74,6 +74,8 @@ export class UpdateServerBody {
   @IsOptional() @ImageTagField() imageTag?: string | null;
   /** Automatic-backup retention for this server; null clears it back to the default. */
   @IsOptional() @ValidateIf((_o, v) => v !== null) @IsInt() @Min(1) @Max(500) backupKeep?: number | null;
+  /** Null = follow the manager-wide setting (and, unset there, GAME_HOST_NETWORK). */
+  @IsOptional() @ValidateIf((_o, v) => v !== null) @IsBoolean() hostNetwork?: boolean | null;
 }
 
 /**

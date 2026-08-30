@@ -1,6 +1,7 @@
 import { hostname } from "node:os";
 import { readFileSync } from "node:fs";
 import Docker from "dockerode";
+import { resetEnvCache } from "./env";
 
 /**
  * Auto-detect HOST_DATA_DIR — the host-side path of the manager's /data mount, which
@@ -33,6 +34,7 @@ export async function ensureHostDataDir(log: (msg: string) => void = console.log
     const mount = (info.Mounts ?? []).find((m) => m.Destination === dataDir);
     const detected = mount?.Source;
     if (!detected) return;
+    detectedPath = detected;
 
     const action = hostDataDirAction(configured, detected);
     if (action.kind === "adopt") {
@@ -79,6 +81,32 @@ export function samePath(a: string, b: string): boolean {
 }
 
 let mismatch: { configured: string; detected: string } | null = null;
+/** Where /data really comes from, remembered so a HOST_DATA_DIR set later (from the
+ *  Settings page) can be re-checked against it without another Docker round-trip. */
+let detectedPath: string | null = null;
+
+/**
+ * Apply a HOST_DATA_DIR chosen in the UI, without a restart.
+ *
+ * paths.ts resolves the host root per call rather than at import, so writing it into
+ * the environment is enough for the next container Palisade creates — the same
+ * mechanism boot-time auto-detection already uses. A null value means "go back to
+ * the auto-detected path", which is what clearing the field should do.
+ *
+ * Re-evaluates the GH #29 mismatch warning too, so correcting the path in the UI
+ * clears the banner instead of leaving it up until the next restart.
+ */
+export function applyHostDataDirOverride(value: string | null): void {
+  const chosen = value?.trim() || null;
+  if (chosen) process.env.HOST_DATA_DIR = chosen;
+  else if (detectedPath) process.env.HOST_DATA_DIR = detectedPath;
+  else delete process.env.HOST_DATA_DIR;
+  resetEnvCache();
+
+  if (!detectedPath) return; // nothing to compare against; leave any warning as-is
+  const action = hostDataDirAction(chosen ?? undefined, detectedPath);
+  mismatch = action.kind === "mismatch" ? { configured: action.configured, detected: action.detected } : null;
+}
 
 /** Set when HOST_DATA_DIR disagrees with the manager's real /data mount, so the
  *  health endpoint can surface the same warning the boot log printed (GH #29). */

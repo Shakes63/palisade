@@ -65,7 +65,12 @@ function makeSvc(initialArtworkJson: string | null = null) {
     {} as never,
     {} as never,
     {} as never,
-    { getTimezone: async () => "UTC", get: async () => null } as never, // settings
+    {
+      getTimezone: async () => "UTC",
+      get: async () => null,
+      getGameHostNetwork: async () => null,
+      getPublicBaseUrl: async () => null,
+    } as never, // settings
     {} as never,
     {} as never,
     players as never,

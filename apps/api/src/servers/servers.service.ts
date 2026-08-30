@@ -820,6 +820,12 @@ export class ServersService implements OnApplicationBootstrap, OnApplicationShut
     // Retention is not a launch parameter — it changes what the next backup prunes,
     // so no restart is needed.
     if (dto.backupKeep !== undefined) data.backupKeep = dto.backupKeep;
+    if (dto.hostNetwork !== undefined && dto.hostNetwork !== existing.hostNetwork) {
+      data.hostNetwork = dto.hostNetwork;
+      // Unlike retention, this IS a launch parameter: the network is chosen when the
+      // container is created, so the running one keeps its old one until a restart.
+      launchChanged = true;
+    }
     if (launchChanged) data.configDirty = true; // → UI shows the Restart button
 
     const updated = await this.prisma.server.update({
@@ -1198,6 +1204,11 @@ export class ServersService implements OnApplicationBootstrap, OnApplicationShut
       ramLimitMb: server.ramLimitMb,
       cpuLimit: server.cpuLimit,
       timezone: await this.settings.getTimezone(),
+      // Resolved here, not in the spec builder: the per-server column outranks the
+      // manager setting, which outranks the env var (runtime-spec applies that last
+      // step). Baked into the container, so a change lands on the next start.
+      hostNetwork: server.hostNetwork ?? (await this.settings.getGameHostNetwork()),
+      baseUrl: await this.settings.getPublicBaseUrl(),
       // Minecraft only: lets itzg auto-install a selected CurseForge modpack.
       curseForgeApiKey:
         game === Game.MINECRAFT ? await this.settings.get(SettingKeys.CurseForgeApiKey) : null,
@@ -1903,6 +1914,11 @@ export class ServersService implements OnApplicationBootstrap, OnApplicationShut
    * which reads like a container problem and sent a user hunting (GH #31). Host-network
    * specs have no EndpointsConfig, so this is a no-op for them.
    */
+  /** The manager setting if one is stored, else the AUTO_CREATE_NETWORK env var. */
+  private async autoCreateNetwork(): Promise<boolean> {
+    return (await this.settings.getAutoCreateNetwork()) ?? loadEnv().AUTO_CREATE_NETWORK;
+  }
+
   private async ensureSpecNetwork(spec: Docker.ContainerCreateOptions): Promise<void> {
     for (const name of Object.keys(spec.NetworkingConfig?.EndpointsConfig ?? {})) {
       // null = we couldn't ask (socket-proxy denies network APIs). Only a CONFIRMED
@@ -1913,7 +1929,8 @@ export class ServersService implements OnApplicationBootstrap, OnApplicationShut
         .catch(() => null);
       if (exists !== false) continue;
       const created =
-        loadEnv().AUTO_CREATE_NETWORK && (await this.docker.createBridgeNetwork(name).catch(() => false));
+        (await this.autoCreateNetwork()) &&
+        (await this.docker.createBridgeNetwork(name).catch(() => false));
       if (created && name === this.endpoints.sharedNetworkName()) {
         // We just made the bridge this server will sit on — join it ourselves too,
         // or the manager still couldn't reach the server it is about to start.
@@ -2005,6 +2022,7 @@ export class ServersService implements OnApplicationBootstrap, OnApplicationShut
       ramLimitMb: row.ramLimitMb,
       cpuLimit: row.cpuLimit,
       backupKeep: row.backupKeep,
+      hostNetwork: row.hostNetwork,
       // Names only. Values are secrets (Steam credentials, API keys) and are
       // readable solely through the admin-gated extra-env endpoint.
       extraEnvKeys: this.readExtraEnv(row.extraEnvEnc).map((e) => e.key),
