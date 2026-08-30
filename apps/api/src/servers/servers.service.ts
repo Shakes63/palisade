@@ -52,7 +52,7 @@ import { PlayersService } from "../players/players.service";
 import { buildContainerSpec, ONE_SHOT_UPDATE_ENV } from "./runtime-spec";
 import { detectPalWineProxyDlls } from "../palmods/palmods.service";
 import { GameEndpointService } from "../docker/game-endpoint.service";
-import { portsFor, serverPortSet } from "../catalog/ports";
+import { palworldWinePortIssue, portsFor, serverPortSet } from "../catalog/ports";
 import { LocalPaths } from "../common/paths";
 import { containerName } from "../common/naming";
 import { hostStats } from "../common/host-stats";
@@ -1287,6 +1287,15 @@ export class ServersService implements OnApplicationBootstrap, OnApplicationShut
         await chown(LocalPaths.instanceRoot(id), SERVER_UID[game], SERVER_GID[game]).catch(() => undefined);
         await chown(dataDir, SERVER_UID[game], SERVER_GID[game]).catch(() => undefined);
       }
+
+      // The Wine image can't move its game port, so refuse rather than start a server
+      // reachable somewhere other than where the panel says it is (GH #39).
+      const portIssue = palworldWinePortIssue(
+        server.game as Game,
+        this.portsOf(server),
+        server.hostNetwork ?? (await this.settings.getGameHostNetwork()) ?? loadEnv().GAME_HOST_NETWORK,
+      );
+      if (portIssue) throw new Error(portIssue);
 
       const spec = await this.assembleSpec(server);
 

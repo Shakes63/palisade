@@ -50,7 +50,7 @@ import {
   DST_DATA_DIR,
 } from "../common/images";
 // (ATS reuses the ich777 wrapper mount points LIF_STEAMCMD_DIR / LIF_SERVERFILES_DIR.)
-import { ZOMBOID_STEAM_PORTS } from "../catalog/ports";
+import { ZOMBOID_STEAM_PORTS, PALWORLD_WINE_GAME_PORT } from "../catalog/ports";
 import { SOTF_GAME_SETTINGS_KEYS } from "../catalog/sotf.catalog";
 import { LIF_SKILLCAP_GROUPS } from "../catalog/lif.catalog";
 import { TERRARIA_CLI_KEYS } from "../catalog/terraria.catalog";
@@ -734,6 +734,10 @@ function buildPalworldWineSpec(input: RuntimeSpecInput): Docker.ContainerCreateO
     `ADMIN_PASSWORD=${input.adminPassword}`,
     `RCON_ENABLED=true`,
     `RCON_PORT=${ports.rcon}`,
+    // Advertised to the community list, NOT the bound port — the image has no env for
+    // that (see PALWORLD_WINE_GAME_PORT). This is the host-side port players dial:
+    // the published port on a bridge, and 8211 on the host network, where a mismatch
+    // is refused up front rather than advertised.
     `PUBLIC_PORT=${ports.game}`,
     `MAX_PLAYERS=${input.maxPlayers}`,
     `MULTITHREAD_ENABLED=true`,
@@ -757,11 +761,15 @@ function buildPalworldWineSpec(input: RuntimeSpecInput): Docker.ContainerCreateO
     Hostname: name,
     Env: palEnv,
     Labels: serverLabels(input),
+    // The CONTAINER port is the image's immovable 8211, not the host port: mapping
+    // 8311->8311 published a port nothing inside was listening on, so a bridged Wine
+    // server was unreachable outright (GH #39). RCON is mapped straight through
+    // because the image does render RconPort= into the ini.
     ...(hostNet
       ? {}
       : {
           ExposedPorts: {
-            [portKey(ports.game, "udp")]: {},
+            [portKey(PALWORLD_WINE_GAME_PORT, "udp")]: {},
             [portKey(ports.rcon, "tcp")]: {},
           },
         }),
@@ -771,7 +779,7 @@ function buildPalworldWineSpec(input: RuntimeSpecInput): Docker.ContainerCreateO
         ? { NetworkMode: "host" }
         : {
             PortBindings: {
-              [portKey(ports.game, "udp")]: [{ HostPort: String(ports.game) }],
+              [portKey(PALWORLD_WINE_GAME_PORT, "udp")]: [{ HostPort: String(ports.game) }],
               [portKey(ports.rcon, "tcp")]: [{ HostPort: String(ports.rcon) }],
             },
           }),

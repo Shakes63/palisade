@@ -173,8 +173,45 @@ export const CS2_PORTS: PortSet = { game: 27015, rawSocket: 27020, query: 27015,
 // DST: master shard 10999/udp, caves shard 11000/udp (rawSocket slot), Steam
 // authentication 12346/udp + 12347/udp (query slot + its neighbour). No RCON.
 export const DST_PORTS: PortSet = { game: 10999, rawSocket: 11000, query: 12346, rcon: 0 };
-// Wine Palworld: shifted off native Palworld's default block so both can be installed.
-export const PALWORLD_WINE_PORTS: PortSet = { game: 8311, rawSocket: 8312, query: 8313, rcon: 8314 };
+/**
+ * The port PalServer.exe binds under the ripps818 Wine image, and it is NOT
+ * negotiable: that image launches the binary with no `-port=` argument and offers no
+ * passthrough for one, so the server always listens on Palworld's default 8211. Its
+ * PUBLIC_PORT env only writes `PublicPort=` into PalWorldSettings.ini, which is the
+ * port ADVERTISED to the community list — not the one bound (GH #39).
+ */
+export const PALWORLD_WINE_GAME_PORT = 8211;
+
+// Wine Palworld. The game port must match what the image actually binds; the
+// remaining slots stay off native Palworld's block. RCON is free to differ because
+// the image does render RconPort= into the ini, unlike the game port.
+export const PALWORLD_WINE_PORTS: PortSet = {
+  game: PALWORLD_WINE_GAME_PORT,
+  rawSocket: 8312,
+  query: 8313,
+  rcon: 8314,
+};
+
+/**
+ * Why a Wine Palworld server cannot start on the requested port, or null when it can.
+ *
+ * On the bridge any host port works — Docker maps it onto the container's fixed 8211.
+ * On the host network there is no mapping layer, so the server lands on 8211 whatever
+ * the panel was told, which is exactly how someone ended up forwarding a port nothing
+ * was listening on (GH #39). Better to refuse than to keep quietly disagreeing.
+ */
+export function palworldWinePortIssue(game: Game, ports: PortSet, hostNetwork: boolean): string | null {
+  if (game !== Game.PALWORLD_WINE || !hostNetwork) return null;
+  if (ports.game === PALWORLD_WINE_GAME_PORT) return null;
+  return (
+    `Palworld (Wine) is set to game port ${ports.game}, but its server image always ` +
+    `listens on ${PALWORLD_WINE_GAME_PORT} and provides no way to change that. On host ` +
+    `networking there is nothing to remap it, so the server would be reachable on ` +
+    `${PALWORLD_WINE_GAME_PORT} while the panel told you ${ports.game}. Set the game port ` +
+    `back to ${PALWORLD_WINE_GAME_PORT}, or switch this server to the shared bridge ` +
+    `(Settings, or this server's General card) where any port works.`
+  );
+}
 
 /**
  * Every host port a server binds (skipping unused 0 slots — e.g. rcon on no-RCON
