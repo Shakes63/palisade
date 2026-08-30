@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   NetworkPlanInput,
   dockerViaProxy,
+  sameContainerId,
   legacyMigrationNote,
   legacyStillNeeded,
   shouldLeaveLegacy,
@@ -127,5 +128,35 @@ describe("legacyMigrationNote", () => {
     // Manager still on both, but no servers and no blockers: shouldLeaveLegacy is
     // about to clear it, so don't put a chore in front of the user first.
     expect(legacyMigrationNote(done)).toBeNull();
+  });
+});
+
+describe("sameContainerId", () => {
+  // Caught on a live Unraid box, not by any of these tests before it: `docker
+  // network inspect` returns the full 64-char id, but a container's hostname — how
+  // the manager identifies itself — is the 12-char short form. Comparing them with
+  // === made the manager count itself as a stranger on the legacy network, which
+  // blocked the migration from ever completing.
+  const full = "eddb0b7d25489b00b7ad4d3cf8487537cb99877648573a2a4ab40101671e7514";
+  const short = "eddb0b7d2548";
+
+  it("matches the short form against the full id", () => {
+    expect(sameContainerId(full, short)).toBe(true);
+    expect(sameContainerId(short, full)).toBe(true);
+  });
+
+  it("still matches two identical ids", () => {
+    expect(sameContainerId(full, full)).toBe(true);
+  });
+
+  it("does not match different containers", () => {
+    expect(sameContainerId(full, "ffffffffffff")).toBe(false);
+    expect(sameContainerId("ffffffffffff", full)).toBe(false);
+  });
+
+  it("treats a missing id as no match rather than as a wildcard", () => {
+    expect(sameContainerId(null, full)).toBe(false);
+    expect(sameContainerId(full, undefined)).toBe(false);
+    expect(sameContainerId("", full)).toBe(false);
   });
 });

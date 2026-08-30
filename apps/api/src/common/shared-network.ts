@@ -31,6 +31,21 @@ export function targetNetwork(override?: string | null): string {
   return (override ?? "").trim() || DEFAULT_SHARED_NETWORK;
 }
 
+/**
+ * Whether two Docker container ids refer to the same container.
+ *
+ * Docker hands back ids at different lengths depending on which API you ask:
+ * `network inspect` returns the full 64-char id, while a container's own hostname —
+ * which is how the manager identifies itself — is the 12-char short form. A plain
+ * `===` therefore made the manager count ITSELF as a stranger on the legacy network,
+ * which both raised a bogus warning and blocked the migration from ever finishing.
+ */
+export function sameContainerId(a: string | null | undefined, b: string | null | undefined): boolean {
+  if (!a || !b) return false;
+  const n = Math.min(a.length, b.length);
+  return a.slice(0, n) === b.slice(0, n);
+}
+
 /** True when Docker is fronted by a proxy rather than the mounted unix socket. */
 export function dockerViaProxy(dockerHost: string): boolean {
   return !/^unix:\/\//i.test(dockerHost.trim());

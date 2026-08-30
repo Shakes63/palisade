@@ -9,7 +9,12 @@ vi.mock("../config/ensure-host-data-dir", async (orig) => ({
   findSelfContainerId: async () => selfId,
 }));
 
-let selfId: string | null = "manager-id";
+/** Docker's full id for the manager, and the short form its hostname reports —
+ *  the mismatch that broke the migration on a real box. */
+const MANAGER_FULL = "eddb0b7d25489b00b7ad4d3cf8487537cb99877648573a2a4ab40101671e7514";
+const MANAGER_SHORT = MANAGER_FULL.slice(0, 12);
+
+let selfId: string | null = MANAGER_SHORT;
 
 /**
  * GH #31 follow-up: the manager attaches itself to the shared bridge, and lets go of
@@ -21,7 +26,7 @@ let selfId: string | null = "manager-id";
 class FakeDocker {
   networks: string[] = ["br0"];
   exists: boolean | null = true;
-  legacyMembers: string[] | null = ["manager-id"];
+  legacyMembers: string[] | null = [MANAGER_FULL];
   managedServers: string[] = [];
   connected: string[] = [];
   disconnected: string[] = [];
@@ -63,7 +68,7 @@ const noSettings = { getAutoCreateNetwork: async () => null } as never;
 const make = (docker: FakeDocker) => new GameEndpointService(docker as never, noSettings);
 
 beforeEach(() => {
-  selfId = "manager-id";
+  selfId = MANAGER_SHORT;
   process.env.SECRETS_KEY = "a".repeat(64);
   process.env.JWT_SECRET = "b".repeat(32);
   process.env.DOCKER_HOST = "unix:///var/run/docker.sock";
@@ -141,7 +146,7 @@ describe("retiring the legacy network", () => {
 
   it("drops ark-net once no server is left on it", async () => {
     const docker = migrating();
-    docker.legacyMembers = ["manager-id"];
+    docker.legacyMembers = [MANAGER_FULL];
     await make(docker).ensureManagerNetworks();
     expect(docker.disconnected).toEqual(["ark-net"]);
     expect(docker.networks).toEqual(["br0", "palisade-net"]);
@@ -149,7 +154,7 @@ describe("retiring the legacy network", () => {
 
   it("keeps ark-net while a server still runs on it", async () => {
     const docker = migrating();
-    docker.legacyMembers = ["manager-id", "server-1"];
+    docker.legacyMembers = [MANAGER_FULL, "server-1"];
     docker.managedServers = ["server-1"];
     await make(docker).ensureManagerNetworks();
     expect(docker.disconnected).toEqual([]);
@@ -158,7 +163,7 @@ describe("retiring the legacy network", () => {
   it("keeps ark-net when a container that isn't ours is on it", async () => {
     // The documented socket-proxy setup put one there.
     const docker = migrating();
-    docker.legacyMembers = ["manager-id", "some-other-container"];
+    docker.legacyMembers = [MANAGER_FULL, "some-other-container"];
     await make(docker).ensureManagerNetworks();
     expect(docker.disconnected).toEqual([]);
   });
@@ -210,7 +215,7 @@ describe("migrationNote", () => {
   it("reports servers still to move", async () => {
     const docker = new FakeDocker();
     docker.networks = ["br0", "ark-net", "palisade-net"];
-    docker.legacyMembers = ["manager-id", "server-1", "server-2"];
+    docker.legacyMembers = [MANAGER_FULL, "server-1", "server-2"];
     docker.managedServers = ["server-1", "server-2"];
     expect(await make(docker).migrationNote()).toContain("2 servers");
   });
@@ -220,5 +225,35 @@ describe("migrationNote", () => {
     docker.networks = ["br0", "palisade-net"];
     docker.legacyMembers = null;
     expect(await make(docker).migrationNote()).toBeNull();
+  });
+});
+
+describe("identifying itself on the legacy network", () => {
+  // The bug this guards: docker network inspect reports the manager by its FULL id,
+  // while the manager knows itself by the short one. Comparing them literally made
+  // it see a stranger, set otherOnLegacy, and refuse to ever leave ark-net.
+  it("recognises its own full id when it only knows the short one", async () => {
+    const docker = new FakeDocker();
+    docker.networks = ["br0", "ark-net", "palisade-net"];
+    docker.legacyMembers = [MANAGER_FULL]; // only us
+    selfId = MANAGER_SHORT;
+    await make(docker).ensureManagerNetworks();
+    expect(docker.disconnected).toEqual(["ark-net"]);
+  });
+
+  it("says nothing about a socket-proxy when it is alone on the network", async () => {
+    const docker = new FakeDocker();
+    docker.networks = ["br0", "ark-net", "palisade-net"];
+    docker.legacyMembers = [MANAGER_FULL];
+    expect(await make(docker).migrationNote()).toBeNull();
+  });
+
+  it("stands down when it cannot identify itself at all", async () => {
+    // Every id would look like a stranger, which would pin it to ark-net forever.
+    selfId = null;
+    const docker = new FakeDocker();
+    docker.networks = ["br0", "ark-net", "palisade-net"];
+    expect(await make(docker).migrationNote()).toBeNull();
+    expect(docker.disconnected).toEqual([]);
   });
 });

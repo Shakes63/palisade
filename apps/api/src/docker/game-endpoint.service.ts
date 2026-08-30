@@ -9,6 +9,7 @@ import {
   NetworkPlanInput,
   dockerViaProxy,
   legacyMigrationNote,
+  sameContainerId,
   shouldLeaveLegacy,
   targetNetwork,
 } from "../common/shared-network";
@@ -173,12 +174,16 @@ export class GameEndpointService {
     const ids = await this.docker.networkContainerIds(LEGACY_NETWORK);
     if (ids === null) return null; // network absent, or the API is denied to us
     const selfId = await this.selfId();
-    const managed = new Set((await this.docker.listManagedServers()).map((s) => s.id));
+    // Without knowing which container we are, every id on that network looks like a
+    // stranger — which would wrongly pin us to the legacy network forever.
+    if (!selfId) return null;
+    const managed = (await this.docker.listManagedServers()).map((s) => s.id);
+    const isManaged = (id: string) => managed.some((m) => sameContainerId(id, m));
     return {
       override: loadEnv().SHARED_NETWORK,
       managerNetworks: manager.networks,
-      legacyServers: ids.filter((id) => managed.has(id)).length,
-      otherOnLegacy: ids.some((id) => id !== selfId && !managed.has(id)),
+      legacyServers: ids.filter(isManaged).length,
+      otherOnLegacy: ids.some((id) => !sameContainerId(id, selfId) && !isManaged(id)),
       dockerViaProxy: dockerViaProxy(loadEnv().DOCKER_HOST),
     };
   }
