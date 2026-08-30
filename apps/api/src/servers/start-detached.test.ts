@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, beforeEach } from "vitest";
 import { FakeDocker, makeRow, makeService, neuterGuards, setupE2eEnv } from "./lifecycle-harness";
-import { ServerState } from "@ark/shared";
+import { Game, ServerState } from "@ark/shared";
 
 /**
  * A first start pulls the game image — 3.3 GB for Palworld's Wine variant — which
@@ -85,5 +85,21 @@ describe("startDetached", () => {
     const after = await prisma.server.findUnique();
     expect(after?.state).toBe(ServerState.Crashed);
     expect(after?.crashReason).toMatch(/isn't available/);
+  });
+
+  it("still rejects a guard that fires before the commit, rather than crashing", async () => {
+    // Regression guard for the interaction between #39 and this change: the Wine
+    // port check originally sat inside the launch, so detaching turned its 400 into
+    // a 201 followed by a Crashed server. Anything that can answer the caller has to
+    // run before admission.
+    const row = makeRow({ game: Game.PALWORLD_WINE, gamePort: 9000, hostNetwork: true });
+    const { service, prisma } = await makeService(row, docker);
+    neuterGuards(service);
+
+    await expect(service.startDetached(row.id)).rejects.toThrow(/always listens on 8211/);
+    // And it never committed the server, so there is no phantom crash to explain.
+    const after = await prisma.server.findUnique();
+    expect(after?.state).not.toBe(ServerState.Crashed);
+    expect(docker.createdSpecs.length).toBe(0);
   });
 });

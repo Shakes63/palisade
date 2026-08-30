@@ -47,6 +47,8 @@ export interface ServerRow {
   configDirty: boolean;
   crashReason?: string | null;
   updateRequested?: boolean;
+  /** Per-server host-networking override; null = follow the manager setting. */
+  hostNetwork?: boolean | null;
 }
 
 export function makeRow(over: Partial<ServerRow> = {}): ServerRow {

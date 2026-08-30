@@ -1272,6 +1272,16 @@ export class ServersService implements OnApplicationBootstrap, OnApplicationShut
     // up front with a clear message instead. Not bypassed by force — that flag is
     // for the RAM guard; a port clash can never work.
     await this.assertPortsFree(server);
+    // The Wine image can't move its game port, so refuse rather than start a server
+    // reachable somewhere other than where the panel says it is (GH #39). Must run
+    // BEFORE the commit to Starting: past that point the HTTP caller has already been
+    // released, and this would surface as a crash instead of a rejected request.
+    const portIssue = palworldWinePortIssue(
+      server.game as Game,
+      this.portsOf(server),
+      server.hostNetwork ?? (await this.settings.getGameHostNetwork()) ?? loadEnv().GAME_HOST_NETWORK,
+    );
+    if (portIssue) throw new BadRequestException(portIssue);
 
     await this.sm.transition(id, ServerState.Starting);
     // Fresh attempt → drop any stale crash reason from a previous failed boot.
@@ -1325,15 +1335,6 @@ export class ServersService implements OnApplicationBootstrap, OnApplicationShut
         await chown(LocalPaths.instanceRoot(id), SERVER_UID[game], SERVER_GID[game]).catch(() => undefined);
         await chown(dataDir, SERVER_UID[game], SERVER_GID[game]).catch(() => undefined);
       }
-
-      // The Wine image can't move its game port, so refuse rather than start a server
-      // reachable somewhere other than where the panel says it is (GH #39).
-      const portIssue = palworldWinePortIssue(
-        server.game as Game,
-        this.portsOf(server),
-        server.hostNetwork ?? (await this.settings.getGameHostNetwork()) ?? loadEnv().GAME_HOST_NETWORK,
-      );
-      if (portIssue) throw new Error(portIssue);
 
       const spec = await this.assembleSpec(server);
 
