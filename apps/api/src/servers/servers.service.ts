@@ -995,10 +995,11 @@ export class ServersService implements OnApplicationBootstrap, OnApplicationShut
    * Start for the HTTP layer: resolves once the server is committed to Starting,
    * while the launch itself finishes in the background under the same lock.
    *
-   * A first start pulls a game image — 3.3 GB for Palworld's Wine variant — which
-   * routinely outlives Node's 5-minute default requestTimeout. The socket was then
-   * torn down mid-pull, the web app's proxy logged ECONNRESET, and the UI reported
-   * "Internal Server Error" for a start that was working fine and did reach Running.
+   * A first start pulls a game image — 3.3 GB for Palworld's Wine variant — far
+   * longer than the web app's rewrite proxy will hold a connection. It severs at
+   * ~30s (measured; Next 15 exposes no timeout to raise), the API sees ECONNRESET,
+   * and the UI reports "Internal Server Error" for a start that was working fine and
+   * did reach Running. Treat ~30s as the hard ceiling for anything the UI calls.
    *
    * Validation still answers synchronously, so a bad request is still a 400. Only
    * the slow half is detached, and its failures are already recorded on the server
@@ -1574,20 +1575,37 @@ export class ServersService implements OnApplicationBootstrap, OnApplicationShut
   }
 
   /**
-   * Restart for the HTTP layer — the sibling of startDetached, and affected by the
-   * same thing: a relaunch pulls the game image, so restart could outlive Node's
-   * 5-minute requestTimeout and report a failure for a restart that worked.
+   * Restart for the HTTP layer. Detaches the WHOLE restart, stop included.
    *
-   * Only the relaunch is detached. The stop is awaited because it is already
-   * bounded — a 30s wait for the world save, then Docker's 60s stop grace — so it
-   * cannot be what blows the budget, and awaiting it keeps the restart ordered.
+   * Measured rather than assumed: the API answers a restart correctly in ~43s, but
+   * the web app's rewrite proxy severs the connection at ~30s and the browser gets a
+   * 500 for a restart that worked. Next 15 exposes no timeout to raise, so anything
+   * held open past ~30s is unreportable through the UI — and a restart cannot fit,
+   * because the stop alone waits up to 30s for the world save before Docker's stop
+   * grace even starts.
+   *
+   * The cheap checks still answer the caller: a bad id is a 404, and a Wine server
+   * on an impossible port is a 400 (GH #39). Everything after that is reported the
+   * way the UI already follows a restart — Stopping, Starting, then Running or
+   * Crashed with a reason.
    *
    * restart() itself is unchanged: the scheduler, the cluster restart and the
    * crash-recovery path all rely on it awaiting completion.
    */
   async restartDetached(id: string): Promise<void> {
-    await this.stop(id).catch(() => undefined);
-    return this.startDetached(id, { force: true });
+    const server = await this.prisma.server.findUnique({ where: { id } });
+    if (!server) throw new NotFoundException("Server not found");
+    const portIssue = palworldWinePortIssue(
+      server.game as Game,
+      this.portsOf(server),
+      server.hostNetwork ?? (await this.settings.getGameHostNetwork()) ?? loadEnv().GAME_HOST_NETWORK,
+    );
+    if (portIssue) throw new BadRequestException(portIssue);
+
+    // Failures land on the server as Crashed + crashReason; nothing is waiting here.
+    void this.restart(id).catch((e) =>
+      this.logger.warn(`restart of ${id} failed: ${(e as Error).message}`),
+    );
   }
 
   /**

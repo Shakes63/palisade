@@ -110,54 +110,43 @@ describe("restartDetached", () => {
     docker = new FakeDocker();
   });
 
-  /** Stop is stubbed the way the existing restart e2e does — the real one waits up
-   *  to 30s for a save marker the fake never emits. It records the call so ordering
-   *  is still asserted. */
-  const withRecordedStop = (service: unknown, row: { state: string }, calls: string[]) => {
-    (service as Record<string, unknown>).stop = async (id: string) => {
-      calls.push(`stop:${id}`);
-      row.state = ServerState.Stopped; // what a real stop leaves behind
-    };
-  };
-
-  it("returns while the relaunch is still pulling", async () => {
-    // The same bug start had, in its sibling: a restart pulls the image too.
+  it("returns immediately, without waiting for the stop", async () => {
+    // The whole restart detaches: the API answered a real restart in ~43s, but the
+    // web app's proxy severs at ~30s, and the stop alone can spend 30s waiting for a
+    // world save. Nothing about a restart fits inside that budget.
     const row = makeRow({ state: ServerState.Running, containerId: "c1" });
     const { service } = await makeService(row, docker);
     neuterGuards(service);
-    withRecordedStop(service, row, []);
 
-    let releasePull!: () => void;
-    const pulling = new Promise<void>((res) => (releasePull = res));
-    docker.pullImage = async () => {
-      await pulling;
-    };
+    // A stop that never finishes: returning still has to be immediate.
+    (service as unknown as Record<string, unknown>).stop = () => new Promise<void>(() => {});
 
     await service.restartDetached(row.id);
-    // Still mid-pull, so the relaunch has not created anything yet.
     expect(docker.createdSpecs.length).toBe(0);
-
-    releasePull();
   });
 
-  it("stops first, then commits to Starting before returning", async () => {
-    const row = makeRow({ state: ServerState.Running, containerId: "c1" });
-    const { service, prisma } = await makeService(row, docker);
+  it("still answers a bad id rather than detaching into nothing", async () => {
+    const row = makeRow({ state: ServerState.Running });
+    const { service } = await makeService(row, docker);
     neuterGuards(service);
-    const calls: string[] = [];
-    withRecordedStop(service, row, calls);
-
-    let releasePull!: () => void;
-    const pulling = new Promise<void>((res) => (releasePull = res));
-    docker.pullImage = async () => {
-      await pulling;
+    (service as unknown as Record<string, unknown>).prisma = {
+      server: { findUnique: async () => null },
     };
+    await expect(service.restartDetached("nope")).rejects.toThrow(/not found/i);
+  });
 
-    await service.restartDetached(row.id);
-    expect(calls).toEqual([`stop:${row.id}`]);
-    const after = await prisma.server.findUnique();
-    expect(after?.state).toBe(ServerState.Starting);
-
-    releasePull();
+  it("still answers the Wine port guard synchronously", async () => {
+    // The one validation worth keeping in front of the caller: it is cheap, pure,
+    // and the alternative is a crash the user has to go and read (GH #39).
+    const row = makeRow({
+      game: Game.PALWORLD_WINE,
+      gamePort: 9000,
+      hostNetwork: true,
+      state: ServerState.Running,
+    });
+    const { service } = await makeService(row, docker);
+    neuterGuards(service);
+    await expect(service.restartDetached(row.id)).rejects.toThrow(/always listens on 8211/);
+    expect(docker.createdSpecs.length).toBe(0);
   });
 });
