@@ -96,6 +96,12 @@ model Server {
   // save size and how much history is worth keeping; the global setting now
   // governs Palisade's own database backups instead.
   backupKeep       Int?
+  // Run THIS server's container on the host network instead of the shared bridge.
+  // Null = follow the manager-wide setting (and, unset there, GAME_HOST_NETWORK).
+  // Per-server because the trade-off is per-game: host networking makes ASA/EOS
+  // advertise the host's real address (more reliable public listing), while the
+  // bridge keeps ports tidy and isolated for everything else.
+  hostNetwork      Boolean?
   // User-defined extra environment variables injected into the game container.
   // ENCRYPTED at rest (AES-256-GCM via SECRETS_KEY), like the password columns:
   // the headline use case for this feature is pinning a Palworld build, which

@@ -54,6 +54,7 @@ export interface ServerSummary {
   /** How many AUTOMATIC backups to keep for this server. Null = the built-in
    *  default. Manual backups are exempt and uncounted (GH #34). */
   backupKeep?: number | null;
+  hostNetwork?: boolean | null;
   /** NAMES of the user-defined env vars injected into the game container at start.
    *  Values are deliberately absent: they routinely hold credentials (Steam login
    *  for a pinned build), and this summary is readable by every role. Read them
@@ -182,6 +183,7 @@ export interface CreateServerDto {
   imageTag?: string | null;
   /** How many automatic backups to keep for this server (null = default). */
   backupKeep?: number | null;
+  hostNetwork?: boolean | null;
 }
 
 export type UpdateServerDto = Partial<CreateServerDto> & {

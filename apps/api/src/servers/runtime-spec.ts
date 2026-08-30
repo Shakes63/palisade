@@ -77,6 +77,15 @@ export interface RuntimeSpecInput {
   cpuLimit?: number | null;
   /** IANA timezone for the game container clock; falls back to the manager's TZ. */
   timezone?: string | null;
+  /** Run this container on the host network instead of the shared bridge. Already
+   *  resolved by the caller (per-server column → manager setting); null falls back
+   *  to GAME_HOST_NETWORK, so an install with neither set behaves as its template
+   *  says. Decides how the container is CREATED only — how the manager then reaches
+   *  it is read back off the container (common/game-endpoint.ts). */
+  hostNetwork?: boolean | null;
+  /** Base URL for the WebUI buttons Palisade puts on spawned containers; falls back
+   *  to PUBLIC_BASE_URL. */
+  baseUrl?: string | null;
   /** CurseForge API key (Minecraft only) — lets itzg auto-install a modpack. */
   curseForgeApiKey?: string | null;
   /** Zomboid only: the in-game "Mod ID" names (Mods=) matching modIds (WorkshopItems=). */
@@ -245,6 +254,17 @@ function gameSpecFor(input: RuntimeSpecInput): Docker.ContainerCreateOptions {
   return buildAseSpec(input);
 }
 
+/** Whether this container runs on the host network: the server's own choice, else
+ *  the manager setting the caller resolved, else the environment. */
+function hostNetworkFor(input: RuntimeSpecInput): boolean {
+  return input.hostNetwork ?? loadEnv().GAME_HOST_NETWORK;
+}
+
+/** Where a spawned container's Unraid WebUI button points back to. */
+function baseUrlFor(input: RuntimeSpecInput): string {
+  return input.baseUrl || loadEnv().PUBLIC_BASE_URL;
+}
+
 /**
  * The bridge every non-host-network game container joins, so the manager can reach
  * its admin ports. Host-network specs get nothing — they share the host's stack.
@@ -265,7 +285,8 @@ const portKey = (p: number, proto: "udp" | "tcp") => `${p}/${proto}`;
  * icon (the game's badge) and a WebUI deep-link back to the manager's page for
  * this server, so each spawned server looks right on the Unraid Docker dashboard.
  */
-function serverLabels(input: RuntimeSpecInput, baseUrl: string): Record<string, string> {
+function serverLabels(input: RuntimeSpecInput): Record<string, string> {
+  const baseUrl = baseUrlFor(input);
   return {
     "ark.role": "server",
     "ark.serverId": input.serverId,
@@ -354,13 +375,13 @@ function buildPokSpec(input: RuntimeSpecInput): Docker.ContainerCreateOptions {
 
   // Host network removes the Docker NAT layer (better ASA/EOS listing); on the
   // bridge we publish the game + RCON ports and attach to ark-net instead.
-  const hostNet = env.GAME_HOST_NETWORK;
+  const hostNet = hostNetworkFor(input);
   return {
     name: containerName(input.serverId, input.game, input.sessionName),
     Image: IMAGES[Game.ASA],
     Hostname: containerName(input.serverId, input.game, input.sessionName),
     Env: pokEnv,
-    Labels: serverLabels(input, env.PUBLIC_BASE_URL),
+    Labels: serverLabels(input),
     ...(hostNet
       ? {}
       : {
@@ -445,14 +466,14 @@ function buildAseSpec(input: RuntimeSpecInput): Docker.ContainerCreateOptions {
     [portKey(ports.rcon, "tcp")]: [{ HostPort: String(ports.rcon) }],
   };
 
-  const hostNet = env.GAME_HOST_NETWORK;
+  const hostNet = hostNetworkFor(input);
   return {
     name: containerName(input.serverId, input.game, input.sessionName),
     Image: IMAGES[Game.ASE],
     Hostname: containerName(input.serverId, input.game, input.sessionName),
     Cmd: cmd,
     Env: aseEnv,
-    Labels: serverLabels(input, env.PUBLIC_BASE_URL),
+    Labels: serverLabels(input),
     ...(hostNet ? {} : { ExposedPorts: exposed }),
     HostConfig: {
       Binds: binds,
@@ -542,13 +563,13 @@ function buildConanSpec(input: RuntimeSpecInput): Docker.ContainerCreateOptions 
     `${root}/backups:${CONAN_DATA_DIR}/backups`,
   ];
 
-  const hostNet = env.GAME_HOST_NETWORK;
+  const hostNet = hostNetworkFor(input);
   return {
     name: containerName(input.serverId, input.game, input.sessionName),
     Image: IMAGES[Game.CONAN],
     Hostname: containerName(input.serverId, input.game, input.sessionName),
     Env: conanEnv,
-    Labels: serverLabels(input, env.PUBLIC_BASE_URL),
+    Labels: serverLabels(input),
     ...(hostNet
       ? {}
       : {
@@ -620,13 +641,13 @@ function buildPalworldSpec(input: RuntimeSpecInput): Docker.ContainerCreateOptio
   // saves (saves at Pal/Saved/SaveGames beneath the instance dir).
   const binds = [`${HostPaths.instanceRoot(input.serverId)}:${PALWORLD_DATA_DIR}`];
 
-  const hostNet = env.GAME_HOST_NETWORK;
+  const hostNet = hostNetworkFor(input);
   return {
     name: containerName(input.serverId, input.game, input.sessionName),
     Image: IMAGES[Game.PALWORLD],
     Hostname: containerName(input.serverId, input.game, input.sessionName),
     Env: palEnv,
-    Labels: serverLabels(input, env.PUBLIC_BASE_URL),
+    Labels: serverLabels(input),
     ...(hostNet
       ? {}
       : {
@@ -690,7 +711,7 @@ function buildPalworldWineSpec(input: RuntimeSpecInput): Docker.ContainerCreateO
   const env = loadEnv();
   const { ports } = input;
   const name = containerName(input.serverId, input.game, input.sessionName);
-  const hostNet = env.GAME_HOST_NETWORK;
+  const hostNet = hostNetworkFor(input);
 
   const palEnv = [
     `TZ=${input.timezone || env.TZ}`,
@@ -735,7 +756,7 @@ function buildPalworldWineSpec(input: RuntimeSpecInput): Docker.ContainerCreateO
     Image: IMAGES[Game.PALWORLD_WINE],
     Hostname: name,
     Env: palEnv,
-    Labels: serverLabels(input, env.PUBLIC_BASE_URL),
+    Labels: serverLabels(input),
     ...(hostNet
       ? {}
       : {
@@ -819,13 +840,13 @@ function buildMinecraftSpec(input: RuntimeSpecInput): Docker.ContainerCreateOpti
   // One bind covers the jar, config + all worlds (overworld at /data/world).
   const binds = [`${HostPaths.instanceRoot(input.serverId)}:${MINECRAFT_DATA_DIR}`];
 
-  const hostNet = env.GAME_HOST_NETWORK;
+  const hostNet = hostNetworkFor(input);
   return {
     name: containerName(input.serverId, input.game, input.sessionName),
     Image: IMAGES[Game.MINECRAFT],
     Hostname: containerName(input.serverId, input.game, input.sessionName),
     Env: mcEnv,
-    Labels: serverLabels(input, env.PUBLIC_BASE_URL),
+    Labels: serverLabels(input),
     ...(hostNet
       ? {}
       : {
@@ -897,13 +918,13 @@ function buildIcarusSpec(input: RuntimeSpecInput): Docker.ContainerCreateOptions
   const root = HostPaths.instanceRoot(input.serverId);
   const binds = [`${root}/config:${ICARUS_CONFIG_DIR}`, `${root}/gamefiles:${ICARUS_GAME_DIR}`];
 
-  const hostNet = env.GAME_HOST_NETWORK;
+  const hostNet = hostNetworkFor(input);
   return {
     name: containerName(input.serverId, input.game, input.sessionName),
     Image: IMAGES[Game.ICARUS],
     Hostname: containerName(input.serverId, input.game, input.sessionName),
     Env: icarusEnv,
-    Labels: serverLabels(input, env.PUBLIC_BASE_URL),
+    Labels: serverLabels(input),
     ...(hostNet
       ? {}
       : {
@@ -970,13 +991,13 @@ function buildBedrockSpec(input: RuntimeSpecInput): Docker.ContainerCreateOption
   // One bind covers the server + config + worlds (worlds at /data/worlds).
   const binds = [`${HostPaths.instanceRoot(input.serverId)}:${BEDROCK_DATA_DIR}`];
 
-  const hostNet = env.GAME_HOST_NETWORK;
+  const hostNet = hostNetworkFor(input);
   return {
     name: containerName(input.serverId, input.game, input.sessionName),
     Image: IMAGES[Game.BEDROCK],
     Hostname: containerName(input.serverId, input.game, input.sessionName),
     Env: bedrockEnv,
-    Labels: serverLabels(input, env.PUBLIC_BASE_URL),
+    Labels: serverLabels(input),
     ...(hostNet
       ? {}
       : {
@@ -1047,13 +1068,13 @@ function buildValheimSpec(input: RuntimeSpecInput): Docker.ContainerCreateOption
   const root = HostPaths.instanceRoot(input.serverId);
   const binds = [`${root}/config:${VALHEIM_CONFIG_DIR}`, `${root}/gamefiles:${VALHEIM_GAME_DIR}`];
 
-  const hostNet = env.GAME_HOST_NETWORK;
+  const hostNet = hostNetworkFor(input);
   return {
     name: containerName(input.serverId, input.game, input.sessionName),
     Image: IMAGES[Game.VALHEIM],
     Hostname: containerName(input.serverId, input.game, input.sessionName),
     Env: valheimEnv,
-    Labels: serverLabels(input, env.PUBLIC_BASE_URL),
+    Labels: serverLabels(input),
     ...(hostNet
       ? {}
       : {
@@ -1167,13 +1188,13 @@ function buildSevenDaysSpec(input: RuntimeSpecInput): Docker.ContainerCreateOpti
     [portKey(ports.rcon, "tcp")]: [{ HostPort: String(ports.rcon) }],
   };
 
-  const hostNet = env.GAME_HOST_NETWORK;
+  const hostNet = hostNetworkFor(input);
   return {
     name: containerName(input.serverId, input.game, input.sessionName),
     Image: IMAGES[Game.SEVEN_DAYS],
     Hostname: containerName(input.serverId, input.game, input.sessionName),
     Env: sdtdEnv,
-    Labels: serverLabels(input, env.PUBLIC_BASE_URL),
+    Labels: serverLabels(input),
     ...(hostNet ? {} : { ExposedPorts: exposed }),
     HostConfig: {
       Binds: binds,
@@ -1226,13 +1247,13 @@ function buildEnshroudedSpec(input: RuntimeSpecInput): Docker.ContainerCreateOpt
   // server/savegame inside the gamefiles bind — see LocalPaths.saveSubpaths).
   const binds = [`${HostPaths.instanceRoot(input.serverId)}/gamefiles:${ENSHROUDED_GAME_DIR}`];
 
-  const hostNet = env.GAME_HOST_NETWORK;
+  const hostNet = hostNetworkFor(input);
   return {
     name: containerName(input.serverId, input.game, input.sessionName),
     Image: IMAGES[Game.ENSHROUDED],
     Hostname: containerName(input.serverId, input.game, input.sessionName),
     Env: enshroudedEnv,
-    Labels: serverLabels(input, env.PUBLIC_BASE_URL),
+    Labels: serverLabels(input),
     ...(hostNet
       ? {}
       : {
@@ -1347,13 +1368,13 @@ function buildZomboidSpec(input: RuntimeSpecInput): Docker.ContainerCreateOption
   const binds = [`${HostPaths.instanceRoot(input.serverId)}/data:${ZOMBOID_DATA_DIR}`];
 
   const udpPorts = [ports.game, ports.rawSocket, ...ZOMBOID_STEAM_PORTS];
-  const hostNet = env.GAME_HOST_NETWORK;
+  const hostNet = hostNetworkFor(input);
   return {
     name: containerName(input.serverId, input.game, input.sessionName),
     Image: IMAGES[Game.ZOMBOID],
     Hostname: containerName(input.serverId, input.game, input.sessionName),
     Env: zomboidEnv,
-    Labels: serverLabels(input, env.PUBLIC_BASE_URL),
+    Labels: serverLabels(input),
     ...(hostNet
       ? {}
       : {
@@ -1533,7 +1554,7 @@ function buildVRisingSpec(input: RuntimeSpecInput): Docker.ContainerCreateOption
     `${root}/persistentdata:${VRISING_DATA_DIR}`, // saves + settings JSONs
   ];
 
-  const hostNet = env.GAME_HOST_NETWORK;
+  const hostNet = hostNetworkFor(input);
   return {
     name: containerName(input.serverId, input.game, input.sessionName),
     Image: IMAGES[Game.VRISING],
@@ -1541,7 +1562,7 @@ function buildVRisingSpec(input: RuntimeSpecInput): Docker.ContainerCreateOption
     // CRLF fix from the image's own README (see the function comment).
     Entrypoint: ["/bin/bash", "-c", "sed -i 's/\\r//g' /start.sh && exec /bin/bash /start.sh"],
     Env: vrisingEnv,
-    Labels: serverLabels(input, env.PUBLIC_BASE_URL),
+    Labels: serverLabels(input),
     ...(hostNet
       ? {}
       : {
@@ -1607,13 +1628,13 @@ function buildSotfSpec(input: RuntimeSpecInput): Docker.ContainerCreateOptions {
   const binds = [`${HostPaths.instanceRoot(input.serverId)}/game:${SOTF_GAME_DIR}`];
 
   const udpPorts = [ports.game, ports.query, ports.rawSocket]; // 8766 / 27016 / 9700 (blob sync)
-  const hostNet = env.GAME_HOST_NETWORK;
+  const hostNet = hostNetworkFor(input);
   return {
     name: containerName(input.serverId, input.game, input.sessionName),
     Image: IMAGES[Game.SOTF],
     Hostname: containerName(input.serverId, input.game, input.sessionName),
     Env: sotfEnv,
-    Labels: serverLabels(input, env.PUBLIC_BASE_URL),
+    Labels: serverLabels(input),
     ...(hostNet
       ? {}
       : { ExposedPorts: Object.fromEntries(udpPorts.map((p) => [portKey(p, "udp"), {}])) }),
@@ -1704,13 +1725,13 @@ function buildSatisfactorySpec(input: RuntimeSpecInput): Docker.ContainerCreateO
 
   const binds = [`${HostPaths.instanceRoot(input.serverId)}/config:${SATISFACTORY_CONFIG_DIR}`];
 
-  const hostNet = env.GAME_HOST_NETWORK;
+  const hostNet = hostNetworkFor(input);
   return {
     name: containerName(input.serverId, input.game, input.sessionName),
     Image: IMAGES[Game.SATISFACTORY],
     Hostname: containerName(input.serverId, input.game, input.sessionName),
     Env: satisfactoryEnv,
-    Labels: serverLabels(input, env.PUBLIC_BASE_URL),
+    Labels: serverLabels(input),
     ...(hostNet
       ? {}
       : {
@@ -1783,13 +1804,13 @@ function buildLifSpec(input: RuntimeSpecInput): Docker.ContainerCreateOptions {
   // The server uses its base port + the two above (TCP AND UDP); the ich777
   // template maps a 4th (28003) as well, so publish the whole block both ways.
   const blockPorts = [ports.game, ports.rawSocket, ports.query, ports.game + 3];
-  const hostNet = env.GAME_HOST_NETWORK;
+  const hostNet = hostNetworkFor(input);
   return {
     name: containerName(input.serverId, input.game, input.sessionName),
     Image: IMAGES[Game.LIF],
     Hostname: containerName(input.serverId, input.game, input.sessionName),
     Env: lifEnv,
-    Labels: serverLabels(input, env.PUBLIC_BASE_URL),
+    Labels: serverLabels(input),
     ...(hostNet
       ? {}
       : {
@@ -1854,13 +1875,13 @@ function buildFactorioSpec(input: RuntimeSpecInput): Docker.ContainerCreateOptio
 
   const binds = [`${HostPaths.instanceRoot(input.serverId)}/data:${FACTORIO_DATA_DIR}`];
 
-  const hostNet = env.GAME_HOST_NETWORK;
+  const hostNet = hostNetworkFor(input);
   return {
     name: containerName(input.serverId, input.game, input.sessionName),
     Image: IMAGES[Game.FACTORIO],
     Hostname: containerName(input.serverId, input.game, input.sessionName),
     Env: factorioEnv,
-    Labels: serverLabels(input, env.PUBLIC_BASE_URL),
+    Labels: serverLabels(input),
     ...(hostNet
       ? {}
       : {
@@ -1970,13 +1991,13 @@ function buildRustSpec(input: RuntimeSpecInput): Docker.ContainerCreateOptions {
 
   const binds = [`${HostPaths.instanceRoot(input.serverId)}/data:${RUST_DATA_DIR}`];
 
-  const hostNet = env.GAME_HOST_NETWORK;
+  const hostNet = hostNetworkFor(input);
   return {
     name: containerName(input.serverId, input.game, input.sessionName),
     Image: IMAGES[Game.RUST],
     Hostname: containerName(input.serverId, input.game, input.sessionName),
     Env: rustEnv,
-    Labels: serverLabels(input, env.PUBLIC_BASE_URL),
+    Labels: serverLabels(input),
     ...(hostNet
       ? {}
       : {
@@ -2040,13 +2061,13 @@ function buildBeammpSpec(input: RuntimeSpecInput): Docker.ContainerCreateOptions
     `${root}/mods-server:${BEAMMP_SERVER_MODS_DIR}`, // server-side Lua plugins
   ];
 
-  const hostNet = env.GAME_HOST_NETWORK;
+  const hostNet = hostNetworkFor(input);
   return {
     name: containerName(input.serverId, input.game, input.sessionName),
     Image: IMAGES[Game.BEAMMP],
     Hostname: containerName(input.serverId, input.game, input.sessionName),
     Env: beammpEnv,
-    Labels: serverLabels(input, env.PUBLIC_BASE_URL),
+    Labels: serverLabels(input),
     ...(hostNet
       ? {}
       : {
@@ -2113,14 +2134,14 @@ function buildTerrariaSpec(input: RuntimeSpecInput): Docker.ContainerCreateOptio
     `${root}/logs:${TERRARIA_LOGS_DIR}`,
   ];
 
-  const hostNet = env.GAME_HOST_NETWORK;
+  const hostNet = hostNetworkFor(input);
   return {
     name: containerName(input.serverId, input.game, input.sessionName),
     Image: IMAGES[Game.TERRARIA],
     Hostname: containerName(input.serverId, input.game, input.sessionName),
     Env: [`TZ=${input.timezone || env.TZ}`, `WORLD_FILENAME=world.wld`],
     Cmd: args,
-    Labels: serverLabels(input, env.PUBLIC_BASE_URL),
+    Labels: serverLabels(input),
     ...(hostNet
       ? {}
       : {
@@ -2226,13 +2247,13 @@ function buildCoreKeeperSpec(input: RuntimeSpecInput): Docker.ContainerCreateOpt
     `${root}/data:${CORE_KEEPER_DATA_DIR}`, // world saves
   ];
 
-  const hostNet = env.GAME_HOST_NETWORK;
+  const hostNet = hostNetworkFor(input);
   return {
     name: containerName(input.serverId, input.game, input.sessionName),
     Image: IMAGES[Game.CORE_KEEPER],
     Hostname: containerName(input.serverId, input.game, input.sessionName),
     Env: ckEnv,
-    Labels: serverLabels(input, env.PUBLIC_BASE_URL),
+    Labels: serverLabels(input),
     HostConfig: {
       Binds: binds,
       ...(hostNet ? { NetworkMode: "host" } : {}),
@@ -2290,13 +2311,13 @@ function buildAtsSpec(input: RuntimeSpecInput): Docker.ContainerCreateOptions {
   ];
 
   const udpPorts = [ports.game, ports.query]; // 27015 connection + 27016 query
-  const hostNet = env.GAME_HOST_NETWORK;
+  const hostNet = hostNetworkFor(input);
   return {
     name: containerName(input.serverId, input.game, input.sessionName),
     Image: IMAGES[input.game],
     Hostname: containerName(input.serverId, input.game, input.sessionName),
     Env: atsEnv,
-    Labels: serverLabels(input, env.PUBLIC_BASE_URL),
+    Labels: serverLabels(input),
     ...(hostNet
       ? {}
       : { ExposedPorts: Object.fromEntries(udpPorts.map((p) => [portKey(p, "udp"), {}])) }),
@@ -2354,7 +2375,7 @@ function buildCs2Spec(input: RuntimeSpecInput): Docker.ContainerCreateOptions {
   ];
 
   const binds = [`${HostPaths.instanceRoot(input.serverId)}:${CS2_DATA_DIR}`];
-  const hostNet = env.GAME_HOST_NETWORK;
+  const hostNet = hostNetworkFor(input);
   const portMap: [string, number][] = [
     [portKey(ports.game, "tcp"), ports.game],
     [portKey(ports.game, "udp"), ports.game],
@@ -2366,7 +2387,7 @@ function buildCs2Spec(input: RuntimeSpecInput): Docker.ContainerCreateOptions {
     Image: IMAGES[input.game],
     Hostname: name,
     Env: cs2Env,
-    Labels: serverLabels(input, env.PUBLIC_BASE_URL),
+    Labels: serverLabels(input),
     ...(hostNet ? {} : { ExposedPorts: Object.fromEntries(portMap.map(([k]) => [k, {}])) }),
     HostConfig: {
       Binds: binds,
@@ -2419,14 +2440,14 @@ function buildDstSpec(input: RuntimeSpecInput): Docker.ContainerCreateOptions {
   ];
 
   const binds = [`${HostPaths.instanceRoot(input.serverId)}:${DST_DATA_DIR}`];
-  const hostNet = env.GAME_HOST_NETWORK;
+  const hostNet = hostNetworkFor(input);
   const udp = [ports.game, ports.rawSocket, ports.query, ports.query + 1];
   return {
     name,
     Image: IMAGES[input.game],
     Hostname: name,
     Env: dstEnv,
-    Labels: serverLabels(input, env.PUBLIC_BASE_URL),
+    Labels: serverLabels(input),
     ...(hostNet ? {} : { ExposedPorts: Object.fromEntries(udp.map((p) => [portKey(p, "udp"), {}])) }),
     HostConfig: {
       Binds: binds,
@@ -2563,14 +2584,14 @@ function buildOpenttdSpec(input: RuntimeSpecInput): Docker.ContainerCreateOption
   ];
 
   const binds = [`${HostPaths.instanceRoot(input.serverId)}:${OPENTTD_DATA_DIR}`];
-  const hostNet = env.GAME_HOST_NETWORK;
+  const hostNet = hostNetworkFor(input);
   const portEntries = [portKey(ports.game, "tcp"), portKey(ports.game, "udp")];
   return {
     name,
     Image: IMAGES[input.game],
     Hostname: name,
     Env: openttdEnv,
-    Labels: serverLabels(input, env.PUBLIC_BASE_URL),
+    Labels: serverLabels(input),
     ...(hostNet ? {} : { ExposedPorts: Object.fromEntries(portEntries.map((k) => [k, {}])) }),
     HostConfig: {
       Binds: binds,

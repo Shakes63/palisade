@@ -25,6 +25,11 @@ export default function SettingsPage() {
   const [pfsenseApiKey, setPfsenseApiKey] = useState("");
   const [pfsenseTargetIp, setPfsenseTargetIp] = useState("");
   const [pfTestMsg, setPfTestMsg] = useState<string | null>(null);
+  // Host overrides. "" means "not set here" — the env var keeps deciding.
+  const [gameHostNetwork, setGameHostNetwork] = useState("");
+  const [autoCreateNetwork, setAutoCreateNetwork] = useState("");
+  const [publicBaseUrl, setPublicBaseUrl] = useState("");
+  const [hostDataDir, setHostDataDir] = useState("");
   // Per-card save state: which card is mid-save / which just saved.
   const [busyCard, setBusyCard] = useState<string | null>(null);
   const [savedCard, setSavedCard] = useState<string | null>(null);
@@ -41,6 +46,10 @@ export default function SettingsPage() {
         setAutoStop(v.auto_stop_on_start !== "false"); // default on when unset
         if (typeof v.pfsense_host === "string") setPfsenseHost(v.pfsense_host);
         if (typeof v.pfsense_target_ip === "string") setPfsenseTargetIp(v.pfsense_target_ip);
+        setGameHostNetwork(typeof v.game_host_network === "string" ? v.game_host_network : "");
+        setAutoCreateNetwork(typeof v.auto_create_network === "string" ? v.auto_create_network : "");
+        setPublicBaseUrl(typeof v.public_base_url === "string" ? v.public_base_url : "");
+        setHostDataDir(typeof v.host_data_dir === "string" ? v.host_data_dir : "");
       })
       .catch(() => undefined);
   };
@@ -65,7 +74,7 @@ export default function SettingsPage() {
   /** Save ONE card's fields; `after` clears write-only secret inputs on success. */
   const saveCard = async (
     card: string,
-    body: Record<string, string | number | boolean>,
+    body: Record<string, string | number | boolean | null>,
     after?: () => void,
   ) => {
     setBusyCard(card);
@@ -107,6 +116,16 @@ export default function SettingsPage() {
   };
 
   const saveGeneral = () => void saveCard("general", timezone ? { timezone } : {});
+  /** "" (defer to the env var) has to travel as null, not "" — the API reads a
+   *  missing key as "no change", and an empty string as a value. */
+  const tri = (v: string) => (v === "" ? null : v === "true");
+  const saveHost = () =>
+    void saveCard("host", {
+      gameHostNetwork: tri(gameHostNetwork),
+      autoCreateNetwork: tri(autoCreateNetwork),
+      publicBaseUrl,
+      hostDataDir,
+    });
   const saveStartGuard = () => void saveCard("startguard", { autoStopOnStart: autoStop });
 
   const CardSave = ({ card, onClick }: { card: string; onClick: () => void }) => (
@@ -196,6 +215,73 @@ export default function SettingsPage() {
               </span>
             </label>
             <CardSave card="startguard" onClick={saveStartGuard} />
+          </div>
+          <div className="card space-y-4">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-ark-accent2">
+              Host &amp; networking
+            </h2>
+            <p className="text-xs text-slate-500">
+              These were container environment variables. Leave anything on{" "}
+              <span className="text-slate-400">Use environment</span> or blank to keep using the value
+              from your Docker template. Changes apply to each game server the next time it starts.
+            </p>
+            <div>
+              <label className="label">Game server networking</label>
+              <select
+                className="input"
+                value={gameHostNetwork}
+                onChange={(e) => setGameHostNetwork(e.target.value)}
+              >
+                <option value="">Use environment (GAME_HOST_NETWORK)</option>
+                <option value="true">Host network</option>
+                <option value="false">Shared bridge</option>
+              </select>
+              <p className="mt-1 text-xs text-slate-500">
+                Host networking makes ARK/EOS advertise your real address, which lists more
+                reliably; the bridge keeps ports isolated. Individual servers can override this on
+                their own Settings tab.
+              </p>
+            </div>
+            <div>
+              <label className="label">Manage the Docker network automatically</label>
+              <select
+                className="input"
+                value={autoCreateNetwork}
+                onChange={(e) => setAutoCreateNetwork(e.target.value)}
+              >
+                <option value="">Use environment (AUTO_CREATE_NETWORK)</option>
+                <option value="true">Yes — create and join it for me</option>
+                <option value="false">No — I manage Docker networks myself</option>
+              </select>
+            </div>
+            <div>
+              <label className="label">Public base URL</label>
+              <input
+                className="input"
+                value={publicBaseUrl}
+                placeholder="http://10.0.0.5:8970 — blank to use PUBLIC_BASE_URL"
+                onChange={(e) => setPublicBaseUrl(e.target.value)}
+              />
+              <p className="mt-1 text-xs text-slate-500">
+                The address you actually reach Palisade at. Used for links and for the WebUI button
+                on each game server in the Unraid Docker page.
+              </p>
+            </div>
+            <div>
+              <label className="label">App data path on the host</label>
+              <input
+                className="input"
+                value={hostDataDir}
+                placeholder="Blank — auto-detected from this container's /data mount"
+                onChange={(e) => setHostDataDir(e.target.value)}
+              />
+              <p className="mt-1 text-xs text-slate-500">
+                Where game files are bind-mounted from. Palisade detects this from its own /data
+                mount, so leave it blank unless the banner says the two disagree. Applies
+                immediately, to the next server you start.
+              </p>
+            </div>
+            <CardSave card="host" onClick={saveHost} />
           </div>
         </>
       )}

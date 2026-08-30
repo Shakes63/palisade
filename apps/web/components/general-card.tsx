@@ -75,6 +75,10 @@ export function GeneralCard({ server, onSaved }: { server: ServerSummary; onSave
   const [maxPlayers, setMaxPlayers] = useState(String(server.maxPlayers));
   const [ramLimit, setRamLimit] = useState(server.ramLimitMb ? String(server.ramLimitMb) : "");
   const [cpuLimit, setCpuLimit] = useState(server.cpuLimit ? String(server.cpuLimit) : "");
+  // "" = follow the manager-wide setting; "true"/"false" override it for this server.
+  const [hostNet, setHostNet] = useState(
+    server.hostNetwork == null ? "" : String(server.hostNetwork),
+  );
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
 
@@ -89,7 +93,8 @@ export function GeneralCard({ server, onSaved }: { server: ServerSummary; onSave
     (showMap && map !== server.map) ||
     Number(maxPlayers) !== server.maxPlayers ||
     (ramLimit === "" ? 0 : Number(ramLimit)) !== (server.ramLimitMb ?? 0) ||
-    (cpuLimit === "" ? 0 : Number(cpuLimit)) !== (server.cpuLimit ?? 0);
+    (cpuLimit === "" ? 0 : Number(cpuLimit)) !== (server.cpuLimit ?? 0) ||
+    hostNet !== (server.hostNetwork == null ? "" : String(server.hostNetwork));
 
   const save = async () => {
     setBusy(true);
@@ -103,6 +108,10 @@ export function GeneralCard({ server, onSaved }: { server: ServerSummary; onSave
       if (ram !== (server.ramLimitMb ?? 0)) body.ramLimitMb = ram; // 0 clears
       const cpu = cpuLimit === "" ? 0 : Math.max(0, Number(cpuLimit) || 0);
       if (cpu !== (server.cpuLimit ?? 0)) body.cpuLimit = cpu; // 0 clears
+      const current = server.hostNetwork == null ? "" : String(server.hostNetwork);
+      // null (not undefined) clears the override and hands this server back to the
+      // manager-wide setting.
+      if (hostNet !== current) body.hostNetwork = hostNet === "" ? null : hostNet === "true";
       await apiPatch(`/servers/${server.id}`, body);
       setSaved(true);
       onSaved();
@@ -175,6 +184,19 @@ export function GeneralCard({ server, onSaved }: { server: ServerSummary; onSave
           />
           <p className="mt-1 text-xs text-slate-500">Blank or 0 = no cap.</p>
         </div>
+      </div>
+      <div>
+        <label className="label">Networking</label>
+        <select className="input" value={hostNet} onChange={(e) => setHostNet(e.target.value)}>
+          <option value="">Use the manager default</option>
+          <option value="true">Host network</option>
+          <option value="false">Shared bridge</option>
+        </select>
+        <p className="mt-1 text-xs text-slate-500">
+          Host networking advertises this server on your real address, which lists more reliably
+          for ARK/EOS; the bridge keeps its ports isolated. Change it in Settings to move every
+          server at once.
+        </p>
       </div>
       <div className="flex items-center gap-3">
         <button className="btn-primary" onClick={save} disabled={!dirty || busy}>

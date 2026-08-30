@@ -57,7 +57,10 @@ class FakeDocker {
   }
 }
 
-const make = (docker: FakeDocker) => new GameEndpointService(docker as never);
+/** No stored overrides — every case here exercises the env-var fallback. */
+const noSettings = { getAutoCreateNetwork: async () => null } as never;
+
+const make = (docker: FakeDocker) => new GameEndpointService(docker as never, noSettings);
 
 beforeEach(() => {
   selfId = "manager-id";
@@ -94,6 +97,22 @@ describe("ensureManagerNetworks", () => {
     await make(docker).ensureManagerNetworks();
     expect(docker.connected).toEqual([]);
     expect(docker.disconnected).toEqual([]);
+  });
+
+  it("lets the stored setting override the env var, either way round", async () => {
+    process.env.AUTO_CREATE_NETWORK = "false";
+    resetEnvCache();
+    const on = new FakeDocker();
+    const settingOn = { getAutoCreateNetwork: async () => true } as never;
+    await new GameEndpointService(on as never, settingOn).ensureManagerNetworks();
+    expect(on.connected).toEqual(["palisade-net"]);
+
+    process.env.AUTO_CREATE_NETWORK = "true";
+    resetEnvCache();
+    const off = new FakeDocker();
+    const settingOff = { getAutoCreateNetwork: async () => false } as never;
+    await new GameEndpointService(off as never, settingOff).ensureManagerNetworks();
+    expect(off.connected).toEqual([]);
   });
 
   it("leaves a host-networked manager alone", async () => {

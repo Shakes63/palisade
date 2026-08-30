@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Patch } from "@nestjs/common";
 import { ModuleRef } from "@nestjs/core";
-import { IsBoolean, IsInt, IsOptional, IsString, Max, Min } from "class-validator";
+import { IsBoolean, IsInt, IsOptional, IsString, Max, Min, ValidateIf } from "class-validator";
 import { ManagerSettingsService, SettingKeys } from "./manager-settings.service";
 import { SchedulerService } from "../scheduler/scheduler.service";
 import { MinRole } from "../auth/min-role.decorator";
@@ -13,9 +13,21 @@ class UpdateSettingsBody {
   /** Palisade's own database snapshots. Game-server retention is per-server. */
   @IsOptional() @IsInt() @Min(1) @Max(500) managerBackupKeep?: number;
   @IsOptional() @IsBoolean() autoStopOnStart?: boolean;
+  // Host/runtime overrides. Null clears the override and hands the decision back to
+  // the environment variable, so "unset" stays reachable from the UI.
+  @IsOptional() @ValidateIf((_o, v) => v !== null) @IsBoolean() gameHostNetwork?: boolean | null;
+  @IsOptional() @ValidateIf((_o, v) => v !== null) @IsBoolean() autoCreateNetwork?: boolean | null;
+  @IsOptional() @IsString() publicBaseUrl?: string;
+  @IsOptional() @IsString() hostDataDir?: string;
   @IsOptional() @IsString() pfsenseHost?: string;
   @IsOptional() @IsString() pfsenseApiKey?: string;
   @IsOptional() @IsString() pfsenseTargetIp?: string;
+}
+
+/** "" for null so the row exists but reads back as unset — the tri-state the
+ *  getters rely on to let the environment variable win again. */
+function boolOverride(v: boolean | null): string {
+  return v === null ? "" : String(v);
 }
 
 // Even the "public" view exposes infrastructure config (pfSense host, data dir),
@@ -58,6 +70,20 @@ export class ManagerSettingsController {
     if (body.pfsenseApiKey) await this.settings.set(SettingKeys.PfsenseApiKey, body.pfsenseApiKey);
     if (body.pfsenseTargetIp !== undefined)
       await this.settings.set(SettingKeys.PfsenseTargetIp, body.pfsenseTargetIp);
+
+    // Host overrides. An empty string / null means "defer to the env var again",
+    // which is stored as "" and read back as unset by the tri-state getters.
+    if (body.gameHostNetwork !== undefined)
+      await this.settings.set(SettingKeys.GameHostNetwork, boolOverride(body.gameHostNetwork));
+    if (body.autoCreateNetwork !== undefined)
+      await this.settings.set(SettingKeys.AutoCreateNetwork, boolOverride(body.autoCreateNetwork));
+    if (body.publicBaseUrl !== undefined)
+      await this.settings.set(SettingKeys.PublicBaseUrl, body.publicBaseUrl.trim());
+    if (body.hostDataDir !== undefined) {
+      await this.settings.set(SettingKeys.HostDataDir, body.hostDataDir.trim());
+      // Takes effect for the next container created, without a restart (GH #29).
+      await this.settings.applyHostOverrides();
+    }
     return this.settings.publicView();
   }
 }

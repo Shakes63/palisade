@@ -246,7 +246,16 @@ export async function makeService(row: ServerRow, docker: FakeDocker) {
     { prepareGameFiles: noop, seedGameFilesCache: noop } as never,
     { disconnect: noop, saveWorld: noop, broadcast: noop } as never,
     sm,
-    { getTimezone: async () => "UTC", get: async () => null, getBackupKeep: async () => 10 } as never,
+    {
+      getTimezone: async () => "UTC",
+      get: async () => null,
+      getBackupKeep: async () => 10,
+      // Null across the board = no stored overrides, so the env vars decide —
+      // which is what these lifecycle tests set up.
+      getGameHostNetwork: async () => null,
+      getAutoCreateNetwork: async () => null,
+      getPublicBaseUrl: async () => null,
+    } as never,
     logCapture as never,
     { create: noop } as never,
     { count: async () => ({ online: 0 }) } as never,
