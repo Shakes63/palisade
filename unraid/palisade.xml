@@ -1,5 +1,13 @@
 <?xml version="1.0"?>
 <!-- Unraid template for Palisade (formerly ARK Server Manager).
+
+     SOURCE OF TRUTH. Community Applications installs from a COPY of this file in
+     Shakes63/unraid-community-apps (templates/palisade.xml) — its app feed points
+     there, not here. .github/workflows/sync-ca-template.yml pushes this file to that
+     repo on every release; edit this one, never the copy. They drifted apart for two
+     months once, and CA kept handing out an ark-net template long after this said
+     otherwise (GH #31).
+
      Controls Docker via the host socket mounted at /var/run/docker.sock. For
      least-privilege access instead, front Docker with a tecnativa/docker-socket-proxy
      on 'palisade-net', set DOCKER_HOST to tcp://socket-proxy:2375, and drop the socket mount.

@@ -1,0 +1,56 @@
+name: Sync the Unraid template to Community Applications
+
+# Community Applications does NOT install from unraid/palisade.xml in this repo. Its
+# app feed points at a separate template repo:
+#
+#   https://raw.githubusercontent.com/Shakes63/unraid-community-apps/main/templates/palisade.xml
+#
+# Both files claimed to be the template and neither knew about the other, so they
+# silently drifted for two months: CA was still handing out an ark-net template with
+# no AUTO_CREATE_NETWORK or SHARED_NETWORK long after this repo had moved on, and a
+# user reinstalling from Apps kept getting the old settings (GH #31).
+#
+# So the copy CA serves is now written from this one, on the same trigger that
+# publishes `latest` — the template describes the released image, so it should move
+# when that image moves, not when main does. Run it by hand to correct drift.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # A cross-repo push needs more than the job's own GITHUB_TOKEN, which is
+      # scoped to this repository. CA_TEMPLATE_TOKEN is a PAT with `contents:write`
+      # on Shakes63/unraid-community-apps.
+      - name: Push the template to the Community Applications repo
+        env:
+          GH_TOKEN: ${{ secrets.CA_TEMPLATE_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::error::CA_TEMPLATE_TOKEN is not set — Community Applications will keep serving a stale template."
+            exit 1
+          fi
+
+          REPO=Shakes63/unraid-community-apps
+          PATH_IN_REPO=templates/palisade.xml
+
+          # Nothing to do when they already match — keeps the CA repo's history to
+          # real template changes rather than one empty commit per release.
+          if curl -fsSL "https://raw.githubusercontent.com/$REPO/main/$PATH_IN_REPO" -o /tmp/remote.xml \
+             && diff -q /tmp/remote.xml unraid/palisade.xml >/dev/null; then
+            echo "Template already in sync — nothing to push."
+            exit 0
+          fi
+
+          SHA=$(gh api "repos/$REPO/contents/$PATH_IN_REPO" --jq '.sha')
+          gh api "repos/$REPO/contents/$PATH_IN_REPO" -X PUT \
+            -f message="Sync the Palisade template from ${GITHUB_REF_NAME:-main}" \
+            -f content="$(base64 -w0 unraid/palisade.xml)" \
+            -f sha="$SHA" >/dev/null
+          echo "Pushed unraid/palisade.xml to $REPO."
