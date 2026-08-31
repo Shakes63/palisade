@@ -41,12 +41,13 @@ export class ClustersController {
 
   @Post(":id/start")
   startAll(@Param("id") id: string) {
-    return this.clusters.startAll(id);
+    // Detached: sequential member launches far outlast the proxy's ~30s ceiling.
+    return this.clusters.startAllDetached(id);
   }
 
   @Post(":id/stop")
   stopAll(@Param("id") id: string) {
-    return this.clusters.stopAll(id);
+    return this.clusters.stopAllDetached(id);
   }
 
   @Delete(":id")

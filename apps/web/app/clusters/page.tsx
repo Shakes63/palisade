@@ -31,6 +31,23 @@ export default function ClustersPage() {
   }, []);
   useEffect(() => refresh(), [refresh]);
 
+  /**
+   * Start/stop-all now return as soon as the work is queued, because holding the
+   * request through every member's launch outlasts the proxy. So refresh on a few
+   * delays instead of once: members flip to Starting/Stopping over the following
+   * minute, and a single immediate refresh would always look like nothing happened.
+   */
+  const runOnCluster = async (path: string) => {
+    try {
+      await apiPost(path);
+    } catch (e) {
+      alert((e as Error).message);
+      return;
+    }
+    refresh();
+    for (const ms of [3000, 10000, 30000]) window.setTimeout(refresh, ms);
+  };
+
   const create = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
@@ -72,10 +89,10 @@ export default function ClustersPage() {
               </div>
             </div>
             <div className="flex gap-2">
-              <button className="btn-primary" onClick={() => apiPost(`/clusters/${c.id}/start`).then(refresh)}>
+              <button className="btn-primary" onClick={() => runOnCluster(`/clusters/${c.id}/start`)}>
                 <Play className="h-4 w-4" /> Start all
               </button>
-              <button className="btn-secondary" onClick={() => apiPost(`/clusters/${c.id}/stop`).then(refresh)}>
+              <button className="btn-secondary" onClick={() => runOnCluster(`/clusters/${c.id}/stop`)}>
                 <Square className="h-4 w-4" /> Stop all
               </button>
               <button
