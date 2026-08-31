@@ -32,6 +32,21 @@ async function stripSymlinks(dest: string): Promise<void> {
   await execFileP("find", [dest, "-type", "l", "-delete"]).catch(() => undefined);
 }
 
+/** Entry names inside a .zip, without extracting it — so a caller can vet an archive's
+ *  CONTENTS (not just its paths) before anything touches disk. */
+export async function listZipEntries(data: Buffer): Promise<string[]> {
+  const tmp = join(tmpdir(), `listzip-${process.pid}-${Date.now()}.zip`);
+  await writeFile(tmp, data);
+  try {
+    const { stdout } = await execFileP("unzip", ["-Z1", tmp]);
+    return stdout.split("\n").map((l) => l.trim()).filter(Boolean);
+  } catch (e) {
+    throw new BadRequestException(`Could not read the upload: ${(e as Error).message}`);
+  } finally {
+    await rm(tmp, { force: true }).catch(() => undefined);
+  }
+}
+
 /** Extract an untrusted .zip (given as a Buffer) into `dest`. Rejects the whole archive
  *  up front if any entry is absolute or contains `..`, then strips any symlinks. */
 export async function extractZipSafe(data: Buffer, dest: string): Promise<void> {
