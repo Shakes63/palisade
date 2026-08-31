@@ -5,13 +5,14 @@ settings:
   excludeLinksFromLockfile: false
 
 overrides:
-  multer@<2.2.0: '>=2.2.0'
   lodash@<4.18.0: '>=4.18.0'
-  ws@>=8.0.0 <8.21.0: '>=8.21.0'
-  postcss@<8.5.23: '>=8.5.23'
+  multer@<2.2.0: '>=2.2.0'
   nanoid@<3.3.18: ^3.3.18
+  postcss@<8.5.23: '>=8.5.23'
   sharp@<0.35.0: '>=0.35.0'
   socket.io-parser@>=4.0.0 <4.2.7: '>=4.2.7'
+  uuid@<11.1.1: ^11.1.1
+  ws@>=8.0.0 <8.21.0: '>=8.21.0'
 
 importers:
 
@@ -3247,14 +3248,8 @@ packages:
     resolution: {integrity: sha512-pMZTvIkT1d+TFGvDOqodOclx0QWkkgi6Tdoa8gC8ffGAAqz9pzPTZWAybbsHHoED/ztMtkv/VoYTYyShUn81hA==}
     engines: {node: '>= 0.4.0'}
 
-  uuid@10.0.0:
-    resolution: {integrity: sha512-8XkAphELsDnEGrDxUOHB3RGvXz6TeuYSGEZBOjtTtPm2lwhGBjLgOzLHB63IUWfBpNucQjND6d3AOudO+H3RWQ==}
-    deprecated: uuid@10 and below is no longer supported.  For ESM codebases, update to uuid@latest.  For CommonJS codebases, use uuid@11 (but be aware this version will likely be deprecated in 2028).
-    hasBin: true
-
-  uuid@8.3.2:
-    resolution: {integrity: sha512-+NYs2QeMWy+GWFOEm9xnn6HCDp0l7QBD7ml8zLUmJ+93Q5NF0NocErnwkTkXVFNiX3/fpC6afS8Dhb/gz7R7eg==}
-    deprecated: uuid@10 and below is no longer supported.  For ESM codebases, update to uuid@latest.  For CommonJS codebases, use uuid@11 (but be aware this version will likely be deprecated in 2028).
+  uuid@11.1.1:
+    resolution: {integrity: sha512-vIYxrBCC/N/K+Js3qSN88go7kIfNPssr/hHCesKCQNAjmgvYS2oqr69kIufEG+O4+PfezOH4EbIeHCfFov8ZgQ==}
     hasBin: true
 
   v8-compile-cache-lib@3.0.1:
@@ -4747,7 +4742,7 @@ snapshots:
       docker-modem: 5.0.7
       protobufjs: 7.6.4
       tar-fs: 2.1.4
-      uuid: 10.0.0
+      uuid: 11.1.1
     transitivePeerDependencies:
       - supports-color
 
@@ -5792,7 +5787,7 @@ snapshots:
 
   node-cron@3.0.3:
     dependencies:
-      uuid: 8.3.2
+      uuid: 11.1.1
 
   node-exports-info@1.6.2:
     dependencies:
@@ -6744,9 +6739,7 @@ snapshots:
 
   utils-merge@1.0.1: {}
 
-  uuid@10.0.0: {}
-
-  uuid@8.3.2: {}
+  uuid@11.1.1: {}
 
   v8-compile-cache-lib@3.0.1: {}
 
