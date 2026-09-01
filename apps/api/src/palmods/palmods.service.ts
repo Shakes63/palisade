@@ -5,7 +5,7 @@ import { join, basename } from "node:path";
 import { Game, type ServerConfigValues } from "@ark/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { LocalPaths } from "../common/paths";
-import { extractZipSafe } from "../common/safe-extract";
+import { extractZipSafe, listZipEntries } from "../common/safe-extract";
 
 
 /** UE4SS drops its loader here; the server is launched with this on LD_PRELOAD
@@ -41,6 +41,45 @@ export const UE4SS_WINDOWS = {
 
 /** Wine loads UE4SS via this proxy DLL (auto-loaded, no LD_PRELOAD). */
 export const PAL_FRAMEWORK_WINE_LOADER = "Pal/Binaries/Win64/dwmapi.dll";
+
+/**
+ * Why an uploaded framework archive is for the wrong Palworld variant, or null when
+ * it looks right (or unfamiliar enough that we shouldn't judge).
+ *
+ * The two builds are not interchangeable: the Wine variant loads a Windows
+ * dwmapi.dll proxy out of Pal/Binaries/Win64, the native one preloads libUE4SS.so
+ * from Pal/Binaries/Linux. Uploading the wrong one used to extract happily and then
+ * do nothing at all — no loader, no UE4SS.log, no error, a server that just boots
+ * vanilla (GH #48). The one-click install always picks correctly; this is for the
+ * "upload a different build" path beside it.
+ *
+ * Deliberately narrow: it only objects when the archive carries the OTHER variant's
+ * loader and not the expected one. An unusual-but-valid layout still goes through,
+ * which matches how the rest of this file treats archives it doesn't recognise.
+ */
+export function frameworkArchiveIssue(entries: string[], wine: boolean): string | null {
+  const has = (needle: string) =>
+    entries.some((e) => e.split(/[\\/]/).pop()?.toLowerCase() === needle);
+  const windows = has("dwmapi.dll");
+  const linux = has("libue4ss.so");
+
+  if (wine && linux && !windows) {
+    return (
+      "That looks like the native Linux UE4SS build (it contains libUE4SS.so). The Wine " +
+      "variant loads a Windows dwmapi.dll proxy instead, so this would extract and then " +
+      "never load. Use the official UE4SS Windows build — the Install button above fetches " +
+      "the right one."
+    );
+  }
+  if (!wine && windows && !linux) {
+    return (
+      "That looks like the Windows UE4SS build (it contains dwmapi.dll). The native Linux " +
+      "variant preloads libUE4SS.so instead, so this would extract and then never load. " +
+      "Use a native Linux build — the Install button above fetches the right one."
+    );
+  }
+  return null;
+}
 
 /**
  * Windows system DLL names that proxy-loader mods ship under, dropped next to the
@@ -201,7 +240,12 @@ export class PalModsService {
    *  for the native build, Pal/Binaries/Win64 for the Wine build. */
   async installFramework(id: string, data: Buffer) {
     const s = await this.palServer(id);
-    const dir = this.frameworkDir(id, this.isWine(s));
+    const wine = this.isWine(s);
+    // Check the archive is for THIS variant before writing any of it: the wrong build
+    // extracts cleanly and then silently never loads (GH #48).
+    const issue = frameworkArchiveIssue(await listZipEntries(data), wine);
+    if (issue) throw new BadRequestException(issue);
+    const dir = this.frameworkDir(id, wine);
     await mkdir(dir, { recursive: true });
     await this.extractZip(data, dir);
     await this.makeHeadlessSafe(dir);
