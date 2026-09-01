@@ -13,6 +13,10 @@ name: Sync the Unraid template to Community Applications
 # So the copy CA serves is now written from this one, on the same trigger that
 # publishes `latest` — the template describes the released image, so it should move
 # when that image moves, not when main does. Run it by hand to correct drift.
+#
+# Auth is a deploy key on the template repo (secret CA_TEMPLATE_KEY), not a personal
+# token: it can write to that one repository and nothing else, belongs to no user,
+# and has no expiry to forget about.
 on:
   push:
     tags: ["v*"]
@@ -24,33 +28,40 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # A cross-repo push needs more than the job's own GITHUB_TOKEN, which is
-      # scoped to this repository. CA_TEMPLATE_TOKEN is a PAT with `contents:write`
-      # on Shakes63/unraid-community-apps.
+      # A cross-repo push needs credentials the job's own GITHUB_TOKEN doesn't carry
+      # (it is scoped to this repository). CA_TEMPLATE_KEY is the private half of a
+      # deploy key with write access to the template repo, and nothing else — narrower
+      # than a personal token, tied to no user, and with no expiry to forget.
       - name: Push the template to the Community Applications repo
         env:
-          GH_TOKEN: ${{ secrets.CA_TEMPLATE_TOKEN }}
+          SSH_KEY: ${{ secrets.CA_TEMPLATE_KEY }}
         run: |
           set -euo pipefail
-          if [ -z "${GH_TOKEN:-}" ]; then
-            echo "::error::CA_TEMPLATE_TOKEN is not set — Community Applications will keep serving a stale template."
+          if [ -z "${SSH_KEY:-}" ]; then
+            echo "::error::CA_TEMPLATE_KEY is not set — Community Applications would keep serving a stale template."
             exit 1
           fi
 
-          REPO=Shakes63/unraid-community-apps
-          PATH_IN_REPO=templates/palisade.xml
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/ca_sync
+          chmod 600 ~/.ssh/ca_sync
+          ssh-keyscan -t ed25519 github.com >> ~/.ssh/known_hosts 2>/dev/null
+          export GIT_SSH_COMMAND="ssh -i ~/.ssh/ca_sync -o IdentitiesOnly=yes"
 
-          # Nothing to do when they already match — keeps the CA repo's history to
-          # real template changes rather than one empty commit per release.
-          if curl -fsSL "https://raw.githubusercontent.com/$REPO/main/$PATH_IN_REPO" -o /tmp/remote.xml \
-             && diff -q /tmp/remote.xml unraid/palisade.xml >/dev/null; then
+          git clone --depth 1 git@github.com:Shakes63/unraid-community-apps.git /tmp/ca
+          cp unraid/palisade.xml /tmp/ca/templates/palisade.xml
+
+          cd /tmp/ca
+          # Nothing to do when they already match — keeps that repo's history to real
+          # template changes rather than one empty commit per release.
+          if git diff --quiet; then
             echo "Template already in sync — nothing to push."
             exit 0
           fi
 
-          SHA=$(gh api "repos/$REPO/contents/$PATH_IN_REPO" --jq '.sha')
-          gh api "repos/$REPO/contents/$PATH_IN_REPO" -X PUT \
-            -f message="Sync the Palisade template from ${GITHUB_REF_NAME:-main}" \
-            -f content="$(base64 -w0 unraid/palisade.xml)" \
-            -f sha="$SHA" >/dev/null
-          echo "Pushed unraid/palisade.xml to $REPO."
+          git config user.name "palisade-bot"
+          git config user.email "palisade-bot@users.noreply.github.com"
+          git add templates/palisade.xml
+          git commit -q -m "Sync the Palisade template from ${GITHUB_REF_NAME:-main}"
+          git push -q origin HEAD:main
+          echo "Pushed unraid/palisade.xml to Shakes63/unraid-community-apps."
