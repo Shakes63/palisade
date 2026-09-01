@@ -2,8 +2,16 @@
 import { use, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Play, Square, RotateCw, Download, Loader2, Pencil, Check, X, Trash2, AlertTriangle, Image as ImageIcon } from "lucide-react";
-import { mapLabel, Game, ServerState, type ServerSummary, type ServerConfigValues } from "@ark/shared";
+import { ArrowLeft, Play, Square, RotateCw, Download, Loader2, Pencil, Check, X, Trash2, AlertTriangle, ArrowUpCircle, Image as ImageIcon } from "lucide-react";
+import {
+  mapLabel,
+  Game,
+  ServerState,
+  GAME_LABELS,
+  type ServerSummary,
+  type ServerConfigValues,
+  type UpdateGameResult,
+} from "@ark/shared";
 import { apiGet, apiPost, apiPatch, apiDelete, apiDownload } from "@/lib/api";
 import { useRealtime } from "@/lib/socket";
 import { StateBadge } from "@/components/state-badge";
@@ -60,6 +68,11 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
   const [savingName, setSavingName] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [confirmingUpdate, setConfirmingUpdate] = useState(false);
+  const [updating, setUpdating] = useState(false);
+  // What the last "Update game" actually did — the update happens during the next
+  // boot, so without this the click looks like it did nothing.
+  const [updateNote, setUpdateNote] = useState<string | null>(null);
 
   // Keep the active tab in the URL (?tab=settings) so a refresh lands you back
   // on the same tab instead of Overview. Uses replaceState — no scroll/navigation.
@@ -141,6 +154,23 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
     }
   };
 
+  /** Update the game files. The server image does the downloading on its next boot,
+   *  so this either restarts a running server or arms the update for the next start. */
+  const doUpdateGame = async () => {
+    setConfirmingUpdate(false);
+    setUpdating(true);
+    setUpdateNote(null);
+    try {
+      const res = await apiPost<UpdateGameResult>(`/servers/${id}/update-game`);
+      setUpdateNote(res.message);
+      await refresh();
+    } catch (e) {
+      alert((e as Error).message);
+    } finally {
+      setUpdating(false);
+    }
+  };
+
   const doDelete = async (wipeFiles: boolean) => {
     setDeleting(true);
     try {
@@ -175,6 +205,20 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
   const showStopping = pending === "stop" || st === ServerState.Stopping;
   const showInstalling =
     pending === "install" || st === ServerState.Installing || st === ServerState.Updating;
+  // Updating is legal from any settled state: running (restart to apply it now) or
+  // stopped (armed for the next start). Only mid-transition states block it.
+  const isLive = st === ServerState.Running || st === ServerState.Starting;
+  const canUpdate =
+    !pending &&
+    !updating &&
+    !starting &&
+    [ServerState.Running, ServerState.Starting, ServerState.Stopped, ServerState.Crashed].includes(st);
+  const updateHint =
+    server.updateMode === "image"
+      ? "Pull a newer server image and recreate the container — for this game the image IS the game version"
+      : server.updateMode === "on-request"
+        ? "Ask the image to run SteamCMD once on the next boot (no need to turn on update-on-start)"
+        : null;
 
   // No-RCON games hide the Console tab. Icarus + Bedrock keep an uploader Mods tab
   // (.pak files / add-on packs); Valheim's mods are settings toggles (BepInEx/
@@ -289,10 +333,38 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
         </div>
         <div className="flex flex-wrap gap-2">
           <CopyMenu server={server} onAfterCopyIn={reload} />
-          <button className="btn-secondary" disabled={!canInstall} onClick={() => act("install")}>
-            {showInstalling ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}{" "}
-            {showInstalling ? "Installing…" : "Install / Update"}
-          </button>
+          {/* One slot, two honest actions: pull the image while it's missing, then
+              update the GAME once it's there. The old combined "Install / Update"
+              button only ever pulled the image — which Start does anyway — so it
+              looked broken to anyone clicking it to update their game. */}
+          {server.imageReady ? (
+            <button
+              className="btn-secondary"
+              disabled={!canUpdate}
+              title={
+                updateHint ??
+                "Update the game files — the image downloads the new build on its next boot"
+              }
+              onClick={() => (isLive ? setConfirmingUpdate(true) : void doUpdateGame())}
+            >
+              {updating ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <ArrowUpCircle className="h-4 w-4" />
+              )}{" "}
+              {updating ? "Updating…" : "Update game"}
+            </button>
+          ) : (
+            <button
+              className="btn-secondary"
+              disabled={!canInstall}
+              title="Download the game server image now (optional — Start pulls it too)"
+              onClick={() => act("install")}
+            >
+              {showInstalling ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}{" "}
+              {showInstalling ? "Installing…" : "Install"}
+            </button>
+          )}
           <button className="btn-primary" disabled={!canStart} onClick={() => act("start")}>
             {showStarting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}{" "}
             {showStarting ? "Starting…" : "Start"}
@@ -315,6 +387,46 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
           </button>
         </div>
       </div>
+
+      {updateNote && (
+        <div className="flex items-start gap-2 rounded-md border border-sky-900/40 bg-sky-950/20 px-3 py-2 text-sm text-sky-200/90">
+          <ArrowUpCircle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span className="flex-1">{updateNote}</span>
+          <button onClick={() => setUpdateNote(null)} className="text-slate-400 hover:text-slate-200" title="Dismiss">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
+      {confirmingUpdate && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          onClick={() => setConfirmingUpdate(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-lg border border-ark-border bg-ark-panel p-5 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-3 flex items-center gap-2 text-sky-300">
+              <ArrowUpCircle className="h-5 w-5" />
+              <h2 className="text-lg font-semibold">Update {GAME_LABELS[server.game]}?</h2>
+            </div>
+            <p className="text-sm leading-snug text-slate-300">
+              The server image downloads game files as it boots, so “{server.name}” has to restart to
+              update. Players are disconnected, and this start takes longer than usual while the new
+              build downloads.
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button className="btn-secondary" onClick={() => setConfirmingUpdate(false)}>
+                Cancel
+              </button>
+              <button className="btn-primary" onClick={() => void doUpdateGame()}>
+                Restart &amp; update
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {confirmingDelete && (
         <DeleteConfirm

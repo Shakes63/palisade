@@ -1,11 +1,10 @@
 import { Injectable, Logger, OnModuleInit, BadRequestException } from "@nestjs/common";
 import * as cron from "node-cron";
-import { EventType, ServerState, Game } from "@ark/shared";
+import { EventType } from "@ark/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { EventsService } from "../events/events.service";
 import { ServersService } from "../servers/servers.service";
 import { RconService } from "../rcon/rcon.service";
-import { InstallerService } from "../installer/installer.service";
 import { BackupsService } from "../backups/backups.service";
 import { ManagerSettingsService } from "../manager-settings/manager-settings.service";
 import { PlayersService } from "../players/players.service";
@@ -29,7 +28,6 @@ export class SchedulerService implements OnModuleInit {
     private readonly events: EventsService,
     private readonly servers: ServersService,
     private readonly rcon: RconService,
-    private readonly installer: InstallerService,
     private readonly backups: BackupsService,
     private readonly settings: ManagerSettingsService,
     private readonly players: PlayersService,
@@ -193,22 +191,15 @@ export class SchedulerService implements OnModuleInit {
         case "backup":
           await this.backups.create(sched.serverId, "scheduled").catch(() => undefined);
           break;
-        case "update": {
-          const server = await this.prisma.server.findUnique({ where: { id: sched.serverId } });
-          if (!server) break;
-          // Only bring it back up if it was up — don't start a server the admin
-          // had deliberately stopped.
-          const wasUp = [ServerState.Running, ServerState.Starting].includes(
-            server.state as ServerState,
-          );
-          await this.servers.stop(sched.serverId).catch(() => undefined);
-          // Through installGame (not installer.install directly) so games whose image
-          // updater is normally disabled get their one-shot update flagged too
-          // (GH #8/#12/#14) — the start below then actually updates the game files.
-          await this.servers.installGame(sched.serverId);
-          if (wasUp) await this.servers.start(sched.serverId);
+        case "update":
+          // The same path as the UI's "Update game" button. It arms the one-shot
+          // update flag for the images whose updater the manager disables, restarts
+          // only if the server was up, and leaves a stopped server to update on its
+          // next start, so a scheduled update and a clicked one can't drift apart.
+          // Replaces a stop → installGame → start dance that ran a whole install job
+          // to achieve what the one-shot flag does on its own.
+          await this.servers.updateGame(sched.serverId);
           break;
-        }
         case "update-mods": {
           // Apply pending mod updates (files/config on disk), then restart to load
           // them if the server was up. updateAll owns the was-it-running decision.

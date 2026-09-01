@@ -1,0 +1,13 @@
+# Keep the build context to source only. The image installs its own deps per
+# stage (deps/prodmods), so a developer's local node_modules must never reach
+# `COPY . .` — pnpm's symlinked store would land on top of the container's
+# install and break the build. Also keeps the context (and CI upload) small.
+node_modules
+**/node_modules
+.git
+.next
+**/.next
+dist
+**/dist
+data
+*.log

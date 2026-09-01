@@ -30,6 +30,7 @@ import type { CreateServerDto, UpdateServerDto } from "@ark/shared";
 import { ServersService } from "./servers.service";
 import { HistoryService } from "./history.service";
 import { EventsService } from "../events/events.service";
+import { UpdatesService } from "../updates/updates.service";
 import { CreateServerBody, UpdateServerBody, ExtraEnvBody } from "./servers.dto";
 import { MinRole } from "../auth/min-role.decorator";
 
@@ -52,6 +53,7 @@ export class ServersController {
     private readonly servers: ServersService,
     private readonly events: EventsService,
     private readonly history: HistoryService,
+    private readonly updates: UpdatesService,
   ) {}
 
   @Get()
@@ -183,6 +185,18 @@ export class ServersController {
   @Post(":id/install")
   install(@Param("id") id: string) {
     return this.servers.installGame(id);
+  }
+
+  /** Installed vs latest game build, and how an update reaches this game. */
+  @Get(":id/build-status")
+  buildStatus(@Param("id") id: string) {
+    return this.updates.buildStatus(id);
+  }
+
+  /** Update the game files: arm the image's update step and restart if running. */
+  @Post(":id/update-game")
+  updateGame(@Param("id") id: string) {
+    return this.servers.updateGame(id);
   }
 
   @Post(":id/start")

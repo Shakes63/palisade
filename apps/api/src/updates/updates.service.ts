@@ -1,8 +1,14 @@
-import { Injectable, Logger, OnModuleInit } from "@nestjs/common";
+import { Injectable, Logger, NotFoundException, OnModuleInit } from "@nestjs/common";
 import { readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import * as cron from "node-cron";
-import { Game, EventType, STEAM_APP_ID, resolveVersionTag } from "@ark/shared";
+import {
+  Game,
+  EventType,
+  STEAM_APP_ID,
+  resolveVersionTag,
+  type GameBuildStatus,
+} from "@ark/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { EventsService } from "../events/events.service";
 import { LocalPaths } from "../common/paths";
@@ -10,6 +16,7 @@ import { IMAGE_BAKED_GAMES, imageRefFor, splitImageRef } from "../common/images"
 import { DockerService } from "../docker/docker.service";
 import { ImageTagsService } from "../images/image-tags.service";
 import { digestsDiffer, remoteImageDigest } from "./registry-digest";
+import { gameUpdateMode } from "./game-update-mode";
 
 // Every 3 hours, offset off the top of the hour. ARK ships updates a few times a
 // week at most, so this is plenty without hammering the API.
@@ -132,7 +139,7 @@ export class UpdatesService implements OnModuleInit {
         if (outdated && !server.updateAvailable) {
           await this.events.emit({
             type: EventType.UpdateAvailable,
-            message: `Update available for "${server.name}" (installed build ${installed}, latest ${newest}). Use Install / Update, then restart.`,
+            message: `Update available for "${server.name}" (installed build ${installed}, latest ${newest}). Use Update game on the server page to apply it.`,
             serverId: server.id,
             data: { installed: String(installed), latest: String(newest) },
           });
@@ -203,6 +210,37 @@ export class UpdatesService implements OnModuleInit {
     } catch {
       return null;
     }
+  }
+
+  /**
+   * Everything the Version & updates card shows for one server: the build on disk,
+   * the newest published build, and how an update reaches this game. Each half
+   * degrades to null independently — a server that has never started has no
+   * manifest, and the build API can be down — so the card can say "unknown"
+   * instead of implying "up to date".
+   */
+  async buildStatus(serverId: string): Promise<GameBuildStatus> {
+    const server = await this.prisma.server.findUnique({ where: { id: serverId } });
+    if (!server) throw new NotFoundException("Server not found");
+    const game = server.game as Game;
+    const appId = STEAM_APP_ID[game] || null;
+    const mode = gameUpdateMode(game);
+    if (!appId) {
+      // Not installed from Steam (image-baked or a non-Steam downloader) — there's
+      // no build id to compare, so the card explains the mode instead.
+      return { appId: null, installed: null, latest: null, outdated: null, mode };
+    }
+    const [latest, installed] = await Promise.all([
+      this.latestBuildId(game),
+      this.installedBuildId(serverId, game),
+    ]);
+    return {
+      appId,
+      installed: installed === null ? null : String(installed),
+      latest: latest === null ? null : String(latest),
+      outdated: latest === null || installed === null ? null : latest > installed,
+      mode,
+    };
   }
 
   /** Live check for one server: newest public build vs the installed .acf.

@@ -8,7 +8,7 @@ import {
   type OnApplicationShutdown,
 } from "@nestjs/common";
 import type Docker from "dockerode";
-import { mkdir, writeFile, rm, cp, chmod, chown, stat, readFile, readdir } from "node:fs/promises";
+import { mkdir, rm, cp, chmod, chown, stat, readFile, readdir } from "node:fs/promises";
 import { execFile, spawn } from "node:child_process";
 import type { Readable } from "node:stream";
 import { join, dirname, relative, sep } from "node:path";
@@ -22,6 +22,7 @@ import {
   RAM_ESTIMATE_MB,
   DISK_INSTALL_MB,
   GAME_LABELS,
+  type UpdateGameResult,
   type RunningServerRam,
   type InsufficientRamInfo,
   type CreateServerDto,
@@ -54,6 +55,7 @@ import { detectPalWineProxyDlls } from "../palmods/palmods.service";
 import { GameEndpointService } from "../docker/game-endpoint.service";
 import { palworldWinePortIssue, portsFor, serverPortSet } from "../catalog/ports";
 import { LocalPaths } from "../common/paths";
+import { gameUpdateMode } from "../updates/game-update-mode";
 import { containerName } from "../common/naming";
 import { hostStats } from "../common/host-stats";
 import { IMAGES, SERVER_UID, SERVER_GID } from "../common/images";
@@ -964,6 +966,61 @@ export class ServersService implements OnApplicationBootstrap, OnApplicationShut
       });
     }
     return { jobId };
+  }
+
+  /**
+   * "Update game" — the action that actually moves a server onto a newer build.
+   *
+   * Palisade never runs SteamCMD itself: every game image installs/updates its own
+   * files when the container boots. So an update is always "arm it, then boot":
+   * arm whatever this image needs, restart if the server is up, and let a stopped
+   * server pick it up on its next start. doStart pulls the image on every launch,
+   * so an image-baked game (Zomboid, Factorio…) updates by exactly the same path.
+   */
+  async updateGame(id: string): Promise<UpdateGameResult> {
+    const server = await this.prisma.server.findUnique({ where: { id } });
+    if (!server) throw new NotFoundException("Server not found");
+    const game = server.game as Game;
+    const state = server.state as ServerState;
+    const label = GAME_LABELS[game];
+
+    // Arm the SAME one-shot flag installGame uses: runtime-spec forces the image's
+    // update env for exactly this boot (ONE_SHOT_UPDATE_ENV) and doStart clears the
+    // flag once the container is created. Games whose image already updates on every
+    // boot need nothing armed — the restart below is the whole update.
+    if (ONE_SHOT_UPDATE_ENV[game]) {
+      await this.prisma.server.update({ where: { id }, data: { updateRequested: true } });
+    }
+
+    if (state === ServerState.Running || state === ServerState.Starting) {
+      await this.events.emit({
+        type: EventType.InstallStarted,
+        message: `Updating ${label} — restarting so the image fetches the latest build`,
+        serverId: id,
+      });
+      // Detached, for the reason start/restart are (#46/#49/#50): this relaunch
+      // pulls an image AND runs the image's SteamCMD update, the longest boot the
+      // manager ever waits on. Blocking here would outlive the request timeout and
+      // report a failure for an update that is running fine. restartDetached still
+      // validates up front, so a bad port config is still answered to the caller.
+      await this.restartDetached(id);
+      return {
+        applied: "restarted",
+        message: `Restarting to update ${label}. The image downloads the new build during boot, so this start takes longer than usual.`,
+      };
+    }
+    // Say so even though nothing happens yet: a SCHEDULED update lands here whenever
+    // the server is down, and without an event the schedule fires and leaves no trace
+    // for the user who set it.
+    await this.events.emit({
+      type: EventType.ConfigChanged,
+      message: `${label} is set to update on the next start of "${server.name}"`,
+      serverId: id,
+    });
+    return {
+      applied: "next-start",
+      message: `${label} will update on the next start — the image downloads the new build during boot.`,
+    };
   }
 
   async start(
@@ -2092,6 +2149,7 @@ export class ServersService implements OnApplicationBootstrap, OnApplicationShut
       updateAvailable: row.updateAvailable,
       modUpdateAvailable: row.modUpdateAvailable,
       imageTag: row.imageTag,
+      updateMode: gameUpdateMode(row.game as Game),
       crashReason: row.state === ServerState.Crashed ? row.crashReason : null,
       healthNote: row.state === ServerState.Running ? this.healthNoteFor(row.id) : null,
       imageReady,

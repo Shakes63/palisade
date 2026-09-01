@@ -1,8 +1,9 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, vi, beforeAll, afterAll } from "vitest";
 import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
-import { parseAcfBuildId, pickPublicBuildId, findManifest } from "./updates.service";
+import { Game, STEAM_APP_ID } from "@ark/shared";
+import { parseAcfBuildId, pickPublicBuildId, findManifest, UpdatesService } from "./updates.service";
 
 describe("parseAcfBuildId", () => {
   it("extracts the build id from a SteamCMD appmanifest", () => {
@@ -87,5 +88,76 @@ describe("findManifest", () => {
     await writeFile(tooDeep, '"buildid" "9"');
     expect(await findManifest(root, "appmanifest_9.acf")).toBeNull(); // depth 3 > default 2
     expect(await findManifest(root, "appmanifest_9.acf", 3)).toBe(tooDeep);
+  });
+});
+
+// What the Version & updates card reads: the build on disk vs the newest published
+// one, and how an update reaches this game. The two halves must fail INDEPENDENTLY —
+// an unreachable build API has to read "unknown", never "up to date".
+describe("buildStatus", () => {
+  let tmp: string;
+
+  beforeAll(async () => {
+    tmp = await mkdtemp(join(tmpdir(), "ark-builds-"));
+    process.env.DATA_DIR = tmp;
+    process.env.SECRETS_KEY = "a".repeat(64);
+    process.env.JWT_SECRET = "test-jwt-secret-1234";
+  });
+
+  afterAll(async () => {
+    await rm(tmp, { recursive: true, force: true });
+    vi.unstubAllGlobals();
+  });
+
+  function makeSvc(game: Game, latest: number | null) {
+    const prisma = { server: { findUnique: async () => ({ id: "s1", game, updateAvailable: false }) } };
+    vi.stubGlobal("fetch", async () => ({
+      ok: latest !== null,
+      json: async () => ({
+        data: { [String(STEAM_APP_ID[game])]: { depots: { branches: { public: { buildid: String(latest) } } } } },
+      }),
+    }));
+    return new UpdatesService(
+      prisma as never,
+      { emit: async () => undefined } as never,
+      // buildStatus touches neither Docker nor the registry — the baked-image
+      // path is what needs those (see checkBakedImage).
+      {} as never,
+      {} as never,
+    );
+  }
+
+  const manifest = (buildId: number) => `"AppState"\n{\n\t"buildid"\t\t"${buildId}"\n}`;
+
+  it("finds a manifest under steamapps/ and flags the server as outdated", async () => {
+    const dir = join(tmp, "instances", "s1", "steamapps");
+    await mkdir(dir, { recursive: true });
+    await writeFile(join(dir, `appmanifest_${STEAM_APP_ID[Game.PALWORLD_WINE]}.acf`), manifest(24370498));
+
+    const svc = makeSvc(Game.PALWORLD_WINE, 24575149);
+    const status = await svc.buildStatus("s1");
+
+    expect(status.installed).toBe("24370498");
+    expect(status.latest).toBe("24575149");
+    expect(status.outdated).toBe(true);
+    expect(status.mode).toBe("on-request");
+  });
+
+  it("reports outdated as null (not 'up to date') when the build API is unreachable", async () => {
+    const svc = makeSvc(Game.PALWORLD_WINE, null);
+    const status = await svc.buildStatus("s1");
+
+    expect(status.installed).toBe("24370498");
+    expect(status.latest).toBeNull();
+    expect(status.outdated).toBeNull();
+  });
+
+  it("skips the build comparison for games whose files ship in the image", async () => {
+    const svc = makeSvc(Game.FACTORIO, 1);
+    const status = await svc.buildStatus("s1");
+
+    expect(status.appId).toBeNull();
+    expect(status.outdated).toBeNull();
+    expect(status.mode).toBe("image");
   });
 });

@@ -1,4 +1,5 @@
 import type { Game, PortSet } from "./game";
+import type { GameUpdateMode } from "./game-updates";
 import type { ServerState } from "./server-state";
 import type { ServerConfigValues } from "./settings-catalog";
 
@@ -24,6 +25,9 @@ export interface ServerSummary {
   modUpdateAvailable: boolean;
   /** Advanced: pinned game-image tag, or null to use the shipped default. */
   imageTag?: string | null;
+  /** What it takes to move THIS game onto a newer build — derived server-side from
+   *  the image tables (see GameUpdateMode), so the UI never keeps its own copy. */
+  updateMode: GameUpdateMode;
   /** When the server is Crashed, why its container died: exit code (or OOM) plus a
    *  log tail — or the launch error for a start that never got a container. Null
    *  otherwise. Lets the UI explain a crash (e.g. a pinned image that won't boot). */
@@ -64,6 +68,35 @@ export interface ServerSummary {
   artwork?: GameArtwork | null;
   createdAt: string;
   updatedAt: string;
+}
+
+/**
+ * Where a server's game files stand against the latest published build — what the
+ * Version & updates card shows. `installed` comes from SteamCMD's appmanifest on
+ * disk, `latest` from the public steamcmd.net build API; either is null when it
+ * can't be read (not installed yet, non-Steam game, API unreachable), which is why
+ * `outdated` is nullable rather than defaulting to "up to date".
+ */
+export interface GameBuildStatus {
+  /** Dedicated-server SteamCMD app id, or null for games not installed from Steam. */
+  appId: number | null;
+  /** Build id on disk, or null if no appmanifest was found. */
+  installed: string | null;
+  /** Newest public-branch build id, or null if the lookup failed. */
+  latest: string | null;
+  /** installed < latest, or null when it can't be determined. */
+  outdated: boolean | null;
+  /** What it takes to move this game to a newer build (see GAME_UPDATE_MODE). */
+  mode: GameUpdateMode;
+}
+
+/** Outcome of "Update game": whether the update ran now or is queued for the next start. */
+export interface UpdateGameResult {
+  /** "restarted" — the server was running and has been restarted to pull the new
+   *  build; "next-start" — the update is armed and lands when the server starts. */
+  applied: "restarted" | "next-start";
+  /** Human-readable summary for the UI to echo back. */
+  message: string;
 }
 
 /** One selectable SteamGridDB asset for the per-server artwork picker. */
