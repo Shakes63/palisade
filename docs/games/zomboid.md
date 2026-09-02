@@ -11,6 +11,7 @@ Install only pulls the image — the game itself is baked in, so first start is 
 
 ## Gotchas
 - Steam Workshop mods work: add them in the Mods tab; Palisade parses the mod's in-game Mod ID from the Workshop description and emits `WORKSHOP_IDS`/`MOD_IDS`. Mods download on the NEXT start after being added.
+- The Workshop cache is persisted at `<instance>/workshop` (bound to `/home/steam/pz-dedicated/steamapps/workshop`), so a restart only validates what is already there. It lives under the game's install dir, not the Zomboid data dir, which is why the data bind alone left it in the container layer and every managed restart re-downloaded the whole set (GH #57).
 - The settings catalog covers the full servertest.ini surface (~120 entries) plus ~70 SandboxVars entries. Palisade only writes values you actually changed from the default — untouched keys keep the game's own defaults and in-game admin edits survive restarts.
 - "Re-apply preset on start" (SERVERPRESETREPLACE) regenerates SandboxVars and overwrites panel sandbox tweaks by design.
 - The internal save name is fixed to `servertest` so the browser-visible display name can change freely; the save directory does not rename with the server.

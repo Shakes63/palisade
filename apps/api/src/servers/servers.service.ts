@@ -1388,10 +1388,14 @@ export class ServersService implements OnApplicationBootstrap, OnApplicationShut
       // user (1000) and writes throughout the Zomboid data bind, but Docker creates a
       // missing bind dir root-owned. Pre-create + own it as the runtime user.
       if (game === Game.ZOMBOID) {
-        const dataDir = join(LocalPaths.instanceRoot(id), "data");
-        await mkdir(dataDir, { recursive: true });
+        // Both binds: the Zomboid data dir, and the Workshop cache that lives under
+        // the install dir and would otherwise be re-downloaded every restart (GH #57).
         await chown(LocalPaths.instanceRoot(id), SERVER_UID[game], SERVER_GID[game]).catch(() => undefined);
-        await chown(dataDir, SERVER_UID[game], SERVER_GID[game]).catch(() => undefined);
+        for (const sub of ["data", "workshop"]) {
+          const dir = join(LocalPaths.instanceRoot(id), sub);
+          await mkdir(dir, { recursive: true });
+          await chown(dir, SERVER_UID[game], SERVER_GID[game]).catch(() => undefined);
+        }
       }
 
       const spec = await this.assembleSpec(server);
