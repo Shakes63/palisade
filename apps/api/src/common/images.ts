@@ -146,6 +146,11 @@ export const ENSHROUDED_GAME_DIR = "/opt/enshrouded";
 /** Project Zomboid keeps ALL its persistent data (saves, server configs, player db)
  *  under the Zomboid home dir; the game install itself is baked into the image. */
 export const ZOMBOID_DATA_DIR = "/home/steam/Zomboid";
+/** Where Steam parks Workshop downloads for the danixu86 image — under the game's
+ *  install dir, NOT under the Zomboid data dir above. Left unpersisted, every
+ *  managed restart recreated the container with an empty Workshop cache and the
+ *  server re-downloaded its entire mod set (124 items, in the report — GH #57). */
+export const ZOMBOID_WORKSHOP_DIR = "/home/steam/pz-dedicated/steamapps/workshop";
 
 /** V Rising (trueosiris) splits data: the SteamCMD game install vs the world saves +
  *  settings JSONs. Bound separately so backups target the small persistentdata dir. */

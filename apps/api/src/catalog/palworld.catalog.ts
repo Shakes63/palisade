@@ -61,7 +61,7 @@ const settings: SettingDef[] = [
       { value: "false", label: "Off" },
       { value: "true", label: "Pause the server while nobody is online" },
     ],
-    help: "Freeze the server process after the last player leaves (saves CPU; world time stops). Palisade auto-enables the player-logging + REST API prerequisites inside the container. Player counts may read 0/unavailable while paused.",
+    help: "Freeze the server process after the last player leaves (saves CPU; world time stops). Palisade auto-enables the player-logging + REST API prerequisites inside the container. Player counts may read 0/unavailable while paused. Waking needs a packet monitor inside the container, so this server runs with the NET_RAW capability and WITHOUT the no-new-privileges hardening the other game containers get; on host networking that monitor can see the host's traffic.",
   }),
   pset("AUTO_PAUSE_TIMEOUT_EST", "Pause after empty for", "General", "int", 180, {
     min: 10,

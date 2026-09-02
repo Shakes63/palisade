@@ -30,6 +30,7 @@ import {
   SEVEN_DAYS_SAVES_DIR,
   ENSHROUDED_GAME_DIR,
   ZOMBOID_DATA_DIR,
+  ZOMBOID_WORKSHOP_DIR,
   VRISING_SERVER_DIR,
   VRISING_DATA_DIR,
   SOTF_GAME_DIR,
@@ -150,7 +151,7 @@ export function forceEnv(env: string[], overrides: Record<string, string>): stri
 
 /** Build the Docker create spec for a game-server container. */
 export function buildContainerSpec(input: RuntimeSpecInput): Docker.ContainerCreateOptions {
-  const spec = hardenSpec(gameSpecFor(input), input.game);
+  const spec = hardenSpec(gameSpecFor(input), input);
   // Each game spec sets Image to its shipped default; apply a pinned tag here (one
   // choke point) so an advanced user can run a specific version.
   spec.Image = imageRefFor(input.game, input.imageTag);
@@ -210,6 +211,23 @@ export function ich777GameId(appId: number, branch: unknown): string {
 const NO_NEW_PRIVS_EXEMPT = new Set<Game>([Game.ASA, Game.CONAN]);
 
 /**
+ * Native Palworld with "Pause when empty" on. The WAKE half of that feature is a
+ * packet monitor (knockd) that the image runs as its non-root steam user, getting
+ * NET_RAW through a file capability baked onto the binary — and no-new-privileges
+ * forbids exactly that elevation at exec. Found live (GH #58): pause worked, then
+ * knockd died with "You don't have permission to perform this capture", and the
+ * server stayed asleep until someone restarted it from the panel. Reproduced
+ * against the image with and without the flag; the flag alone decides it.
+ *
+ * So this one container, only while the user has the feature on, runs without
+ * no-new-privileges — the same category of exemption the POK images already have,
+ * and for the same reason: the image's own design needs it. It keeps PidsLimit.
+ */
+export function palworldAutoPauseOn(input: RuntimeSpecInput): boolean {
+  return input.game === Game.PALWORLD && input.config.values?.["AUTO_PAUSE_ENABLED"] === "true";
+}
+
+/**
  * Defense-in-depth applied to every game container: no-new-privileges blocks
  * privilege escalation through setuid binaries (root dropping to a game user
  * via su/gosu still works — that direction needs no escalation), and PidsLimit
@@ -217,9 +235,9 @@ const NO_NEW_PRIVS_EXEMPT = new Set<Game>([Game.ASA, Game.CONAN]);
  * 8192 is far above real usage, but UE5-under-Proton servers run 1-2k threads
  * and threads count against the limit — hence not lower.
  */
-function hardenSpec(spec: Docker.ContainerCreateOptions, game: Game): Docker.ContainerCreateOptions {
+function hardenSpec(spec: Docker.ContainerCreateOptions, input: RuntimeSpecInput): Docker.ContainerCreateOptions {
   const host = (spec.HostConfig ??= {});
-  if (!NO_NEW_PRIVS_EXEMPT.has(game)) {
+  if (!NO_NEW_PRIVS_EXEMPT.has(input.game) && !palworldAutoPauseOn(input)) {
     host.SecurityOpt = [...(host.SecurityOpt ?? []), "no-new-privileges:true"];
   }
   host.PidsLimit ??= 8192;
@@ -642,6 +660,11 @@ function buildPalworldSpec(input: RuntimeSpecInput): Docker.ContainerCreateOptio
   const binds = [`${HostPaths.instanceRoot(input.serverId)}:${PALWORLD_DATA_DIR}`];
 
   const hostNet = hostNetworkFor(input);
+  // NET_RAW is in Docker's default bounding set today, so this is belt-and-braces
+  // rather than the fix (see palworldAutoPauseOn for what actually blocked the wake)
+  // — but it states the requirement explicitly, and Podman and any future Docker
+  // default that drops NET_RAW would otherwise break the feature silently again.
+  const autoPause = palworldAutoPauseOn(input);
   return {
     name: containerName(input.serverId, input.game, input.sessionName),
     Image: IMAGES[Game.PALWORLD],
@@ -668,6 +691,7 @@ function buildPalworldSpec(input: RuntimeSpecInput): Docker.ContainerCreateOptio
               [portKey(ports.rcon, "tcp")]: [{ HostPort: String(ports.rcon) }],
             },
           }),
+      ...(autoPause ? { CapAdd: ["NET_RAW"] } : {}),
       RestartPolicy: { Name: "no" }, // manager watchdog owns restarts
       Memory: input.ramLimitMb ? input.ramLimitMb * 1024 * 1024 : undefined,
       NanoCpus: input.cpuLimit ? Math.round(input.cpuLimit * 1e9) : undefined,
@@ -1373,7 +1397,13 @@ function buildZomboidSpec(input: RuntimeSpecInput): Docker.ContainerCreateOption
     ...zomboidCatalogEnv(input),
   ];
 
-  const binds = [`${HostPaths.instanceRoot(input.serverId)}/data:${ZOMBOID_DATA_DIR}`];
+  const binds = [
+    `${HostPaths.instanceRoot(input.serverId)}/data:${ZOMBOID_DATA_DIR}`,
+    // Workshop content lives under the INSTALL dir, not the data dir, so the data
+    // bind alone left it in the container layer — gone on every recreate, and every
+    // managed restart re-downloaded the whole mod set (GH #57).
+    `${HostPaths.instanceRoot(input.serverId)}/workshop:${ZOMBOID_WORKSHOP_DIR}`,
+  ];
 
   const udpPorts = [ports.game, ports.rawSocket, ...ZOMBOID_STEAM_PORTS];
   const hostNet = hostNetworkFor(input);
