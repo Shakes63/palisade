@@ -1,0 +1,71 @@
+name: CI
+
+# The gate that used to live only in whoever remembered to run it locally.
+#
+# Until this existed, nothing ran the test suite, typecheck, or lint automatically:
+# the only automation was audit + Trivy + image build, and only on release tags.
+# A community PR merged on a maintainer's local run alone. 500+ tests protected
+# nothing they weren't asked to.
+#
+# Two tiers, run in parallel:
+#   check       — the full local gate: prisma generate, typecheck, lint, tests, build.
+#   integration — the *.docker.test.ts suite against the runner's REAL Docker daemon.
+#                 The fast suite fakes Docker, and four bugs in one week were the fake
+#                 disagreeing with reality (container-id length, JSON key ordering,
+#                 network membership). This tier exists so those get caught here
+#                 instead of on someone's Unraid box.
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # typecheck reads the generated Prisma client; without this step it fails on a
+      # clean checkout for every model added since the last `build`.
+      - run: pnpm db:generate
+
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test
+      - run: pnpm build
+
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm db:generate
+
+      # The suite creates and removes its own uniquely-named networks and containers,
+      # and refuses to touch a pre-existing `ark-net`. This flag is its consent to run
+      # at all, so a developer's `pnpm test` never reaches for their Docker daemon.
+      - name: Integration tests against the runner's Docker daemon
+        env:
+          PALISADE_DOCKER_TESTS: "1"
+        run: pnpm --filter @ark/api test:docker
