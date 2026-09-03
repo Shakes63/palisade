@@ -410,6 +410,15 @@ Monorepo layout: `packages/shared` (types + settings catalogs contract),
 `apps/api` (NestJS orchestrator), `apps/web` (Next.js UI), `docker/` (manager
 entrypoint), `unraid/` (CA template).
 
+### Tests
+
+Two tiers:
+
+- `pnpm test` — the fast suite, fakes Docker. Runs on every PR and push to `main`.
+- `pnpm --filter @ark/api test:docker` — the `*.docker.test.ts` tier, against a **real Docker daemon**. Gated on `PALISADE_DOCKER_TESTS=1` so it never touches your daemon uninvited. It creates uniquely-named networks and containers, removes them afterwards, and skips the `ark-net` cases if you already have a network by that name. CI runs it on every PR too.
+
+The second tier exists because the fake is where bugs hid: container-id length, Docker's JSON key ordering, and network membership all disagreed with the real daemon in ways that passed 500+ unit tests and were found on a live box.
+
 ## Acknowledgements
 
 Palisade is a control plane — the actual game servers run on excellent

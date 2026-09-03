@@ -13,5 +13,9 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["src/**/*.test.ts"],
+    // The *.docker.test.ts tier talks to a real Docker daemon and is run separately
+    // (`pnpm test:docker`, gated on PALISADE_DOCKER_TESTS=1) so the default suite
+    // stays fast and never reaches for a developer's daemon uninvited.
+    exclude: ["**/node_modules/**", "src/**/*.docker.test.ts"],
   },
 });
