@@ -559,6 +559,7 @@ export const ASA_OFFICIAL_MAPS = [
   "Valguero_WP",
   "Astraeos_WP",
   "LostColony_WP",
+  "Genesis_WP",
   "BobsMissions_WP",
 ] as const;
 
@@ -778,6 +779,7 @@ export const MAP_LABELS: Record<string, string> = {
   Valguero_WP: "Valguero",
   Astraeos_WP: "Astraeos",
   LostColony_WP: "Lost Colony",
+  Genesis_WP: "Genesis: Part 1",
   BobsMissions_WP: "Club ARK",
   // ASE
   TheIsland: "The Island",
