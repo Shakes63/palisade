@@ -100,6 +100,11 @@ export class BackupsService {
     const snapshot = await this.prisma.snapshot.create({
       data: { serverId, path: dest, reason, sizeBytes },
     });
+    // Rotate BEFORE announcing: BackupCreated kicks off off-box replication, which
+    // tars every snapshot the target is missing. Pruning afterwards deleted the
+    // oldest snapshot out from under that tar ("tar exited 2", GH #65) and the new
+    // backup then waited for the hourly reconcile to make it off the box.
+    await this.applyRetention(serverId);
     if (sizeBytes === 0) {
       this.logger.warn(`Backup (${reason}) for ${serverId} captured 0 bytes: ${dest}`);
       await this.events.emit({
@@ -116,7 +121,6 @@ export class BackupsService {
         data: { path: dest, sizeBytes },
       });
     }
-    await this.applyRetention(serverId);
     return snapshot;
   }
 

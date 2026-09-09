@@ -177,8 +177,11 @@ export class ReplicationService implements OnModuleInit {
         const artifact = `${posix.basename(snap.path.replaceAll("\\", "/"))}.tar.gz`;
         if (existing.has(artifact)) continue;
         if (!(await this.exists(snap.path))) continue; // pruned locally before ever syncing
-        await this.uploadTarGz(snap.path, dest, this.remoteJoin(config, serverId, artifact));
-        uploaded++;
+        // Retention (or a manual delete) can still remove the directory while tar is
+        // reading it — that snapshot is simply gone, not a replication failure, so
+        // move on to the rest rather than abandoning the whole pass (GH #65).
+        if (await this.uploadTarGz(snap.path, dest, this.remoteJoin(config, serverId, artifact))) uploaded++;
+        else this.logger.debug(`Skipped ${artifact}: snapshot was deleted while it was being archived`);
       }
       // Remote retention mirrors local keep-N (manifest excluded from the count) —
       // including the manual exemption, or the copies we just protected locally
@@ -218,13 +221,23 @@ export class ReplicationService implements OnModuleInit {
     return uploaded;
   }
 
-  /** Stream `tar czf - -C <dir> .` straight into the destination — no temp file. */
-  private async uploadTarGz(localDir: string, dest: Destination, remotePath: string): Promise<void> {
+  /**
+   * Stream `tar czf - -C <dir> .` straight into the destination — no temp file.
+   * Resolves true when the artifact landed, false when the source directory
+   * disappeared underneath tar (nothing left to replicate; the partial artifact is
+   * removed). Any other tar failure throws, with tar's own complaint attached so
+   * the Warning says more than an exit code.
+   */
+  private async uploadTarGz(localDir: string, dest: Destination, remotePath: string): Promise<boolean> {
     const tar = spawn("tar", ["czf", "-", "-C", localDir, "."]);
     // Attach BEFORE any awaiting: tar can exit while the pipeline drains, and a
     // listener added after "close" fired would wait forever (hung the first
     // live sync exactly this way).
     const exited = new Promise<number>((resolve) => tar.on("close", resolve));
+    let stderr = "";
+    tar.stderr.on("data", (d: Buffer) => {
+      if (stderr.length < 2048) stderr += d.toString();
+    });
     const sink = await dest.createWriteStream(remotePath);
     try {
       await pipeline(tar.stdout, sink);
@@ -233,10 +246,11 @@ export class ReplicationService implements OnModuleInit {
       throw err;
     }
     const code = await exited;
-    if (code !== 0) {
-      await dest.remove(remotePath).catch(() => undefined);
-      throw new Error(`tar exited ${code} for ${localDir}`);
-    }
+    if (code === 0) return true;
+    await dest.remove(remotePath).catch(() => undefined);
+    if (!(await this.exists(localDir))) return false;
+    const detail = stderr.trim().split("\n").filter(Boolean).slice(-3).join("; ");
+    throw new Error(`tar exited ${code} for ${localDir}${detail ? ` (${detail})` : ""}`);
   }
 
   private remoteJoin(config: ReplicationConfig, ...parts: string[]): string {
@@ -269,7 +283,7 @@ interface Destination {
 }
 
 /** Another path visible inside the container (e.g. an Unraid share mapped in). */
-class LocalDestination implements Destination {
+export class LocalDestination implements Destination {
   async mkdirp(dir: string): Promise<void> {
     await mkdir(dir, { recursive: true });
   }

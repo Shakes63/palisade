@@ -23,6 +23,12 @@ const settings: SettingDef[] = [
   iset("SERVER_RESUME_PROSPECT", "Resume last prospect on restart", "Session", "bool", true, {
     help: "When the server restarts, automatically resume the prospect (world) it was last running.",
   }),
+  // Not an image env var: the image blanks LoadProspect= in ServerSettings.ini on
+  // every boot, so a hand-edited value never survives a start (GH #62). The runtime
+  // spec turns this into a BOOTSTRAP_HOOK that re-applies it after the image's reset.
+  iset("LOAD_PROSPECT", "Load prospect on start", "Session", "string", "", {
+    help: "Name of an existing prospect (saved world) to load every time the server starts, instead of waiting in the lobby. Leave blank to pick one in-game. Letters, digits, spaces, dots, dashes and underscores only.",
+  }),
   iset("SERVER_SHUTDOWN_IF_NOT_JOINED", "Return to lobby if unjoined", "Session", "int", 300, {
     min: 0,
     max: 3600,
