@@ -983,17 +983,43 @@ function buildIcarusSpec(input: RuntimeSpecInput): Docker.ContainerCreateOptions
   };
 }
 
+/** Catalog key for the prospect Icarus should load on boot. */
+export const ICARUS_LOAD_PROSPECT_KEY = "LOAD_PROSPECT";
+/** Where the image keeps ServerSettings.ini inside the container (its `config_path`). */
+const ICARUS_SERVER_SETTINGS = `${ICARUS_CONFIG_DIR}/Saved/Config/WindowsServer/ServerSettings.ini`;
+
 /** Icarus settings -> mornedhels env vars. Booleans become ServerSettings' True/False. */
 function icarusCatalogEnv(input: RuntimeSpecInput): string[] {
   const out: string[] = [];
   for (const def of input.catalog.settings) {
     if (def.target !== SettingTarget.Env) continue;
+    if (def.key === ICARUS_LOAD_PROSPECT_KEY) continue; // no env var for it — see below
     const raw = input.config.values?.[def.key] ?? def.default;
     if (raw === undefined || raw === null) continue;
     const val = typeof raw === "boolean" ? (raw ? "True" : "False") : String(raw);
     out.push(`${def.emitAs ?? def.key}=${val}`);
   }
+  const hook = icarusLoadProspectHook(String(input.config.values?.[ICARUS_LOAD_PROSPECT_KEY] ?? ""));
+  if (hook) out.push(`BOOTSTRAP_HOOK=${hook}`);
   return out;
+}
+
+/**
+ * The image has no env var for LoadProspect — worse, its bootstrap force-resets
+ * `LoadProspect=` in ServerSettings.ini on every boot, so a value written into
+ * the file (by hand or by us) is gone before the server reads it (GH #62). The
+ * one thing the image does run AFTER that reset is BOOTSTRAP_HOOK, so we re-apply
+ * the line from there, the same way the image's own `icarus-commands loadProspect`
+ * does. Returns "" when there is nothing to load.
+ *
+ * The hook is `eval`ed by bash inside the container, so the name is confined to a
+ * plain allowlist (Icarus prospect names are simple words anyway) — anything else
+ * is dropped rather than quoted around.
+ */
+export function icarusLoadProspectHook(prospect: string): string {
+  const name = prospect.trim();
+  if (!name || !/^[A-Za-z0-9 _.-]+$/.test(name)) return "";
+  return `sed -i '/^LoadProspect=/c\\LoadProspect=${name}' '${ICARUS_SERVER_SETTINGS}'`;
 }
 
 /**

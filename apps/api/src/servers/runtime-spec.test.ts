@@ -308,6 +308,26 @@ describe("buildContainerSpec (Icarus / mornedhels)", () => {
     expect(env).toContain("SERVER_ALLOW_NON_ADMINS_DELETE=True");
     expect(env).toContain("SERVER_SHUTDOWN_IF_EMPTY=120");
   });
+
+  // The image blanks LoadProspect= on every boot and has no env var for it, so the
+  // setting rides BOOTSTRAP_HOOK (which runs after that reset) — GH #62.
+  it("turns 'Load prospect on start' into a BOOTSTRAP_HOOK that re-applies LoadProspect", async () => {
+    const env = envOf(await buildIcarus({ values: { LOAD_PROSPECT: "World" } }));
+    expect(env).toContain(
+      "BOOTSTRAP_HOOK=sed -i '/^LoadProspect=/c\\LoadProspect=World' '/home/icarus/drive_c/icarus/Saved/Config/WindowsServer/ServerSettings.ini'",
+    );
+    expect(env.some((e) => e.startsWith("LOAD_PROSPECT="))).toBe(false); // not an image env var
+  });
+
+  it("emits no hook when the prospect is blank or has shell-unsafe characters", async () => {
+    for (const bad of ["", "   ", "x; rm -rf /", "a'b", "$(id)", "über"]) {
+      const env = envOf(await buildIcarus({ values: { LOAD_PROSPECT: bad } }));
+      expect(env.some((e) => e.startsWith("BOOTSTRAP_HOOK=")), JSON.stringify(bad)).toBe(false);
+    }
+    // Names with spaces are legitimate (the image's own loadProspect command allows them).
+    const env = envOf(await buildIcarus({ values: { LOAD_PROSPECT: "  My Base 2.0  " } }));
+    expect(env.find((e) => e.startsWith("BOOTSTRAP_HOOK="))).toContain("c\\LoadProspect=My Base 2.0'");
+  });
 });
 
 async function buildBedrock(config: ServerConfigValues) {
