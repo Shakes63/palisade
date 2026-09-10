@@ -100,8 +100,8 @@ player administration, and even your router's port-forwards.
 - ARK cluster support (shared transfer dir across servers).
 - Discord/webhook notifications, host low-disk warnings, editable ports with a
   start-time port-conflict guard.
-- Optional **pfSense integration**: one-click WAN port-forward
-  create/fix/enable/disable/delete per server via the pfSense REST API.
+- Optional **router integration** (pfSense or UniFi): one-click WAN port-forward
+  create/fix/enable/disable/delete per server via the router's API.
 
 See [PLANNING.md](PLANNING.md) for architecture details.
 
@@ -337,6 +337,7 @@ It migrates itself, and a half-migrated install works throughout:
 | Steam Web API key | ASE/Conan Workshop browser | Free key from <https://steamcommunity.com/dev/apikey> |
 | Discord webhook | State changes, crashes, backups, schedule events | A channel webhook URL |
 | pfSense | Per-server WAN port-forward management (create / fix / enable / disable / delete, WAN IP display) | The free [pfSense REST API package](https://pfrest.org/) on your router + an API key (System → REST API). Works with any pfSense — nothing is network-specific. Use the **Test connection** button to validate. |
+| UniFi | Same port-forward management on a UniFi OS console (Dream Machine, Cloud Gateway, Cloud Key) | An API key from the Network app (Settings → Control Plane → Integrations, admin role) on Network 9.0+, plus the site name (`default` unless multi-site). Pick **UniFi** under Settings → Integrations → Port forwarding, then **Test connection**. |
 
 **CurseForge terms:** the mod browser uses the CurseForge API read-only to
 search and display mods; it never downloads or redistributes mod files — the

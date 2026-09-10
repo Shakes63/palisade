@@ -4,6 +4,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
   type OnApplicationBootstrap,
   type OnApplicationShutdown,
 } from "@nestjs/common";
@@ -40,6 +41,7 @@ import { CryptoService } from "../crypto/crypto.service";
 import { EventsService } from "../events/events.service";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
 import { DockerService } from "../docker/docker.service";
+import { PortForwardsService } from "../portforwards/portforwards.service";
 import { CatalogService } from "../catalog/catalog.service";
 import { ServerConfigWriter } from "./config-writer.service";
 import { ArtworkService } from "../artwork/artwork.service";
@@ -289,6 +291,9 @@ export class ServersService implements OnApplicationBootstrap, OnApplicationShut
     private readonly endpoints: GameEndpointService,
     private readonly configWriter: ServerConfigWriter,
     private readonly artwork: ArtworkService,
+    // Optional so the unit-test harnesses that build this service by hand keep
+    // working without a router; production always has it wired.
+    @Optional() private readonly portforwards?: PortForwardsService,
   ) {}
 
   /** The captured log / console for the current run (survives refresh + tab
@@ -917,9 +922,16 @@ export class ServersService implements OnApplicationBootstrap, OnApplicationShut
         this.logger.warn(`Delete: backups cleanup failed for ${id}: ${(e as Error).message}`),
       );
     }
+    // Router cleanup (GH #66): drop the WAN forwards Palisade created for this
+    // server, unless another server still needs the port. Best-effort.
+    const forwardsRemoved = (await this.portforwards?.removeForServer(server)) ?? 0;
+    const notes = [
+      ...(wipeFiles ? [] : ["files kept on disk"]),
+      ...(forwardsRemoved > 0 ? [`${forwardsRemoved} port forward${forwardsRemoved === 1 ? "" : "s"} removed`] : []),
+    ];
     await this.events.emit({
       type: EventType.ServerDeleted,
-      message: `Deleted server "${server.name}"${wipeFiles ? "" : " (files kept on disk)"}`,
+      message: `Deleted server "${server.name}"${notes.length ? ` (${notes.join(", ")})` : ""}`,
       serverId: id,
     });
   }

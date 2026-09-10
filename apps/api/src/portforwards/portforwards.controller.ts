@@ -1,18 +1,29 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from "@nestjs/common";
-import { IsBoolean, IsIn, IsInt } from "class-validator";
+import { IsBoolean, IsIn, IsInt, IsOptional, IsString } from "class-validator";
 import { PortForwardsService } from "./portforwards.service";
 import { MinRole } from "../auth/min-role.decorator";
 
-/** Settings-scoped pfSense utilities (not tied to a server). */
+/** The Settings form's current (possibly unsaved) router fields. */
+class RouterTestBody {
+  @IsOptional() @IsIn(["pfsense", "unifi"]) router?: "pfsense" | "unifi";
+  @IsOptional() @IsString() host?: string;
+  @IsOptional() @IsString() apiKey?: string;
+  @IsOptional() @IsString() site?: string;
+  @IsOptional() @IsString() targetIp?: string;
+}
+
+/** Settings-scoped router utilities (not tied to a server). */
 @MinRole("admin")
-@Controller("pfsense")
-export class PfsenseController {
+@Controller("router")
+export class RouterController {
   constructor(private readonly portforwards: PortForwardsService) {}
 
-  /** Validate the configured pfSense host + API key + target IP. */
+  /** Validate router (pfSense or UniFi) host + API key + target IP. The body
+   *  carries the form's current values so Test works before Save; blanks fall
+   *  back to the saved settings. */
   @Post("test")
-  test() {
-    return this.portforwards.testConnection();
+  test(@Body() body: RouterTestBody) {
+    return this.portforwards.testConnection(body);
   }
 }
 
@@ -26,13 +37,13 @@ class ToggleForwardBody {
 export class PortForwardsController {
   constructor(private readonly portforwards: PortForwardsService) {}
 
-  /** Each player-facing forward's state on the pfSense router. */
+  /** Each player-facing forward's state on the router. */
   @Get()
   status(@Param("id") id: string) {
     return this.portforwards.status(id);
   }
 
-  /** Create missing forwards and re-target mismatched ones (auto pass rules) + apply. */
+  /** Create missing forwards and re-target mismatched ones + apply. */
   @Post()
   apply(@Param("id") id: string) {
     return this.portforwards.apply(id);

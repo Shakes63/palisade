@@ -25,6 +25,13 @@ export default function SettingsPage() {
   const [pfsenseApiKey, setPfsenseApiKey] = useState("");
   const [pfsenseTargetIp, setPfsenseTargetIp] = useState("");
   const [pfTestMsg, setPfTestMsg] = useState<string | null>(null);
+  // Which router the port-forward integration drives. Unset reads as pfSense so
+  // installs that predate UniFi support keep their forwards untouched.
+  const [portForwardRouter, setPortForwardRouter] = useState<"pfsense" | "unifi">("pfsense");
+  const [unifiHost, setUnifiHost] = useState("");
+  const [unifiApiKey, setUnifiApiKey] = useState("");
+  const [unifiSite, setUnifiSite] = useState("default");
+  const [unifiTargetIp, setUnifiTargetIp] = useState("");
   // Host overrides. "" means "not set here" — the env var keeps deciding.
   const [gameHostNetwork, setGameHostNetwork] = useState("");
   const [autoCreateNetwork, setAutoCreateNetwork] = useState("");
@@ -46,6 +53,10 @@ export default function SettingsPage() {
         setAutoStop(v.auto_stop_on_start !== "false"); // default on when unset
         if (typeof v.pfsense_host === "string") setPfsenseHost(v.pfsense_host);
         if (typeof v.pfsense_target_ip === "string") setPfsenseTargetIp(v.pfsense_target_ip);
+        setPortForwardRouter(v.port_forward_router === "unifi" ? "unifi" : "pfsense");
+        if (typeof v.unifi_host === "string") setUnifiHost(v.unifi_host);
+        if (typeof v.unifi_site === "string" && v.unifi_site) setUnifiSite(v.unifi_site);
+        if (typeof v.unifi_target_ip === "string") setUnifiTargetIp(v.unifi_target_ip);
         setGameHostNetwork(typeof v.game_host_network === "string" ? v.game_host_network : "");
         setAutoCreateNetwork(typeof v.auto_create_network === "string" ? v.auto_create_network : "");
         setPublicBaseUrl(typeof v.public_base_url === "string" ? v.public_base_url : "");
@@ -103,10 +114,24 @@ export default function SettingsPage() {
     });
   };
 
-  const savePfsense = () => {
-    const body: Record<string, string> = { pfsenseHost, pfsenseTargetIp };
-    if (pfsenseApiKey) body.pfsenseApiKey = pfsenseApiKey;
-    void saveCard("pfsense", body, () => setPfsenseApiKey(""));
+  /** Saves the router choice plus the fields of the router that's showing; the
+   *  other router's saved settings stay put so switching back costs nothing. */
+  const savePortForwarding = () => {
+    const body: Record<string, string> = { portForwardRouter };
+    if (portForwardRouter === "unifi") {
+      body.unifiHost = unifiHost;
+      body.unifiSite = unifiSite;
+      body.unifiTargetIp = unifiTargetIp;
+      if (unifiApiKey) body.unifiApiKey = unifiApiKey;
+    } else {
+      body.pfsenseHost = pfsenseHost;
+      body.pfsenseTargetIp = pfsenseTargetIp;
+      if (pfsenseApiKey) body.pfsenseApiKey = pfsenseApiKey;
+    }
+    void saveCard("portforwarding", body, () => {
+      setPfsenseApiKey("");
+      setUnifiApiKey("");
+    });
   };
 
   const saveBackups = () => {
@@ -152,11 +177,16 @@ export default function SettingsPage() {
     }
   };
 
-  // Tests the SAVED settings — remind the user to hit Save first if fields are dirty.
-  const testPfsense = async () => {
+  // Tests what's in the form right now (a blank key falls back to the saved one),
+  // so a router can be tried before Save.
+  const testRouter = async () => {
     setPfTestMsg("Testing…");
     try {
-      const res = await apiPost<{ ok: boolean; message: string }>("/pfsense/test");
+      const draft =
+        portForwardRouter === "unifi"
+          ? { router: "unifi", host: unifiHost, apiKey: unifiApiKey, site: unifiSite, targetIp: unifiTargetIp }
+          : { router: "pfsense", host: pfsenseHost, apiKey: pfsenseApiKey, targetIp: pfsenseTargetIp };
+      const res = await apiPost<{ ok: boolean; message: string }>("/router/test", draft);
       setPfTestMsg(`${res.ok ? "✓ " : "✗ "}${res.message}`);
     } catch (err) {
       setPfTestMsg((err as Error).message);
@@ -335,55 +365,120 @@ export default function SettingsPage() {
           </div>
           <div className="card space-y-4">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-ark-accent2">
-              pfSense port forwarding
+              Port forwarding
             </h2>
             <p className="text-xs text-slate-500">
-              With these set, each server&apos;s Overview gets one-click WAN port-forward management. Requires
-              the free{" "}
-              <a
-                href="https://pfrest.org/"
-                target="_blank"
-                rel="noreferrer"
-                className="text-ark-accent hover:underline"
-              >
-                pfSense REST API package
-              </a>{" "}
-              on your router (System → REST API → generate an API key). Works with any pfSense — nothing is
-              tied to a specific network.
+              With these set, each server&apos;s Overview gets one-click WAN port-forward management:
+              create, fix, enable/disable, and delete the player-facing forwards on your router. Nothing
+              is tied to a specific network.
             </p>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div>
-                <label className="label">pfSense host / IP</label>
-                <input
-                  className="input"
-                  placeholder="e.g. 192.168.1.1 (your router)"
-                  value={pfsenseHost}
-                  onChange={(e) => setPfsenseHost(e.target.value)}
-                />
-              </div>
-              <div>
-                <label className="label">Forward to (this machine&apos;s LAN IP)</label>
-                <input
-                  className="input"
-                  placeholder="e.g. 192.168.1.50 (this server box)"
-                  value={pfsenseTargetIp}
-                  onChange={(e) => setPfsenseTargetIp(e.target.value)}
-                />
-              </div>
-            </div>
-            <SecretField
-              label="pfSense REST API key"
-              value={pfsenseApiKey}
-              onChange={setPfsenseApiKey}
-              configured={configured("pfsense_api_key")}
-            />
             <div>
-              <button type="button" className="btn-secondary" onClick={testPfsense}>
+              <label className="label">Router</label>
+              <select
+                className="input"
+                value={portForwardRouter}
+                onChange={(e) => {
+                  setPortForwardRouter(e.target.value === "unifi" ? "unifi" : "pfsense");
+                  setPfTestMsg(null);
+                }}
+              >
+                <option value="pfsense">pfSense (REST API package)</option>
+                <option value="unifi">UniFi Network (UniFi OS console)</option>
+              </select>
+            </div>
+            {portForwardRouter === "pfsense" ? (
+              <>
+                <p className="text-xs text-slate-500">
+                  Requires the free{" "}
+                  <a
+                    href="https://pfrest.org/"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-ark-accent hover:underline"
+                  >
+                    pfSense REST API package
+                  </a>{" "}
+                  on your router (System → REST API → generate an API key).
+                </p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className="label">pfSense host / IP</label>
+                    <input
+                      className="input"
+                      placeholder="e.g. 192.168.1.1 (your router)"
+                      value={pfsenseHost}
+                      onChange={(e) => setPfsenseHost(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="label">Forward to (LAN IP)</label>
+                    <input
+                      className="input"
+                      placeholder="e.g. 192.168.1.50 (this server box)"
+                      value={pfsenseTargetIp}
+                      onChange={(e) => setPfsenseTargetIp(e.target.value)}
+                    />
+                  </div>
+                </div>
+                <SecretField
+                  label="pfSense REST API key"
+                  value={pfsenseApiKey}
+                  onChange={setPfsenseApiKey}
+                  configured={configured("pfsense_api_key")}
+                />
+              </>
+            ) : (
+              <>
+                <p className="text-xs text-slate-500">
+                  Works with UniFi OS consoles (Dream Machine, Cloud Gateway, Cloud Key) on Network 9.0 or
+                  newer. Create an API key in the Network app under Settings → Control Plane → Integrations;
+                  the key needs an admin role. Multi-site setups: use the site&apos;s short name from the URL
+                  (usually <span className="font-mono text-slate-400">default</span>).
+                </p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className="label">Console host / IP</label>
+                    <input
+                      className="input"
+                      placeholder="e.g. 192.168.1.1 (your gateway)"
+                      value={unifiHost}
+                      onChange={(e) => setUnifiHost(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="label">Forward to (LAN IP)</label>
+                    <input
+                      className="input"
+                      placeholder="e.g. 192.168.1.50 (this server box)"
+                      value={unifiTargetIp}
+                      onChange={(e) => setUnifiTargetIp(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="label">Site</label>
+                    <input
+                      className="input"
+                      placeholder="default"
+                      value={unifiSite}
+                      onChange={(e) => setUnifiSite(e.target.value)}
+                    />
+                  </div>
+                </div>
+                <SecretField
+                  label="UniFi API key"
+                  value={unifiApiKey}
+                  onChange={setUnifiApiKey}
+                  configured={configured("unifi_api_key")}
+                />
+              </>
+            )}
+            <div>
+              <button type="button" className="btn-secondary" onClick={testRouter}>
                 <Send className="h-4 w-4" /> Test connection
               </button>
               {pfTestMsg && <p className="mt-2 text-sm text-slate-400">{pfTestMsg}</p>}
             </div>
-            <CardSave card="pfsense" onClick={savePfsense} />
+            <CardSave card="portforwarding" onClick={savePortForwarding} />
           </div>
         </>
       )}
