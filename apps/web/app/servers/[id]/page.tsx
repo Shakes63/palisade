@@ -709,7 +709,7 @@ function Overview({ server, onChanged }: { server: ServerSummary; onChanged: () 
       {!isCoreKeeper && <PortsCard server={server} onSaved={onChanged} />}
       <ImageVersionCard server={server} onSaved={onChanged} />
       <EnvVarsCard server={server} onSaved={onChanged} />
-      {!isCoreKeeper && <PortForwardsCard serverId={server.id} />}
+      {!isCoreKeeper && <PortForwardsCard serverId={server.id} ports={server.ports} />}
       {/* File-managed access lists (Valheim/Bedrock/7DTD); RCON games use the Console. */}
       {(isValheim || isBedrock || isSdtd) && <AccessListsCard serverId={server.id} />}
     </div>

@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Globe, Check, X, Loader2, ArrowUpRight, Power, Trash2, TriangleAlert } from "lucide-react";
+import type { PortSet } from "@ark/shared";
 import { apiGet, apiPost, apiPatch, apiDelete } from "@/lib/api";
 
 type ForwardState = "ok" | "disabled" | "mismatched" | "missing";
@@ -29,17 +30,21 @@ const ROUTER_LABELS = { pfsense: "pfSense", unifi: "UniFi" } as const;
  * create-and-fix, per-forward enable/disable and delete — against whichever
  * router Settings points at (pfSense REST API or UniFi Network API).
  */
-export function PortForwardsCard({ serverId }: { serverId: string }) {
+export function PortForwardsCard({ serverId, ports }: { serverId: string; ports: PortSet }) {
   const [view, setView] = useState<View | null>(null);
   const [busy, setBusy] = useState<string | null>(null); // "apply" | "<port>/<proto>"
   const [err, setErr] = useState<string | null>(null);
 
+  // The forwards are derived from the server's ports, so a save in the Ports card
+  // (which reloads the server) has to refetch here too — otherwise the card keeps
+  // offering the old ports until a page refresh (GH #66).
+  const portsKey = `${ports.game}/${ports.rawSocket}/${ports.query}/${ports.rcon}`;
   const refresh = useCallback(() => {
     apiGet<View>(`/servers/${serverId}/portforwards`)
       .then(setView)
       .catch((e) => setErr((e as Error).message));
   }, [serverId]);
-  useEffect(() => refresh(), [refresh]);
+  useEffect(() => refresh(), [refresh, portsKey]);
 
   const run = async (key: string, fn: () => Promise<View>) => {
     setBusy(key);
