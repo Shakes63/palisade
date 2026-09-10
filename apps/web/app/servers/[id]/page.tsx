@@ -538,8 +538,9 @@ function DeleteConfirm({
           <h2 className="text-lg font-semibold">Delete “{server.name}”?</h2>
         </div>
         <p className="text-sm leading-snug text-slate-300">
-          This permanently removes the server{isLive ? " (it will be force-stopped first)" : ""}. This cannot
-          be undone.
+          This permanently removes the server{isLive ? " (it will be force-stopped first)" : ""}. Router port
+          forwards Palisade created for it are removed too, unless another server still uses the
+          port. This cannot be undone.
         </p>
 
         {/* Keep-or-wipe choice */}

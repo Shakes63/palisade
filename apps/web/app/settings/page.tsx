@@ -177,11 +177,16 @@ export default function SettingsPage() {
     }
   };
 
-  // Tests the SAVED settings — remind the user to hit Save first if fields are dirty.
+  // Tests what's in the form right now (a blank key falls back to the saved one),
+  // so a router can be tried before Save.
   const testRouter = async () => {
     setPfTestMsg("Testing…");
     try {
-      const res = await apiPost<{ ok: boolean; message: string }>("/router/test");
+      const draft =
+        portForwardRouter === "unifi"
+          ? { router: "unifi", host: unifiHost, apiKey: unifiApiKey, site: unifiSite, targetIp: unifiTargetIp }
+          : { router: "pfsense", host: pfsenseHost, apiKey: pfsenseApiKey, targetIp: pfsenseTargetIp };
+      const res = await apiPost<{ ok: boolean; message: string }>("/router/test", draft);
       setPfTestMsg(`${res.ok ? "✓ " : "✗ "}${res.message}`);
     } catch (err) {
       setPfTestMsg((err as Error).message);

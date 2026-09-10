@@ -9,9 +9,10 @@ import { RconModule } from "../rcon/rcon.module";
 import { BackupsModule } from "../backups/backups.module";
 import { PlayersModule } from "../players/players.module";
 import { UpdatesModule } from "../updates/updates.module";
+import { PortForwardsModule } from "../portforwards/portforwards.module";
 
 @Module({
-  imports: [RconModule, BackupsModule, PlayersModule, ArtworkModule, UpdatesModule],
+  imports: [RconModule, BackupsModule, PlayersModule, ArtworkModule, UpdatesModule, PortForwardsModule],
   controllers: [ServersController],
   providers: [ServersService, ServerConfigWriter, StateMachineService, HistoryService],
   exports: [ServersService, StateMachineService],

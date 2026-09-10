@@ -5,5 +5,6 @@ import { PortForwardsService } from "./portforwards.service";
 @Module({
   controllers: [PortForwardsController, RouterController],
   providers: [PortForwardsService],
+  exports: [PortForwardsService],
 })
 export class PortForwardsModule {}

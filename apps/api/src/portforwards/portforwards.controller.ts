@@ -1,7 +1,16 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from "@nestjs/common";
-import { IsBoolean, IsIn, IsInt } from "class-validator";
+import { IsBoolean, IsIn, IsInt, IsOptional, IsString } from "class-validator";
 import { PortForwardsService } from "./portforwards.service";
 import { MinRole } from "../auth/min-role.decorator";
+
+/** The Settings form's current (possibly unsaved) router fields. */
+class RouterTestBody {
+  @IsOptional() @IsIn(["pfsense", "unifi"]) router?: "pfsense" | "unifi";
+  @IsOptional() @IsString() host?: string;
+  @IsOptional() @IsString() apiKey?: string;
+  @IsOptional() @IsString() site?: string;
+  @IsOptional() @IsString() targetIp?: string;
+}
 
 /** Settings-scoped router utilities (not tied to a server). */
 @MinRole("admin")
@@ -9,10 +18,12 @@ import { MinRole } from "../auth/min-role.decorator";
 export class RouterController {
   constructor(private readonly portforwards: PortForwardsService) {}
 
-  /** Validate the configured router (pfSense or UniFi) host + API key + target IP. */
+  /** Validate router (pfSense or UniFi) host + API key + target IP. The body
+   *  carries the form's current values so Test works before Save; blanks fall
+   *  back to the saved settings. */
   @Post("test")
-  test() {
-    return this.portforwards.testConnection();
+  test(@Body() body: RouterTestBody) {
+    return this.portforwards.testConnection(body);
   }
 }
 

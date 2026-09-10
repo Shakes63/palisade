@@ -10,6 +10,7 @@ interface NatRule {
   destination_port?: string;
   target?: string;
   disabled?: boolean;
+  descr?: string;
 }
 
 /**
@@ -74,6 +75,7 @@ export class PfsenseClient implements RouterClient {
         const proto = (r.protocol ?? "").toLowerCase();
         return {
           id: String(r.id),
+          name: r.descr ?? "",
           proto: proto === "tcp/udp" ? "both" : proto === "tcp" ? "tcp" : "udp",
           ports: String(r.destination_port ?? ""),
           target: r.target ?? "",

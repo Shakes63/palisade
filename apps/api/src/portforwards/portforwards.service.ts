@@ -1,9 +1,18 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from "@nestjs/common";
-import { Game, DEFAULT_PORTS } from "@ark/shared";
+import { Game, DEFAULT_PORTS, GAME_LABELS } from "@ark/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { ManagerSettingsService, SettingKeys } from "../manager-settings/manager-settings.service";
 import { forwardSpec, type ForwardPort } from "../catalog/ports";
-import { portSpecCovers, protoCovers, ROUTER_LABELS, type RouterClient, type RouterKind, type RouterRule } from "./router";
+import {
+  isPalisadeRule,
+  portSpecCovers,
+  protoCovers,
+  ROUTER_LABELS,
+  ruleName,
+  type RouterClient,
+  type RouterKind,
+  type RouterRule,
+} from "./router";
 import { PfsenseClient } from "./pfsense.client";
 import { UnifiClient } from "./unifi.client";
 
@@ -20,6 +29,28 @@ export interface ForwardStatus extends ForwardPort {
   ruleId: string | null;
   /** The host a mismatched rule currently points at. */
   actualTarget?: string | null;
+}
+
+/** Unsaved Settings-form values the Test button sends, so a router can be tried
+ *  before Save. Anything omitted (or a blank API key) falls back to what's saved. */
+export interface RouterDraft {
+  router?: RouterKind;
+  host?: string;
+  apiKey?: string;
+  site?: string;
+  targetIp?: string;
+}
+
+/** The server columns port-forward logic needs; a deleted server is passed as
+ *  a plain object because its row is already gone. */
+export interface ForwardableServer {
+  id: string;
+  name: string;
+  game: string;
+  gamePort: number;
+  rawSocketPort: number;
+  queryPort: number;
+  rconPort: number;
 }
 
 export interface PortForwardsView {
@@ -56,23 +87,26 @@ export class PortForwardsService {
     return raw === "unifi" ? "unifi" : "pfsense";
   }
 
-  /** A client for the selected router, or null while its settings are incomplete. */
-  private async client(): Promise<RouterClient | null> {
-    const kind = await this.routerKind();
+  /** A client for the selected router, or null while its settings are incomplete.
+   *  A draft (the Test button's unsaved form) overrides saved values field by field. */
+  private async client(draft: RouterDraft = {}): Promise<RouterClient | null> {
+    const kind = draft.router ?? (await this.routerKind());
+    const pick = async (key: string, override: string | undefined) =>
+      override?.trim() || (await this.settings.get(key)) || null;
     if (kind === "unifi") {
       const [host, apiKey, site, targetIp] = await Promise.all([
-        this.settings.get(SettingKeys.UnifiHost),
-        this.settings.get(SettingKeys.UnifiApiKey),
-        this.settings.get(SettingKeys.UnifiSite),
-        this.settings.get(SettingKeys.UnifiTargetIp),
+        pick(SettingKeys.UnifiHost, draft.host),
+        pick(SettingKeys.UnifiApiKey, draft.apiKey),
+        pick(SettingKeys.UnifiSite, draft.site),
+        pick(SettingKeys.UnifiTargetIp, draft.targetIp),
       ]);
       if (!host || !apiKey || !targetIp) return null;
       return new UnifiClient(host, apiKey, site?.trim() || "default", targetIp);
     }
     const [host, apiKey, targetIp] = await Promise.all([
-      this.settings.get(SettingKeys.PfsenseHost),
-      this.settings.get(SettingKeys.PfsenseApiKey),
-      this.settings.get(SettingKeys.PfsenseTargetIp),
+      pick(SettingKeys.PfsenseHost, draft.host),
+      pick(SettingKeys.PfsenseApiKey, draft.apiKey),
+      pick(SettingKeys.PfsenseTargetIp, draft.targetIp),
     ]);
     if (!host || !apiKey || !targetIp) return null;
     return new PfsenseClient(host, apiKey, targetIp);
@@ -93,7 +127,7 @@ export class PortForwardsService {
     return s;
   }
 
-  private specFor(s: { game: string; gamePort: number; rawSocketPort: number; queryPort: number; rconPort: number }) {
+  private specFor(s: ForwardableServer) {
     return forwardSpec(s.game as Game, {
       game: s.gamePort,
       rawSocket: s.rawSocketPort,
@@ -118,12 +152,13 @@ export class PortForwardsService {
     return ip;
   }
 
-  /** Validate the configured router settings (for the Settings page's Test
-   *  button): reaches the API, reports the WAN address and how many rules exist. */
-  async testConnection(): Promise<{ ok: boolean; message: string }> {
-    const kind = await this.routerKind();
+  /** Validate router settings for the Settings page's Test button — the form's
+   *  current values, falling back to what's saved — by reaching the API and
+   *  reporting the WAN address and how many rules exist. */
+  async testConnection(draft: RouterDraft = {}): Promise<{ ok: boolean; message: string }> {
+    const kind = draft.router ?? (await this.routerKind());
     const label = ROUTER_LABELS[kind];
-    const c = await this.client();
+    const c = await this.client(draft);
     if (!c) return { ok: false, message: `Fill in the ${label} host, API key, and target IP first.` };
     try {
       const [detail, wanIp] = await Promise.all([c.describe(), this.wanIp(c)]);
@@ -155,7 +190,10 @@ export class PortForwardsService {
 
   /** Each of this server's player-facing forwards + its state on the router. */
   async status(id: string): Promise<PortForwardsView> {
-    const s = await this.server(id);
+    return this.viewFor(await this.server(id));
+  }
+
+  private async viewFor(s: ForwardableServer): Promise<PortForwardsView> {
     const spec = this.specFor(s);
     const c = await this.client();
     if (!c) {
@@ -202,7 +240,7 @@ export class PortForwardsService {
     let changed = 0;
     for (const f of before.forwards) {
       if (f.state === "missing") {
-        await c.create(f, `ASM ${s.name} — ${f.label}`);
+        await c.create(f, ruleName(GAME_LABELS[s.game as Game] ?? s.game, s.name, f.label));
         this.logger.log(`${label} forward created: ${f.port}/${f.proto} → ${c.targetIp} (${s.name})`);
         changed++;
       } else if (f.state === "mismatched") {
@@ -249,5 +287,47 @@ export class PortForwardsService {
     for (const f of targets) this.logger.log(`${ROUTER_LABELS[c.kind]} forward deleted: ${f.port}/${f.proto}`);
     if (doomed.length > 0) await c.commit();
     return this.status(id);
+  }
+
+  /**
+   * Server-deletion hook: drop the forwards Palisade made for a server that no
+   * longer exists. Only rules we created (by name) that point at the configured
+   * target go, and never one another server still needs — servers share a fixed
+   * port block, so deleting one ARK server must not unplug the next. Best-effort:
+   * a router problem is logged, never surfaced, because the server row is already
+   * gone. Returns how many rules were removed.
+   */
+  async removeForServer(s: ForwardableServer): Promise<number> {
+    let c: RouterClient | null;
+    try {
+      c = await this.client();
+    } catch {
+      return 0;
+    }
+    if (!c) return 0;
+    try {
+      const view = await this.viewFor(s);
+      const rules = await c.list();
+      const others = await this.prisma.server.findMany({ where: { id: { not: s.id } } });
+      const stillNeeded = new Set(
+        others.flatMap((o) => this.specFor(o as ForwardableServer).map((f) => `${f.port}/${f.proto}`)),
+      );
+      const doomed = new Map<string, RouterRule>();
+      for (const f of view.forwards) {
+        if (f.ruleId == null || stillNeeded.has(`${f.port}/${f.proto}`)) continue;
+        const rule = rules.find((r) => r.id === f.ruleId);
+        if (rule && rule.target === c.targetIp && isPalisadeRule(rule)) doomed.set(rule.id, rule);
+      }
+      if (doomed.size === 0) return 0;
+      await c.remove([...doomed.values()]);
+      await c.commit();
+      for (const r of doomed.values()) {
+        this.logger.log(`${ROUTER_LABELS[c.kind]} forward removed with server "${s.name}": ${r.ports}/${r.proto}`);
+      }
+      return doomed.size;
+    } catch (e) {
+      this.logger.warn(`Could not remove ${ROUTER_LABELS[c.kind]} forwards for "${s.name}": ${(e as Error).message}`);
+      return 0;
+    }
   }
 }

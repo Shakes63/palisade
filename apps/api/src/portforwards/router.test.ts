@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { portSpecCovers, protoCovers } from "./router";
+import { isPalisadeRule, portSpecCovers, protoCovers, ruleName } from "./router";
 import { normalizeUnifiRule, parseUnifiHost } from "./unifi.client";
 
 describe("portSpecCovers", () => {
@@ -27,6 +27,21 @@ describe("portSpecCovers", () => {
     expect(portSpecCovers("", 7777)).toBe(false);
     expect(portSpecCovers(undefined, 7777)).toBe(false);
     expect(portSpecCovers("ark_ports", 7777)).toBe(false);
+  });
+});
+
+describe("ruleName / isPalisadeRule", () => {
+  it("formats Source - Game - Server - port and caps at UniFi's 128-char limit", () => {
+    expect(ruleName("Minecraft (Bedrock)", "test", "game (IPv4)")).toBe("Palisade - Minecraft (Bedrock) - test - game (IPv4)");
+    expect(ruleName("Valheim", "x".repeat(200), "game")).toHaveLength(128);
+  });
+
+  it("recognises current and legacy Palisade rule names only", () => {
+    const rule = { id: "1", proto: "udp" as const, ports: "1", target: "", enabled: true };
+    expect(isPalisadeRule({ ...rule, name: "Palisade - Valheim - a - game" })).toBe(true);
+    expect(isPalisadeRule({ ...rule, name: "ASM a — game" })).toBe(true);
+    expect(isPalisadeRule({ ...rule, name: "Shooter Alarm" })).toBe(false);
+    expect(isPalisadeRule({ ...rule, name: "" })).toBe(false);
   });
 });
 
@@ -63,7 +78,14 @@ describe("normalizeUnifiRule", () => {
         enabled: true,
         pfwd_interface: "wan",
       }),
-    ).toEqual({ id: "6aa2ba4a552cb06f99021735", proto: "both", ports: "27015", target: "10.0.0.5", enabled: true });
+    ).toEqual({
+      id: "6aa2ba4a552cb06f99021735",
+      name: "",
+      proto: "both",
+      ports: "27015",
+      target: "10.0.0.5",
+      enabled: true,
+    });
   });
 
   it("treats a missing enabled flag as enabled and a missing target as empty", () => {

@@ -33,6 +33,7 @@ export function normalizeUnifiRule(r: UnifiForward): RouterRule {
   const proto = (r.proto ?? "").toLowerCase();
   return {
     id: r._id,
+    name: r.name ?? "",
     proto: proto === "tcp_udp" ? "both" : proto === "tcp" ? "tcp" : "udp",
     ports: String(r.dst_port ?? ""),
     target: r.fwd ?? "",
@@ -164,7 +165,7 @@ export class UnifiClient implements RouterClient {
 
   async create(f: ForwardPort, description: string): Promise<void> {
     await this.api("POST", this.sitePath("rest/portforward"), {
-      name: description,
+      name: description.slice(0, 128), // UniFi validates name against .{1,128}
       enabled: true,
       pfwd_interface: "wan",
       src: "any",

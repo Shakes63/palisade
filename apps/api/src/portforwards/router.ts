@@ -9,6 +9,8 @@ export const ROUTER_LABELS: Record<RouterKind, string> = { pfsense: "pfSense", u
 export interface RouterRule {
   /** The router's own id (pfSense numeric index, UniFi object id) as a string. */
   id: string;
+  /** The rule's description / name on the router ("" when it has none). */
+  name: string;
   /** "udp" | "tcp" | "both" (UniFi's tcp_udp). */
   proto: "udp" | "tcp" | "both";
   /** The WAN-side port spec as the router stores it: "7777", "7777,7778", "7777-7779". */
@@ -38,6 +40,23 @@ export interface RouterClient {
   remove(rules: RouterRule[]): Promise<void>;
   /** Push pending changes live. pfSense needs an explicit apply; UniFi provisions on write. */
   commit(): Promise<void>;
+}
+
+/** Every rule Palisade creates is named with this prefix, which is how a later
+ *  cleanup tells our rules apart from ones an admin made by hand. */
+export const RULE_NAME_PREFIX = "Palisade - ";
+
+/** Older builds named rules "ASM <server> — <port>"; still recognised as ours. */
+const LEGACY_RULE_PREFIX = "ASM ";
+
+/** "Palisade - <Game> - <server> - <port label>", capped at UniFi's 128-char
+ *  name limit (pfSense descriptions have no practical limit). */
+export function ruleName(gameLabel: string, serverName: string, portLabel: string): string {
+  return `${RULE_NAME_PREFIX}${gameLabel} - ${serverName} - ${portLabel}`.slice(0, 128);
+}
+
+export function isPalisadeRule(rule: RouterRule): boolean {
+  return rule.name.startsWith(RULE_NAME_PREFIX) || rule.name.startsWith(LEGACY_RULE_PREFIX);
 }
 
 /**
