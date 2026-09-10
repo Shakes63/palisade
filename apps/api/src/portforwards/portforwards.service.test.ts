@@ -120,7 +120,7 @@ describe("PortForwardsService", () => {
     const svc = service(router);
     const view = await svc.setEnabled("srv1", 2456, "udp", false);
     expect(router.calls).toEqual(["setEnabled a false", "commit"]);
-    expect(view.forwards[0].state).toBe("disabled");
+    expect(view.forwards[0]?.state).toBe("disabled");
     await expect(svc.setEnabled("srv1", 9999, "udp", true)).rejects.toThrow(/isn't one of this server's forwards/);
     await expect(svc.setEnabled("srv1", 2457, "udp", true)).rejects.toThrow(/No rule exists/);
   });
