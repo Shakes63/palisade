@@ -1,9 +1,9 @@
 import { Module } from "@nestjs/common";
-import { PortForwardsController, PfsenseController } from "./portforwards.controller";
+import { PortForwardsController, RouterController } from "./portforwards.controller";
 import { PortForwardsService } from "./portforwards.service";
 
 @Module({
-  controllers: [PortForwardsController, PfsenseController],
+  controllers: [PortForwardsController, RouterController],
   providers: [PortForwardsService],
 })
 export class PortForwardsModule {}

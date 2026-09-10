@@ -1,9 +1,11 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from "@nestjs/common";
-import { request as httpsRequest } from "node:https";
 import { Game, DEFAULT_PORTS } from "@ark/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { ManagerSettingsService, SettingKeys } from "../manager-settings/manager-settings.service";
 import { forwardSpec, type ForwardPort } from "../catalog/ports";
+import { portSpecCovers, protoCovers, ROUTER_LABELS, type RouterClient, type RouterKind, type RouterRule } from "./router";
+import { PfsenseClient } from "./pfsense.client";
+import { UnifiClient } from "./unifi.client";
 
 /** Per-forward state on the router:
  *  ok         — enabled WAN rule exists and points at the target
@@ -14,14 +16,16 @@ export type ForwardState = "ok" | "disabled" | "mismatched" | "missing";
 
 export interface ForwardStatus extends ForwardPort {
   state: ForwardState;
-  /** pfSense rule id when one exists (for enable/disable/delete). */
-  ruleId: number | null;
+  /** The router's rule id when one exists (for enable/disable/delete). */
+  ruleId: string | null;
   /** The host a mismatched rule currently points at. */
   actualTarget?: string | null;
 }
 
 export interface PortForwardsView {
-  /** pfSense host + API key + target IP are all configured. */
+  /** Which router product Settings points at (pfSense unless switched). */
+  router: RouterKind;
+  /** Router host + API key + target IP are all configured. */
   configured: boolean;
   targetIp: string | null;
   /** The router's public (WAN) address — what friends connect to. */
@@ -29,25 +33,12 @@ export interface PortForwardsView {
   forwards: ForwardStatus[];
 }
 
-/** The slice of a pfSense NAT rule we read. */
-interface NatRule {
-  id: number;
-  interface?: string;
-  protocol?: string;
-  destination_port?: string;
-  target?: string;
-  disabled?: boolean;
-}
-
 /**
- * WAN port-forward management via the pfSense REST API (the jaredhendrickson13
- * package, /api/v2). The manager knows exactly which player-facing ports each game
- * needs (forwardSpec), so it can report each forward's state and fix it: create
- * missing rules, re-target mismatched ones, enable/disable, and delete. Rules are
- * created with associated_rule_id "pass" (auto firewall rule) and every change is
- * applied immediately. pfSense boxes run self-signed certs, so TLS verification is
- * disabled for this client. API quirk: single-object DELETE/PATCH want `id` in the
- * JSON body, not the query string.
+ * WAN port-forward management. The manager knows exactly which player-facing
+ * ports each game needs (forwardSpec), so it can report each forward's state and
+ * fix it: create missing rules, re-target mismatched ones, enable/disable, and
+ * delete. The router-specific wire work lives in one RouterClient per product
+ * (pfSense REST API, UniFi Network API); this service only reasons about rules.
  */
 @Injectable()
 export class PortForwardsService {
@@ -58,71 +49,42 @@ export class PortForwardsService {
     private readonly settings: ManagerSettingsService,
   ) {}
 
-  private async config(): Promise<{ host: string; apiKey: string; targetIp: string } | null> {
+  /** The router product Settings selects. Unset means pfSense — the only option
+   *  installs had before UniFi support, so their forwards keep working untouched. */
+  async routerKind(): Promise<RouterKind> {
+    const raw = await this.settings.get(SettingKeys.PortForwardRouter);
+    return raw === "unifi" ? "unifi" : "pfsense";
+  }
+
+  /** A client for the selected router, or null while its settings are incomplete. */
+  private async client(): Promise<RouterClient | null> {
+    const kind = await this.routerKind();
+    if (kind === "unifi") {
+      const [host, apiKey, site, targetIp] = await Promise.all([
+        this.settings.get(SettingKeys.UnifiHost),
+        this.settings.get(SettingKeys.UnifiApiKey),
+        this.settings.get(SettingKeys.UnifiSite),
+        this.settings.get(SettingKeys.UnifiTargetIp),
+      ]);
+      if (!host || !apiKey || !targetIp) return null;
+      return new UnifiClient(host, apiKey, site?.trim() || "default", targetIp);
+    }
     const [host, apiKey, targetIp] = await Promise.all([
       this.settings.get(SettingKeys.PfsenseHost),
       this.settings.get(SettingKeys.PfsenseApiKey),
       this.settings.get(SettingKeys.PfsenseTargetIp),
     ]);
     if (!host || !apiKey || !targetIp) return null;
-    return { host, apiKey, targetIp };
+    return new PfsenseClient(host, apiKey, targetIp);
   }
 
-  private async requireConfig() {
-    const cfg = await this.config();
-    if (!cfg) {
-      throw new BadRequestException("Configure the pfSense host, API key, and target IP in Settings first.");
+  private async requireClient(): Promise<RouterClient> {
+    const c = await this.client();
+    if (!c) {
+      const label = ROUTER_LABELS[await this.routerKind()];
+      throw new BadRequestException(`Configure the ${label} host, API key, and target IP in Settings first.`);
     }
-    return cfg;
-  }
-
-  /** Minimal JSON request against the pfSense REST API (self-signed cert tolerated). */
-  private api<T>(
-    cfg: { host: string; apiKey: string },
-    method: "GET" | "POST" | "PATCH" | "DELETE",
-    path: string,
-    body?: unknown,
-  ): Promise<T> {
-    return new Promise((resolve, reject) => {
-      const payload = body === undefined ? null : JSON.stringify(body);
-      const req = httpsRequest(
-        {
-          host: cfg.host,
-          path: `/api/v2${path}`,
-          method,
-          rejectUnauthorized: false, // pfSense self-signed cert
-          timeout: 15_000,
-          headers: {
-            "X-API-Key": cfg.apiKey,
-            ...(payload ? { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(payload) } : {}),
-          },
-        },
-        (res) => {
-          let data = "";
-          res.on("data", (d) => (data += d));
-          res.on("end", () => {
-            if ((res.statusCode ?? 500) >= 400) {
-              return reject(new Error(`pfSense ${res.statusCode}: ${data.slice(0, 200)}`));
-            }
-            try {
-              resolve(JSON.parse(data) as T);
-            } catch {
-              resolve(undefined as T);
-            }
-          });
-        },
-      );
-      req.on("error", reject);
-      req.on("timeout", () => req.destroy(new Error("pfSense request timeout")));
-      if (payload) req.write(payload);
-      req.end();
-    });
-  }
-
-  private async applyChanges(cfg: { host: string; apiKey: string }): Promise<void> {
-    // Apply twice — the reliable pattern against this API.
-    await this.api(cfg, "POST", "/firewall/apply", {});
-    await this.api(cfg, "POST", "/firewall/apply", {});
+    return c;
   }
 
   private async server(id: string) {
@@ -140,62 +102,54 @@ export class PortForwardsService {
     } as typeof DEFAULT_PORTS);
   }
 
-  private async rules(cfg: { host: string; apiKey: string }): Promise<NatRule[]> {
-    const res = await this.api<{ data?: NatRule[] }>(cfg, "GET", "/firewall/nat/port_forwards?limit=0");
-    return res.data ?? [];
-  }
+  private wanIpCache: { key: string; ip: string | null; at: number } | null = null;
 
-  private wanIpCache: { ip: string | null; at: number } | null = null;
-
-  /** The WAN interface's public address (cached 5 min; null on lookup failure). */
-  private async wanIp(cfg: { host: string; apiKey: string }): Promise<string | null> {
-    if (this.wanIpCache && Date.now() - this.wanIpCache.at < 300_000) return this.wanIpCache.ip;
+  /** The router's public address (cached 5 min per router; null on lookup failure). */
+  private async wanIp(c: RouterClient): Promise<string | null> {
+    const key = `${c.kind}:${c.host}`;
+    if (this.wanIpCache?.key === key && Date.now() - this.wanIpCache.at < 300_000) return this.wanIpCache.ip;
     let ip: string | null = null;
     try {
-      const res = await this.api<{ data?: Array<{ name?: string; hwif?: string; ipaddr?: string }> }>(
-        cfg,
-        "GET",
-        "/status/interfaces?limit=0",
-      );
-      const wan = (res.data ?? []).find((i) => (i.name ?? "").toLowerCase() === "wan") ?? res.data?.[0];
-      ip = wan?.ipaddr ?? null;
+      ip = await c.wanIp();
     } catch {
       /* status endpoint unavailable — just omit the WAN ip */
     }
-    this.wanIpCache = { ip, at: Date.now() };
+    this.wanIpCache = { key, ip, at: Date.now() };
     return ip;
   }
 
-  /** Validate the configured host + API key + target (for the Settings page's Test
-   *  button): reaches the API, reports the WAN address and how many NAT rules exist. */
+  /** Validate the configured router settings (for the Settings page's Test
+   *  button): reaches the API, reports the WAN address and how many rules exist. */
   async testConnection(): Promise<{ ok: boolean; message: string }> {
-    const cfg = await this.config();
-    if (!cfg) return { ok: false, message: "Fill in the pfSense host, API key, and target IP first." };
+    const kind = await this.routerKind();
+    const label = ROUTER_LABELS[kind];
+    const c = await this.client();
+    if (!c) return { ok: false, message: `Fill in the ${label} host, API key, and target IP first.` };
     try {
-      const [rules, wanIp] = await Promise.all([this.rules(cfg), this.wanIp(cfg)]);
+      const [detail, wanIp] = await Promise.all([c.describe(), this.wanIp(c)]);
       return {
         ok: true,
-        message: `Connected to ${cfg.host} — WAN ${wanIp ?? "unknown"}, ${rules.length} NAT rule${rules.length === 1 ? "" : "s"} found. Forwards will target ${cfg.targetIp}.`,
+        message: `Connected to ${c.host} — WAN ${wanIp ?? "unknown"}, ${detail}. Forwards will target ${c.targetIp}.`,
       };
     } catch (e) {
-      return { ok: false, message: `Could not reach the pfSense API: ${(e as Error).message}` };
+      return { ok: false, message: `Could not reach the ${label} API: ${(e as Error).message}` };
     }
   }
 
-  /** The WAN rule matching a forward's port/proto — target-matching rules first. */
-  private matchRule(rules: NatRule[], f: ForwardPort, targetIp: string): NatRule | undefined {
-    const candidates = rules.filter(
-      (r) =>
-        (r.interface ?? "wan") === "wan" &&
-        (r.protocol ?? "").toLowerCase() === f.proto &&
-        String(r.destination_port ?? "") === String(f.port),
+  /** The WAN rule covering a forward's port/proto — target-matching rules first,
+   *  then rules dedicated to exactly this port over shared lists/ranges. */
+  private matchRule(rules: RouterRule[], f: ForwardPort, targetIp: string): RouterRule | undefined {
+    const candidates = rules.filter((r) => protoCovers(r.proto, f.proto) && portSpecCovers(r.ports, f.port));
+    return (
+      candidates.find((r) => r.target === targetIp) ??
+      candidates.find((r) => r.ports.trim() === String(f.port)) ??
+      candidates[0]
     );
-    return candidates.find((r) => r.target === targetIp) ?? candidates[0];
   }
 
-  private classify(rule: NatRule | undefined, targetIp: string): ForwardState {
+  private classify(rule: RouterRule | undefined, targetIp: string): ForwardState {
     if (!rule) return "missing";
-    if (rule.disabled) return "disabled";
+    if (!rule.enabled) return "disabled";
     return rule.target === targetIp ? "ok" : "mismatched";
   }
 
@@ -203,23 +157,25 @@ export class PortForwardsService {
   async status(id: string): Promise<PortForwardsView> {
     const s = await this.server(id);
     const spec = this.specFor(s);
-    const cfg = await this.config();
-    if (!cfg) {
+    const c = await this.client();
+    if (!c) {
       return {
+        router: await this.routerKind(),
         configured: false,
         targetIp: null,
         wanIp: null,
         forwards: spec.map((f) => ({ ...f, state: "missing" as const, ruleId: null })),
       };
     }
-    const [rules, wanIp] = await Promise.all([this.rules(cfg), this.wanIp(cfg)]);
+    const [rules, wanIp] = await Promise.all([c.list(), this.wanIp(c)]);
     return {
+      router: c.kind,
       configured: true,
-      targetIp: cfg.targetIp,
+      targetIp: c.targetIp,
       wanIp,
       forwards: spec.map((f) => {
-        const rule = this.matchRule(rules, f, cfg.targetIp);
-        const state = this.classify(rule, cfg.targetIp);
+        const rule = this.matchRule(rules, f, c.targetIp);
+        const state = this.classify(rule, c.targetIp);
         return {
           ...f,
           state,
@@ -230,60 +186,54 @@ export class PortForwardsService {
     };
   }
 
+  /** The router's rule behind a forward-status row (re-listed so edits see fresh data). */
+  private async ruleFor(c: RouterClient, f: ForwardStatus): Promise<RouterRule | undefined> {
+    if (f.ruleId == null) return undefined;
+    return (await c.list()).find((r) => r.id === f.ruleId);
+  }
+
   /** Fix everything: create missing rules and re-target mismatched ones, then apply.
    *  Disabled rules are left alone (that's an explicit admin choice — use enable). */
   async apply(id: string): Promise<PortForwardsView> {
-    const cfg = await this.requireConfig();
+    const c = await this.requireClient();
     const s = await this.server(id);
     const before = await this.status(id);
+    const label = ROUTER_LABELS[c.kind];
     let changed = 0;
     for (const f of before.forwards) {
       if (f.state === "missing") {
-        await this.api(cfg, "POST", "/firewall/nat/port_forward", {
-          interface: "wan",
-          ipprotocol: "inet",
-          protocol: f.proto,
-          source: "any",
-          destination: "wan:ip",
-          destination_port: String(f.port),
-          target: cfg.targetIp,
-          local_port: String(f.port),
-          descr: `ASM ${s.name} — ${f.label}`,
-          associated_rule_id: "pass",
-          disabled: false,
-        });
-        this.logger.log(`pfSense forward created: ${f.port}/${f.proto} → ${cfg.targetIp} (${s.name})`);
+        await c.create(f, `ASM ${s.name} — ${f.label}`);
+        this.logger.log(`${label} forward created: ${f.port}/${f.proto} → ${c.targetIp} (${s.name})`);
         changed++;
-      } else if (f.state === "mismatched" && f.ruleId != null) {
-        await this.api(cfg, "PATCH", "/firewall/nat/port_forward", {
-          id: f.ruleId,
-          target: cfg.targetIp,
-          local_port: String(f.port),
-        });
-        this.logger.log(`pfSense forward re-targeted: ${f.port}/${f.proto} → ${cfg.targetIp} (${s.name})`);
+      } else if (f.state === "mismatched") {
+        const rule = await this.ruleFor(c, f);
+        if (!rule) continue;
+        await c.retarget(rule, f);
+        this.logger.log(`${label} forward re-targeted: ${f.port}/${f.proto} → ${c.targetIp} (${s.name})`);
         changed++;
       }
     }
-    if (changed > 0) await this.applyChanges(cfg);
+    if (changed > 0) await c.commit();
     return this.status(id);
   }
 
   /** Enable or disable one of this server's forwards on the router. */
   async setEnabled(id: string, port: number, proto: "udp" | "tcp", enabled: boolean): Promise<PortForwardsView> {
-    const cfg = await this.requireConfig();
+    const c = await this.requireClient();
     const view = await this.status(id);
     const f = view.forwards.find((x) => x.port === port && x.proto === proto);
     if (!f) throw new BadRequestException(`${port}/${proto} isn't one of this server's forwards`);
-    if (f.ruleId == null) throw new NotFoundException("No rule exists for that port — create it first");
-    await this.api(cfg, "PATCH", "/firewall/nat/port_forward", { id: f.ruleId, disabled: !enabled });
-    await this.applyChanges(cfg);
-    this.logger.log(`pfSense forward ${enabled ? "enabled" : "disabled"}: ${port}/${proto}`);
+    const rule = await this.ruleFor(c, f);
+    if (!rule) throw new NotFoundException("No rule exists for that port — create it first");
+    await c.setEnabled(rule, enabled);
+    await c.commit();
+    this.logger.log(`${ROUTER_LABELS[c.kind]} forward ${enabled ? "enabled" : "disabled"}: ${port}/${proto}`);
     return this.status(id);
   }
 
   /** Delete one forward (port+proto), or ALL of this server's forwards when omitted. */
   async remove(id: string, port?: number, proto?: "udp" | "tcp"): Promise<PortForwardsView> {
-    const cfg = await this.requireConfig();
+    const c = await this.requireClient();
     const view = await this.status(id);
     const targets = view.forwards.filter(
       (f) => f.ruleId != null && (port === undefined || (f.port === port && f.proto === proto)),
@@ -291,12 +241,13 @@ export class PortForwardsService {
     if (port !== undefined && targets.length === 0) {
       throw new NotFoundException("No rule exists for that port");
     }
-    // Delete highest id first so earlier deletions don't shift later ids.
-    for (const f of [...targets].sort((a, b) => (b.ruleId ?? 0) - (a.ruleId ?? 0))) {
-      await this.api(cfg, "DELETE", "/firewall/nat/port_forward", { id: f.ruleId });
-      this.logger.log(`pfSense forward deleted: ${f.port}/${f.proto}`);
-    }
-    if (targets.length > 0) await this.applyChanges(cfg);
+    const rules = await c.list();
+    // One router rule can back several forwards (a tcp_udp or multi-port rule) — delete it once.
+    const ids = new Set(targets.map((f) => f.ruleId));
+    const doomed = rules.filter((r) => ids.has(r.id));
+    await c.remove(doomed);
+    for (const f of targets) this.logger.log(`${ROUTER_LABELS[c.kind]} forward deleted: ${f.port}/${f.proto}`);
+    if (doomed.length > 0) await c.commit();
     return this.status(id);
   }
 }

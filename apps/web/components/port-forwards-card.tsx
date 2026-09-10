@@ -10,21 +10,24 @@ interface ForwardStatus {
   proto: "udp" | "tcp";
   label: string;
   state: ForwardState;
-  ruleId: number | null;
+  ruleId: string | null;
   actualTarget?: string | null;
 }
 interface View {
+  router: "pfsense" | "unifi";
   configured: boolean;
   targetIp: string | null;
   wanIp: string | null;
   forwards: ForwardStatus[];
 }
 
+const ROUTER_LABELS = { pfsense: "pfSense", unifi: "UniFi" } as const;
+
 /**
  * Full WAN port-forward management for this server's player-facing ports:
  * per-forward state (ok / disabled / wrong target / missing), one-click
- * create-and-fix, per-forward enable/disable and delete — all against the pfSense
- * REST API (host + key + target IP in Settings).
+ * create-and-fix, per-forward enable/disable and delete — against whichever
+ * router Settings points at (pfSense REST API or UniFi Network API).
  */
 export function PortForwardsCard({ serverId }: { serverId: string }) {
   const [view, setView] = useState<View | null>(null);
@@ -51,6 +54,7 @@ export function PortForwardsCard({ serverId }: { serverId: string }) {
   };
 
   if (!view) return null;
+  const routerLabel = ROUTER_LABELS[view.router] ?? "router";
   const fixable = view.forwards.filter((f) => f.state === "missing" || f.state === "mismatched").length;
 
   const stateChip = (f: ForwardStatus) => {
@@ -88,7 +92,7 @@ export function PortForwardsCard({ serverId }: { serverId: string }) {
         <div className="flex items-center gap-2">
           <Globe className="h-4 w-4 text-ark-accent" />
           <h3 className="text-sm font-semibold uppercase tracking-wide text-ark-accent2">
-            Port forwarding (pfSense)
+            Port forwarding ({routerLabel})
           </h3>
         </div>
         {view.configured && fixable > 0 && (
@@ -101,7 +105,7 @@ export function PortForwardsCard({ serverId }: { serverId: string }) {
 
       {!view.configured ? (
         <p className="text-xs text-slate-500">
-          Set the pfSense host, API key, and target IP in{" "}
+          Set the {routerLabel} host, API key, and target IP in{" "}
           <Link href="/settings" className="text-ark-accent hover:underline">
             Settings
           </Link>{" "}
@@ -141,7 +145,7 @@ export function PortForwardsCard({ serverId }: { serverId: string }) {
                         </button>
                         <button
                           className="text-slate-500 hover:text-rose-400"
-                          title="Delete this forward from pfSense"
+                          title={`Delete this forward from ${routerLabel}`}
                           disabled={busy !== null}
                           onClick={() =>
                             run(key, () =>

@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Patch } from "@nestjs/common";
 import { ModuleRef } from "@nestjs/core";
-import { IsBoolean, IsInt, IsOptional, IsString, Max, Min, ValidateIf } from "class-validator";
+import { IsBoolean, IsIn, IsInt, IsOptional, IsString, Max, Min, ValidateIf } from "class-validator";
 import { ManagerSettingsService, SettingKeys } from "./manager-settings.service";
 import { SchedulerService } from "../scheduler/scheduler.service";
 import { MinRole } from "../auth/min-role.decorator";
@@ -22,6 +22,11 @@ class UpdateSettingsBody {
   @IsOptional() @IsString() pfsenseHost?: string;
   @IsOptional() @IsString() pfsenseApiKey?: string;
   @IsOptional() @IsString() pfsenseTargetIp?: string;
+  @IsOptional() @IsIn(["pfsense", "unifi"]) portForwardRouter?: "pfsense" | "unifi";
+  @IsOptional() @IsString() unifiHost?: string;
+  @IsOptional() @IsString() unifiApiKey?: string;
+  @IsOptional() @IsString() unifiSite?: string;
+  @IsOptional() @IsString() unifiTargetIp?: string;
 }
 
 /** "" for null so the row exists but reads back as unset — the tri-state the
@@ -70,6 +75,13 @@ export class ManagerSettingsController {
     if (body.pfsenseApiKey) await this.settings.set(SettingKeys.PfsenseApiKey, body.pfsenseApiKey);
     if (body.pfsenseTargetIp !== undefined)
       await this.settings.set(SettingKeys.PfsenseTargetIp, body.pfsenseTargetIp);
+    if (body.portForwardRouter !== undefined)
+      await this.settings.set(SettingKeys.PortForwardRouter, body.portForwardRouter);
+    if (body.unifiHost !== undefined) await this.settings.set(SettingKeys.UnifiHost, body.unifiHost.trim());
+    if (body.unifiApiKey) await this.settings.set(SettingKeys.UnifiApiKey, body.unifiApiKey.trim());
+    if (body.unifiSite !== undefined) await this.settings.set(SettingKeys.UnifiSite, body.unifiSite.trim());
+    if (body.unifiTargetIp !== undefined)
+      await this.settings.set(SettingKeys.UnifiTargetIp, body.unifiTargetIp.trim());
 
     // Host overrides. An empty string / null means "defer to the env var again",
     // which is stored as "" and read back as unset by the tri-state getters.

@@ -3,13 +3,13 @@ import { IsBoolean, IsIn, IsInt } from "class-validator";
 import { PortForwardsService } from "./portforwards.service";
 import { MinRole } from "../auth/min-role.decorator";
 
-/** Settings-scoped pfSense utilities (not tied to a server). */
+/** Settings-scoped router utilities (not tied to a server). */
 @MinRole("admin")
-@Controller("pfsense")
-export class PfsenseController {
+@Controller("router")
+export class RouterController {
   constructor(private readonly portforwards: PortForwardsService) {}
 
-  /** Validate the configured pfSense host + API key + target IP. */
+  /** Validate the configured router (pfSense or UniFi) host + API key + target IP. */
   @Post("test")
   test() {
     return this.portforwards.testConnection();
@@ -26,13 +26,13 @@ class ToggleForwardBody {
 export class PortForwardsController {
   constructor(private readonly portforwards: PortForwardsService) {}
 
-  /** Each player-facing forward's state on the pfSense router. */
+  /** Each player-facing forward's state on the router. */
   @Get()
   status(@Param("id") id: string) {
     return this.portforwards.status(id);
   }
 
-  /** Create missing forwards and re-target mismatched ones (auto pass rules) + apply. */
+  /** Create missing forwards and re-target mismatched ones + apply. */
   @Post()
   apply(@Param("id") id: string) {
     return this.portforwards.apply(id);

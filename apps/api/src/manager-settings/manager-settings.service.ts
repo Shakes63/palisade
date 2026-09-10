@@ -31,6 +31,13 @@ export const SettingKeys = {
   PfsenseHost: "pfsense_host",
   PfsenseApiKey: "pfsense_api_key", // secret
   PfsenseTargetIp: "pfsense_target_ip", // the LAN IP the game servers bind on
+  // Which router the port-forward integration drives: "pfsense" (default) or "unifi".
+  PortForwardRouter: "port_forward_router",
+  // UniFi Network API (API key from Settings → Control Plane → Integrations).
+  UnifiHost: "unifi_host",
+  UnifiApiKey: "unifi_api_key", // secret
+  UnifiSite: "unifi_site", // the Network app's site name ("default" unless multi-site)
+  UnifiTargetIp: "unifi_target_ip", // the LAN IP the game servers bind on
   Initialized: "initialized",
 } as const;
 
@@ -46,6 +53,7 @@ const SECRET_KEYS = new Set<string>([
   SettingKeys.CurseForgeApiKey,
   SettingKeys.SteamWebApiKey,
   SettingKeys.PfsenseApiKey,
+  SettingKeys.UnifiApiKey,
   SettingKeys.NotificationTargets,
   SettingKeys.BackupReplication,
   SettingKeys.SteamGridDbApiKey,
