@@ -177,25 +177,29 @@ export class AuthService {
     const role = (access.role ?? current.role) as Role;
     if (current.role === "admin" && role !== "admin") await this.assertAnotherAdmin(id);
 
+    // Admins are never restricted: promoting to admin clears the flag and
+    // grants so nothing stale lingers if they are later demoted.
+    const isAdmin = role === "admin";
+    const serverIds = isAdmin ? [] : access.serverIds;
+    const clusterIds = isAdmin ? [] : access.clusterIds;
+    const restricted = isAdmin ? false : access.restricted;
+
     const user = await this.prisma.$transaction(async (tx) => {
-      if (access.serverIds) {
+      if (serverIds) {
         await tx.userServerAccess.deleteMany({ where: { userId: id } });
         await tx.userServerAccess.createMany({
-          data: [...new Set(access.serverIds)].map((serverId) => ({ userId: id, serverId })),
+          data: [...new Set(serverIds)].map((serverId) => ({ userId: id, serverId })),
         });
       }
-      if (access.clusterIds) {
+      if (clusterIds) {
         await tx.userClusterAccess.deleteMany({ where: { userId: id } });
         await tx.userClusterAccess.createMany({
-          data: [...new Set(access.clusterIds)].map((clusterId) => ({ userId: id, clusterId })),
+          data: [...new Set(clusterIds)].map((clusterId) => ({ userId: id, clusterId })),
         });
       }
       return tx.user.update({
         where: { id },
-        data: {
-          role,
-          ...(access.restricted !== undefined ? { restricted: access.restricted } : {}),
-        },
+        data: { role, ...(restricted !== undefined ? { restricted } : {}) },
         select: AuthService.USER_SELECT,
       });
     });
@@ -207,8 +211,10 @@ export class AuthService {
     const count = await this.prisma.user.count();
     if (count <= 1) throw new BadRequestException("Cannot delete the last user");
     const target = await this.prisma.user.findUnique({ where: { id }, select: { role: true } });
-    if (target?.role === "admin") await this.assertAnotherAdmin(id);
+    if (!target) throw new NotFoundException("User not found");
+    if (target.role === "admin") await this.assertAnotherAdmin(id);
     await this.prisma.user.delete({ where: { id } });
+    this.access.notifyChanged(id);
     return { ok: true };
   }
 

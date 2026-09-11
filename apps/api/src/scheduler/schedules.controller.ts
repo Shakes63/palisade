@@ -1,7 +1,20 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  NotFoundException,
+  Param,
+  Patch,
+  Post,
+  Query,
+} from "@nestjs/common";
 import { IsBoolean, IsDateString, IsIn, IsInt, IsOptional, IsString, Min } from "class-validator";
 import { PrismaService } from "../prisma/prisma.service";
 import { SchedulerService } from "./scheduler.service";
+import { AccessService } from "../auth/access.service";
+import { CurrentUser } from "../auth/current-user.decorator";
+import type { AuthUser } from "../auth/auth-user";
 
 class ScheduleBody {
   @IsString() serverId!: string;
@@ -16,23 +29,33 @@ class ScheduleBody {
   @IsOptional() @IsDateString() runAt?: string;
 }
 
+/**
+ * Schedules carry their server by body/query rather than in the path, so the
+ * global ServerAccessGuard can't scope them; every handler checks the server
+ * itself (GH #73).
+ */
 @Controller("schedules")
 export class SchedulesController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly scheduler: SchedulerService,
+    private readonly access: AccessService,
   ) {}
 
   @Get()
-  list(@Query("serverId") serverId?: string) {
-    return this.prisma.schedule.findMany({
+  async list(@CurrentUser() user: AuthUser, @Query("serverId") serverId?: string) {
+    if (serverId) await this.access.assertServer(user, serverId);
+    const rows = await this.prisma.schedule.findMany({
       where: serverId ? { serverId } : undefined,
       orderBy: { createdAt: "desc" },
     });
+    if (serverId) return rows;
+    return this.access.filterByServer(rows, await this.access.allowedServerIds(user));
   }
 
   @Post()
-  async create(@Body() body: ScheduleBody) {
+  async create(@Body() body: ScheduleBody, @CurrentUser() user: AuthUser) {
+    await this.access.assertServer(user, body.serverId);
     const created = await this.prisma.schedule.create({
       data: {
         serverId: body.serverId,
@@ -53,7 +76,14 @@ export class SchedulesController {
   }
 
   @Patch(":id")
-  async update(@Param("id") id: string, @Body() body: Partial<ScheduleBody>) {
+  async update(
+    @Param("id") id: string,
+    @Body() body: Partial<ScheduleBody>,
+    @CurrentUser() user: AuthUser,
+  ) {
+    const current = await this.owned(id, user);
+    // Moving a schedule onto another server needs that server too.
+    if (body.serverId && body.serverId !== current) await this.access.assertServer(user, body.serverId);
     const data = { ...body, runAt: body.runAt !== undefined ? new Date(body.runAt) : undefined };
     const updated = await this.prisma.schedule.update({ where: { id }, data });
     this.scheduler.unregister(id);
@@ -64,9 +94,19 @@ export class SchedulesController {
   }
 
   @Delete(":id")
-  async remove(@Param("id") id: string) {
+  async remove(@Param("id") id: string, @CurrentUser() user: AuthUser) {
+    await this.owned(id, user);
     this.scheduler.unregister(id);
     await this.prisma.schedule.delete({ where: { id } });
     return { ok: true };
+  }
+
+  /** The schedule's server id, after checking the caller may see that server.
+   *  A missing schedule and a hidden one both 404. */
+  private async owned(id: string, user: AuthUser): Promise<string> {
+    const row = await this.prisma.schedule.findUnique({ where: { id }, select: { serverId: true } });
+    if (!row) throw new NotFoundException("Schedule not found");
+    await this.access.assertServer(user, row.serverId);
+    return row.serverId;
   }
 }

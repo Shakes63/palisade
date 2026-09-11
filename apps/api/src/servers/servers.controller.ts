@@ -33,6 +33,9 @@ import { EventsService } from "../events/events.service";
 import { UpdatesService } from "../updates/updates.service";
 import { CreateServerBody, UpdateServerBody, ExtraEnvBody } from "./servers.dto";
 import { MinRole } from "../auth/min-role.decorator";
+import { AccessService } from "../auth/access.service";
+import { CurrentUser } from "../auth/current-user.decorator";
+import type { AuthUser } from "../auth/auth-user";
 
 class CopyServerBody {
   @IsArray() @IsString({ each: true }) targetIds!: string[];
@@ -54,17 +57,19 @@ export class ServersController {
     private readonly events: EventsService,
     private readonly history: HistoryService,
     private readonly updates: UpdatesService,
+    private readonly access: AccessService,
   ) {}
 
+  /** Restricted users (GH #73) only see the servers granted to them. */
   @Get()
-  list() {
-    return this.servers.list();
+  async list(@CurrentUser() user: AuthUser) {
+    return this.servers.list(await this.access.allowedServerIds(user));
   }
 
   // Must precede @Get(":id") so "/servers/stats" isn't captured as id="stats".
   @Get("stats")
-  statsAll() {
-    return this.servers.statsAll();
+  async statsAll(@CurrentUser() user: AuthUser) {
+    return this.servers.statsAll(await this.access.allowedServerIds(user));
   }
 
   /** Whole-machine stats (for the dashboard disk-space warning). Must also
@@ -178,7 +183,9 @@ export class ServersController {
 
   /** Copy this server's settings/mods onto the given (same-game) targets. */
   @Post(":id/copy")
-  copy(@Param("id") id: string, @Body() body: CopyServerBody) {
+  async copy(@Param("id") id: string, @Body() body: CopyServerBody, @CurrentUser() user: AuthUser) {
+    // The guard checked the source; the targets arrive by body so check them here.
+    await this.access.assertServers(user, body.targetIds);
     return this.servers.copyTo(id, body);
   }
 
