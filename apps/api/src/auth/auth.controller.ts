@@ -1,9 +1,11 @@
-import { Body, Controller, Get, Post, Req, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Post, UseGuards } from "@nestjs/common";
 import { AuthService } from "./auth.service";
 import { Public } from "./public.decorator";
 import { MinRole } from "./min-role.decorator";
 import { AuthThrottlerGuard } from "./auth-throttler.guard";
 import { FirstRunBody, LoginBody } from "./auth.dto";
+import { CurrentUser } from "./current-user.decorator";
+import type { AuthUser } from "./auth-user";
 
 @Controller("auth")
 export class AuthController {
@@ -30,16 +32,16 @@ export class AuthController {
     return this.auth.login(body);
   }
 
-  /** Who am I — username + role for the web UI's gating. */
+  /** Who am I — username, role and server access for the web UI's gating. */
   @Get("me")
-  me(@Req() req: { user: { sub: string; username?: string; role?: string } }) {
-    return { id: req.user.sub, username: req.user.username ?? "", role: req.user.role ?? "admin" };
+  me(@CurrentUser() user: AuthUser) {
+    return this.auth.me(user.sub);
   }
 
   /** Invalidate every outstanding token for the calling user (bumps tokenVersion). */
   @MinRole("viewer") // self-service — every role may log itself out everywhere
   @Post("logout-all")
-  logoutAll(@Req() req: { user: { sub: string } }) {
-    return this.auth.logoutAll(req.user.sub);
+  logoutAll(@CurrentUser() user: AuthUser) {
+    return this.auth.logoutAll(user.sub);
   }
 }

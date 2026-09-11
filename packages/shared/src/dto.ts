@@ -298,6 +298,27 @@ export type Role = "viewer" | "operator" | "admin";
 export const ROLE_RANK: Record<Role, number> = { viewer: 0, operator: 1, admin: 2 };
 export const ROLES: Role[] = ["viewer", "operator", "admin"];
 
+/** A panel account as returned by /users and /auth/me (GH #73). Admins are never
+ *  restricted; `serverIds`/`clusterIds` only mean something when `restricted`. */
+export interface UserDto {
+  id: string;
+  username: string;
+  role: Role;
+  /** Only the granted servers (plus members of granted clusters) are visible. */
+  restricted: boolean;
+  serverIds: string[];
+  clusterIds: string[];
+  createdAt?: string;
+}
+
+/** Fields an admin may set when creating or editing a user. */
+export interface UserAccessDto {
+  role?: Role;
+  restricted?: boolean;
+  serverIds?: string[];
+  clusterIds?: string[];
+}
+
 /** Per-game artwork resolved from SteamGridDB (all URLs on their CDN; null = none found). */
 export interface GameArtwork {
   /** 600x900 portrait cover ("grid"). */

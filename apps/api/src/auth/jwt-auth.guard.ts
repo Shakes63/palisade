@@ -8,10 +8,11 @@ import { Reflector } from "@nestjs/core";
 import { JwtService } from "@nestjs/jwt";
 import { IS_PUBLIC_KEY } from "./public.decorator";
 import { AuthService } from "./auth.service";
+import type { AuthUser } from "./auth-user";
 
 interface RequestLike {
   headers: Record<string, string | undefined>;
-  user?: unknown;
+  user?: AuthUser;
 }
 
 @Injectable()
@@ -39,10 +40,9 @@ export class JwtAuthGuard implements CanActivate {
     } catch {
       throw new UnauthorizedException("Invalid or expired token");
     }
-    if (!(await this.auth.isTokenCurrent(payload.sub, payload.ver))) {
-      throw new UnauthorizedException("Token revoked");
-    }
-    req.user = payload;
+    const resolved = await this.auth.resolveToken(payload.sub, payload.ver);
+    if (!resolved) throw new UnauthorizedException("Token revoked");
+    req.user = { ...(payload as unknown as AuthUser), restricted: resolved.restricted };
     return true;
   }
 }
