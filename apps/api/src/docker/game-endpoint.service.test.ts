@@ -54,7 +54,10 @@ class FakeDocker {
     this.networks = this.networks.filter((n) => n !== name);
     return true;
   }
+  /** How often the legacy network was inspected — a 404 per call on a fresh install. */
+  legacyInspects = 0;
   async networkContainerIds() {
+    this.legacyInspects++;
     return this.legacyMembers;
   }
   async listManagedServers() {
@@ -225,6 +228,19 @@ describe("migrationNote", () => {
     docker.networks = ["br0", "palisade-net"];
     docker.legacyMembers = null;
     expect(await make(docker).migrationNote()).toBeNull();
+  });
+
+  it("never asks Docker about ark-net when the manager isn't on it (GH #71)", async () => {
+    // A fresh install has no such network, so each inspect is a 404 in the debug log:
+    // once at boot, then once per /health poll. The plan can't act without a legacy
+    // endpoint on the manager anyway, so there is nothing to look up.
+    const docker = new FakeDocker();
+    docker.networks = ["br0", "palisade-net"];
+    docker.legacyMembers = null;
+    const service = make(docker);
+    await service.ensureManagerNetworks();
+    expect(await service.migrationNote()).toBeNull();
+    expect(docker.legacyInspects).toBe(0);
   });
 });
 
