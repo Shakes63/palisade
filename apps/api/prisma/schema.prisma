@@ -18,8 +18,38 @@ model User {
   role         String   @default("admin")
   /// Bumped to invalidate every outstanding JWT for this user (logout-all).
   tokenVersion Int      @default(0)
+  /// When true, this (non-admin) user only sees the servers granted below plus
+  /// every member of any granted cluster. False = every server, as before
+  /// per-user access existed. Admins are never restricted (GH #73).
+  restricted   Boolean  @default(false)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+
+  serverAccess  UserServerAccess[]
+  clusterAccess UserClusterAccess[]
+}
+
+/// Direct per-server grant for a restricted user (GH #73).
+model UserServerAccess {
+  userId   String
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  serverId String
+  server   Server @relation(fields: [serverId], references: [id], onDelete: Cascade)
+
+  @@id([userId, serverId])
+  @@index([serverId])
+}
+
+/// Cluster-wide grant for a restricted user: covers every current AND future
+/// member server of the cluster (GH #73).
+model UserClusterAccess {
+  userId    String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clusterId String
+  cluster   Cluster @relation(fields: [clusterId], references: [id], onDelete: Cascade)
+
+  @@id([userId, clusterId])
+  @@index([clusterId])
 }
 
 /// Manager-level key/value config. Secret values are AES-256-GCM encrypted at rest.
@@ -38,6 +68,7 @@ model Cluster {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   servers     Server[]
+  userAccess  UserClusterAccess[]
 }
 
 model Server {
@@ -116,6 +147,7 @@ model Server {
   schedules   Schedule[]
   snapshots   Snapshot[]
   sightings   PlayerSighting[]
+  userAccess  UserServerAccess[]
 
   @@index([clusterId])
 }

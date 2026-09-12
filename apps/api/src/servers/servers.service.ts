@@ -37,6 +37,7 @@ import {
   type EnvVar,
 } from "@ark/shared";
 import { PrismaService } from "../prisma/prisma.service";
+import type { AllowedServers } from "../auth/access.service";
 import { CryptoService } from "../crypto/crypto.service";
 import { EventsService } from "../events/events.service";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
@@ -487,9 +488,20 @@ export class ServersService implements OnApplicationBootstrap, OnApplicationShut
     return p;
   }
 
+  /** Prisma `where` for a user's visible servers: undefined = no filter, null =
+   *  nothing visible (skip the query; Prisma's `in: []` would work but why ask). */
+  private static visibleWhere(allowed: AllowedServers): { id: { in: string[] } } | undefined | null {
+    if (allowed === "all") return undefined;
+    if (allowed.size === 0) return null;
+    return { id: { in: [...allowed] } };
+  }
+
   // ── CRUD ─────────────────────────────────────────────────────────────────--
-  async list(): Promise<ServerSummary[]> {
-    const rows = await this.prisma.server.findMany({ include: { cluster: true } });
+  /** `allowed` narrows the result for a restricted user (GH #73); omit for all. */
+  async list(allowed: AllowedServers = "all"): Promise<ServerSummary[]> {
+    const where = ServersService.visibleWhere(allowed);
+    if (where === null) return [];
+    const rows = await this.prisma.server.findMany({ where, include: { cluster: true } });
     // One image-presence check per distinct game (image is shared per game).
     const games = [...new Set(rows.map((r) => r.game as Game))];
     const ready = new Map<Game, boolean>();
@@ -530,8 +542,13 @@ export class ServersService implements OnApplicationBootstrap, OnApplicationShut
   }
 
   /** Stats for every server, keyed by id (for the servers list). */
-  async statsAll(): Promise<ServerStatsById[]> {
-    const servers = await this.prisma.server.findMany({ select: { id: true, containerId: true } });
+  async statsAll(allowed: AllowedServers = "all"): Promise<ServerStatsById[]> {
+    const where = ServersService.visibleWhere(allowed);
+    if (where === null) return [];
+    const servers = await this.prisma.server.findMany({
+      where,
+      select: { id: true, containerId: true },
+    });
     return Promise.all(
       servers.map(async (s) => ({ id: s.id, ...(await this.statsFor(s.id, s.containerId)) })),
     );

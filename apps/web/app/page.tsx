@@ -54,6 +54,7 @@ import { ConnectCommand } from "@/components/connect-command";
 import { UnofficialListHelp } from "@/components/unofficial-list-help";
 import { useStartGuard } from "@/components/start-guard";
 import { useArtwork } from "@/lib/use-artwork";
+import { useMe } from "@/lib/use-me";
 
 interface ClusterLite {
   id: string;
@@ -76,6 +77,10 @@ export default function DashboardPage() {
 
   const { start: guardedStart, dialog: startDialog } = useStartGuard(refresh);
   const artwork = useArtwork();
+  // Restricted users only see their granted servers and can't create or adopt
+  // new ones (the API returns 403), so don't offer the entry points.
+  const me = useMe();
+  const canCreate = !me?.restricted;
   const clusterName = (id?: string | null) => clusters.find((c) => c.id === id)?.name;
 
   useEffect(() => refresh(), [refresh]);
@@ -158,14 +163,16 @@ export default function DashboardPage() {
       <SetupWarnings />
       <div className="flex items-center justify-between gap-2">
         <h1 className="text-xl font-semibold">Servers</h1>
-        <div className="flex gap-2">
-          <button className="btn-secondary" onClick={() => { setAdopting((v) => !v); setCreating(false); }}>
-            <Import className="h-4 w-4" /> Adopt existing
-          </button>
-          <button className="btn-primary" onClick={() => { setCreating((v) => !v); setAdopting(false); }}>
-            <Plus className="h-4 w-4" /> New server
-          </button>
-        </div>
+        {canCreate && (
+          <div className="flex gap-2">
+            <button className="btn-secondary" onClick={() => { setAdopting((v) => !v); setCreating(false); }}>
+              <Import className="h-4 w-4" /> Adopt existing
+            </button>
+            <button className="btn-primary" onClick={() => { setCreating((v) => !v); setAdopting(false); }}>
+              <Plus className="h-4 w-4" /> New server
+            </button>
+          </div>
+        )}
       </div>
 
       {creating && <CreateServerForm onDone={() => { setCreating(false); refresh(); }} />}
@@ -173,7 +180,13 @@ export default function DashboardPage() {
 
       {servers.length === 0 && !creating && (
         <div className="card text-center text-slate-400">
-          No servers yet. Click <span className="text-slate-200">New server</span> to create one.
+          {canCreate ? (
+            <>
+              No servers yet. Click <span className="text-slate-200">New server</span> to create one.
+            </>
+          ) : (
+            "No servers to show. Ask an admin to grant you access."
+          )}
         </div>
       )}
 

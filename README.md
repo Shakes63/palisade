@@ -357,11 +357,27 @@ The app is LAN-first but proxy-friendly:
 - The manager controls Docker via the host socket. If you expose the UI beyond
   your LAN, strongly consider the socket-proxy setup above.
 
+## Users and access
+
+The first-run screen creates the admin account. After that, Settings → Users
+manages the rest. There are three roles:
+
+- **viewer**: read-only. Dashboards, players, logs.
+- **operator**: day-to-day ops. Start/stop, console, backups, mods, schedules.
+- **admin**: everything, including settings, users, and deletes.
+
+A viewer or operator can also be limited to specific servers. Tick
+"Restrict to selected servers" on the user, then pick servers and/or
+clusters. A cluster grant covers every server in that cluster, including ones
+added later. Restricted users only see what they were granted, and they
+cannot create or import servers. Admins always see everything.
+
 ## Security
 
 What's built in:
 
-- **Auth**: single-admin JWT auth (bcrypt cost 12), 7-day tokens carrying a
+- **Auth**: JWT auth (bcrypt cost 12) with roles and per-user server access
+  (see [Users and access](#users-and-access)), 7-day tokens carrying a
   version claim checked against the DB on every request — `POST
   /auth/logout-all` instantly invalidates every outstanding token. Login and
   first-run are rate-limited (5/min per client). The realtime socket requires

@@ -5,6 +5,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import { EventsService } from "../events/events.service";
 import { ServersService } from "../servers/servers.service";
 import { HostPaths } from "../common/paths";
+import type { AllowedServers } from "../auth/access.service";
 
 function slugify(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "cluster";
@@ -40,10 +41,21 @@ export class ClustersService {
     return cluster;
   }
 
-  list() {
-    return this.prisma.cluster.findMany({
+  /**
+   * Every cluster, or for a restricted user (GH #73) the clusters granted to
+   * them plus any cluster with a visible member. A cluster the user can only
+   * partly see lists just its visible members, so hidden servers don't leak by name.
+   */
+  async list(allowed: AllowedServers = "all", granted: "all" | Set<string> = "all") {
+    const rows = await this.prisma.cluster.findMany({
       include: { servers: { select: { id: true, name: true, map: true, state: true, game: true } } },
       orderBy: { createdAt: "desc" },
+    });
+    if (allowed === "all" || granted === "all") return rows;
+    return rows.flatMap((c) => {
+      if (granted.has(c.id)) return [c];
+      const servers = c.servers.filter((s) => allowed.has(s.id));
+      return servers.length > 0 ? [{ ...c, servers }] : [];
     });
   }
 

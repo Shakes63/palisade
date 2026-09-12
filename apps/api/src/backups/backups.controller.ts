@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  NotFoundException,
   Param,
   Post,
   Res,
@@ -12,6 +13,10 @@ import {
 } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
 import { BackupsService } from "./backups.service";
+import { PrismaService } from "../prisma/prisma.service";
+import { AccessService } from "../auth/access.service";
+import { CurrentUser } from "../auth/current-user.decorator";
+import type { AuthUser } from "../auth/auth-user";
 
 // 1 GB cap — worlds are usually far smaller; huge modded Minecraft worlds may not fit.
 const UPLOAD = { limits: { fileSize: 1024 * 1024 * 1024 } };
@@ -24,7 +29,11 @@ interface HeaderSettable {
 
 @Controller()
 export class BackupsController {
-  constructor(private readonly backups: BackupsService) {}
+  constructor(
+    private readonly backups: BackupsService,
+    private readonly prisma: PrismaService,
+    private readonly access: AccessService,
+  ) {}
 
   @Get("servers/:id/backups")
   list(@Param("id") id: string) {
@@ -62,8 +71,16 @@ export class BackupsController {
     return this.backups.importSaves(id, file.originalname, file.buffer);
   }
 
+  /** Not under servers/:id, so the guard can't scope it: resolve the owning
+   *  server and check that (GH #73). */
   @Delete("backups/:snapshotId")
-  remove(@Param("snapshotId") snapshotId: string) {
+  async remove(@Param("snapshotId") snapshotId: string, @CurrentUser() user: AuthUser) {
+    const snap = await this.prisma.snapshot.findUnique({
+      where: { id: snapshotId },
+      select: { serverId: true },
+    });
+    if (!snap) throw new NotFoundException("Backup not found");
+    await this.access.assertServer(user, snap.serverId);
     return this.backups.remove(snapshotId);
   }
 }

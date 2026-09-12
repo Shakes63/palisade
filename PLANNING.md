@@ -14,7 +14,7 @@ provides a live RCON console, and runs scheduled tasks.
 | Games supported | **Both ASE + ASA** (ASA first) |
 | Tech stack | **Node/TypeScript full-stack** |
 | Runtime model | **Manager spawns one container per game server** (mounts Docker socket) |
-| Auth (v1) | **Single admin** (designed so RBAC/multi-user can be added later) |
+| Auth (v1) | **Single admin** at first; now roles (viewer/operator/admin) plus per-user server/cluster access (GH #73) |
 | Build order | **ASA first**, then ASE |
 | Mod browser | **Full in-app browser** using CurseForge API (ASA) + Steam Web API (ASE) |
 | UI exposure | **LAN-first but reverse-proxy friendly** (configurable base URL, correct headers) |
@@ -283,7 +283,7 @@ audit even in single-admin mode).
 | **2 — Mods + mod browser** | Install-by-ID pipeline (ASA `-mods=`), load-order + optional version-pin UI, then CurseForge-backed browser. |
 | **3 — Clusters** | Cluster create, shared transfer dir, member management, coordinated control, cross-server transfer. |
 | **4 — ASE support** | Native ASE base image, SteamCMD Workshop install/extract, Steam Workshop browser, ASE settings catalog. |
-| **5 — Backups, notifications, polish** | Full backup retention/restore UI, **adopt-existing-instance import**, Discord/webhook events, reverse-proxy hardening + TLS docs, RBAC/multi-user. |
+| **5 — Backups, notifications, polish** | Full backup retention/restore UI, **adopt-existing-instance import**, Discord/webhook events, reverse-proxy hardening + TLS docs, RBAC/multi-user (done: roles plus per-user server/cluster access, GH #73). |
 
 ---
 

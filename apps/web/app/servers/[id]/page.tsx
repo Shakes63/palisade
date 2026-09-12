@@ -12,7 +12,7 @@ import {
   type ServerConfigValues,
   type UpdateGameResult,
 } from "@ark/shared";
-import { apiGet, apiPost, apiPatch, apiDelete, apiDownload } from "@/lib/api";
+import { ApiError, apiGet, apiPost, apiPatch, apiDelete, apiDownload } from "@/lib/api";
 import { useRealtime } from "@/lib/socket";
 import { StateBadge } from "@/components/state-badge";
 import { GuideTab } from "@/components/guide-tab";
@@ -44,6 +44,7 @@ import { ValheimModsTab } from "@/components/valheim-mods-tab";
 import { useStartGuard } from "@/components/start-guard";
 import { useArtwork } from "@/lib/use-artwork";
 import { useRole } from "@/lib/use-role";
+import { useMe } from "@/lib/use-me";
 import { ArtworkPicker } from "@/components/artwork-picker";
 import { BackupsTab } from "@/components/backups-tab";
 import { PlayersTab } from "@/components/players-tab";
@@ -58,7 +59,12 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
   const [server, setServer] = useState<ServerSummary | null>(null);
   const artwork = useArtwork();
   const role = useRole();
+  const me = useMe();
   const [pickingArt, setPickingArt] = useState(false);
+  // 404 from GET /servers/:id: deleted, a bad link, or a server this user
+  // isn't granted (restricted users get 404, not 403). Show a real message
+  // instead of a spinner that never ends.
+  const [notFound, setNotFound] = useState(false);
   const [config, setConfig] = useState<ServerConfigValues | null>(null);
   const [configKey, setConfigKey] = useState(0); // bump to remount the editor on copy-in
   const [tab, setTab] = useState<Tab>("Overview");
@@ -89,7 +95,12 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
   };
 
   const refresh = useCallback(
-    () => apiGet<ServerSummary>(`/servers/${id}`).then(setServer).catch(() => undefined),
+    () =>
+      apiGet<ServerSummary>(`/servers/${id}`)
+        .then(setServer)
+        .catch((e) => {
+          if (e instanceof ApiError && e.status === 404) setNotFound(true);
+        }),
     [id],
   );
 
@@ -183,6 +194,19 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
     }
   };
 
+  if (notFound && !server) {
+    return (
+      <div className="card space-y-3">
+        <h1 className="text-xl font-semibold">Server not found</h1>
+        <p className="text-sm text-slate-400">
+          It may have been deleted, or your account does not have access to it.
+        </p>
+        <Link href="/" className="btn-secondary inline-flex">
+          <ArrowLeft className="h-4 w-4" /> Back to servers
+        </Link>
+      </div>
+    );
+  }
   if (!server) return <div className="text-slate-400">Loading…</div>;
 
   // Onscreen art = per-server override winning over the game-wide default.
@@ -332,7 +356,7 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
           {server.updateAvailable && <UpdateBadge />}
         </div>
         <div className="flex flex-wrap gap-2">
-          <CopyMenu server={server} onAfterCopyIn={reload} />
+          {!me?.restricted && <CopyMenu server={server} onAfterCopyIn={reload} />}
           {/* One slot, two honest actions: pull the image while it's missing, then
               update the GAME once it's there. The old combined "Install / Update"
               button only ever pulled the image — which Start does anyway — so it

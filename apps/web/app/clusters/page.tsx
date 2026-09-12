@@ -4,6 +4,7 @@ import { Boxes, Plus, Play, Square, Trash2, UserPlus, X } from "lucide-react";
 import { mapLabel, type ServerSummary } from "@ark/shared";
 import { apiDelete, apiGet, apiPost } from "@/lib/api";
 import { StateBadge } from "@/components/state-badge";
+import { useMe } from "@/lib/use-me";
 
 interface ClusterMember {
   id: string;
@@ -24,6 +25,10 @@ export default function ClustersPage() {
   const [clusters, setClusters] = useState<Cluster[]>([]);
   const [servers, setServers] = useState<ServerSummary[]>([]);
   const [name, setName] = useState("");
+  // Cluster changes touch servers a restricted user may not see, so the
+  // create / add / remove / delete controls are hidden for restricted users.
+  const me = useMe();
+  const canEdit = !me?.restricted;
 
   const refresh = useCallback(() => {
     apiGet<Cluster[]>("/clusters").then(setClusters).catch(() => undefined);
@@ -64,17 +69,19 @@ export default function ClustersPage() {
         <Boxes className="h-5 w-5 text-ark-accent" /> Clusters
       </h1>
 
-      <form onSubmit={create} className="card flex gap-2">
-        <input
-          className="input"
-          placeholder="New cluster name (e.g. The Archipelago)"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
-        <button className="btn-primary">
-          <Plus className="h-4 w-4" /> Create
-        </button>
-      </form>
+      {canEdit && (
+        <form onSubmit={create} className="card flex gap-2">
+          <input
+            className="input"
+            placeholder="New cluster name (e.g. The Archipelago)"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+          <button className="btn-primary">
+            <Plus className="h-4 w-4" /> Create
+          </button>
+        </form>
+      )}
 
       {clusters.length === 0 && <div className="card text-slate-400">No clusters yet.</div>}
 
@@ -95,12 +102,14 @@ export default function ClustersPage() {
               <button className="btn-secondary" onClick={() => runOnCluster(`/clusters/${c.id}/stop`)}>
                 <Square className="h-4 w-4" /> Stop all
               </button>
-              <button
-                className="btn-danger"
-                onClick={() => apiDelete(`/clusters/${c.id}`).then(refresh)}
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
+              {canEdit && (
+                <button
+                  className="btn-danger"
+                  onClick={() => apiDelete(`/clusters/${c.id}`).then(refresh)}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              )}
             </div>
           </div>
 
@@ -120,19 +129,22 @@ export default function ClustersPage() {
                       {m.game} · {mapLabel(m.map)}
                     </span>
                   </div>
-                  <button
-                    className="btn-secondary px-2"
-                    title="Remove from cluster (restarts the server if it's running)"
-                    onClick={() => apiDelete(`/clusters/${c.id}/members/${m.id}`).then(refresh)}
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
+                  {canEdit && (
+                    <button
+                      className="btn-secondary px-2"
+                      title="Remove from cluster (restarts the server if it's running)"
+                      onClick={() => apiDelete(`/clusters/${c.id}/members/${m.id}`).then(refresh)}
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
                 </div>
               ))
             )}
           </div>
 
           {(() => {
+            if (!canEdit) return null;
             const addable = servers.filter((s) => s.clusterId !== c.id);
             if (addable.length === 0) return null;
             return (

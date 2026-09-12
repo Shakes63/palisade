@@ -10,7 +10,7 @@ function makeService(users: Record<string, { tokenVersion: number }>) {
     user: {
       findUnique: async ({ where }: { where: { id: string } }) => {
         const user = users[where.id];
-        return user ? { tokenVersion: user.tokenVersion } : null;
+        return user ? { tokenVersion: user.tokenVersion, restricted: false } : null;
       },
       update: async ({ where }: { where: { id: string } }) => {
         const user = users[where.id]!;
@@ -20,7 +20,7 @@ function makeService(users: Record<string, { tokenVersion: number }>) {
     },
   };
   const jwt = new JwtService({ secret: "test-secret" });
-  return new AuthService(prisma as never, jwt, {} as never);
+  return new AuthService(prisma as never, jwt, {} as never, {} as never);
 }
 
 describe("token revocation (tokenVersion)", () => {
