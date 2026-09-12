@@ -168,6 +168,11 @@ export class GameEndpointService {
   private async legacyPlan(): Promise<NetworkPlanInput | null> {
     const manager = await this.manager();
     if (!manager.inContainer) return null;
+    // Nothing to plan unless the manager itself still holds a legacy endpoint: both
+    // rules below stand down without one. Asking Docker anyway meant every boot and
+    // every /health poll on a fresh install logged a 404 for a network that never
+    // existed there (GH #71).
+    if (!manager.networks.includes(LEGACY_NETWORK)) return null;
     // Docker lists only containers with a LIVE endpoint here, so a stopped server on
     // the legacy network doesn't count — correctly: every start recreates the
     // container, so it comes back on the new network regardless.
