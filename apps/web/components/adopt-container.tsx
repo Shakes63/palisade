@@ -10,6 +10,7 @@ interface Candidate {
   image: string;
   game: Game;
   running: boolean;
+  foreignImage?: string;
 }
 
 /**
@@ -67,9 +68,8 @@ export function AdoptContainerPanel({ onDone }: { onDone: () => void }) {
       {candidates === null && !err && <p className="text-sm text-slate-400">Scanning containers…</p>}
       {candidates?.length === 0 && (
         <p className="text-sm text-slate-400">
-          No adoptable containers found. Palisade only adopts containers built from the same image
-          it runs for that game — one from a different image keeps its files elsewhere, so it has to
-          be moved across by hand.
+          No adoptable containers found. Palisade adopts containers running the image it uses for a
+          game, plus the ich777 Palworld and V Rising images it knows how to lift saves out of.
         </p>
       )}
 
@@ -91,6 +91,14 @@ export function AdoptContainerPanel({ onDone }: { onDone: () => void }) {
           />
           <span className="font-medium text-slate-100">{c.containerName}</span>
           <span className="text-xs text-slate-400">{GAME_LABELS[c.game]}</span>
+          {c.foreignImage && (
+            <span
+              className="rounded bg-slate-700/60 px-1.5 py-0.5 text-[10px] uppercase text-slate-300"
+              title={`${c.foreignImage}: Palisade runs a different image for this game, so the saves are copied across and the game files are downloaded fresh.`}
+            >
+              saves only
+            </span>
+          )}
           <span className="ml-auto truncate text-xs text-slate-500">{c.image}</span>
           {c.running && (
             <span className="rounded bg-amber-900/50 px-1.5 py-0.5 text-[10px] uppercase text-amber-300">
@@ -123,6 +131,8 @@ export function AdoptContainerPanel({ onDone }: { onDone: () => void }) {
         <p className="text-xs text-slate-500">
           Settings (passwords, map, players) come from what you configure in Palisade — the world
           data is what gets carried over.
+          {selected.foreignImage &&
+            " This container runs a different image, so its saves are copied into the layout Palisade's image expects and the game files download fresh on first start."}
         </p>
       )}
 
