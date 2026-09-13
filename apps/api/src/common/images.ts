@@ -218,6 +218,40 @@ export function defaultImageTagFor(game: Game): string {
   return splitImageRef(IMAGES[game]).tag;
 }
 
+/** Games sharing an image repo, keyed by repo. ich777's SteamCMD wrapper serves
+ *  LiF, ATS and ETS2 (one game per tag) — and dozens more tags we don't manage. */
+const GAMES_BY_REPO: ReadonlyMap<string, readonly Game[]> = (() => {
+  const m = new Map<string, Game[]>();
+  for (const game of Object.keys(IMAGES) as Game[]) {
+    const repo = imageRepoFor(game);
+    const list = m.get(repo);
+    if (list) list.push(game);
+    else m.set(repo, [game]);
+  }
+  return m;
+})();
+
+/**
+ * Which game a container's image runs, or undefined when we don't manage it.
+ *
+ * Repo alone is not an answer: several games share one repo and differ only by
+ * tag, so a repo-keyed lookup silently resolves every ich777 SteamCMD container
+ * — Palworld, V Rising, anything — to whichever of LiF/ATS/ETS2 was declared
+ * last (GH #77). On a shared repo the tag therefore has to match exactly, which
+ * also keeps the ~60 wrapper tags we have no support for out of adoption.
+ * A repo we publish exactly one game from still matches on any tag, so a pinned
+ * or older tag (hermsi/ark-server:1.2) is recognised as before.
+ */
+export function gameForImageRef(ref: string): Game | undefined {
+  const { repo, tag } = splitImageRef(ref);
+  // "docker.io/itzg/x" and "itzg/x" are the same image to the daemon.
+  const games =
+    GAMES_BY_REPO.get(repo) ?? GAMES_BY_REPO.get(repo.replace(/^(index\.)?docker\.io\//, ""));
+  if (!games?.length) return undefined;
+  if (games.length === 1) return games[0];
+  return games.find((g) => defaultImageTagFor(g) === tag);
+}
+
 /**
  * Games whose SERVER BINARY ships inside the Docker image rather than being
  * downloaded by SteamCMD on first boot. For these the image digest IS the game

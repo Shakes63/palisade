@@ -4,7 +4,7 @@ import { EventType, Game, MAPS_BY_GAME, type CreateServerDto } from "@ark/shared
 import { DockerService } from "../docker/docker.service";
 import { ServersService } from "../servers/servers.service";
 import { EventsService } from "../events/events.service";
-import { IMAGES } from "../common/images";
+import { gameForImageRef } from "../common/images";
 import { loadEnv } from "../config/env";
 
 export interface AdoptionCandidate {
@@ -56,14 +56,11 @@ export class AdoptionService {
   ) {}
 
   async candidates(): Promise<AdoptionCandidate[]> {
-    const repoToGame = new Map<string, Game>(
-      Object.entries(IMAGES).map(([game, image]) => [image.split(":")[0]!, game as Game]),
-    );
     const all = await this.docker.listAllContainers();
     const out: AdoptionCandidate[] = [];
     for (const c of all) {
       if ((c.Labels ?? {})["ark.serverId"]) continue; // already ours
-      const game = repoToGame.get((c.Image ?? "").split(":")[0]!);
+      const game = gameForImageRef(c.Image ?? "");
       if (!game) continue;
       const info = await this.docker.inspect(c.Id).catch(() => null);
       if (!info) continue;
@@ -90,11 +87,15 @@ export class AdoptionService {
     if ((info.Config?.Labels ?? {})["ark.serverId"]) {
       throw new BadRequestException("That container is already managed by Palisade");
     }
-    const repoToGame = new Map<string, Game>(
-      Object.entries(IMAGES).map(([game, image]) => [image.split(":")[0]!, game as Game]),
-    );
-    const game = repoToGame.get((info.Config?.Image ?? "").split(":")[0]!);
-    if (!game) throw new BadRequestException("Unrecognized game image — can't adopt this container");
+    const image = info.Config?.Image ?? "";
+    const game = gameForImageRef(image);
+    if (!game) {
+      throw new BadRequestException(
+        `Can't adopt "${image}" — Palisade doesn't manage that image. Adoption only works for ` +
+          `containers built from the same image Palisade runs for a game, since the world data ` +
+          `has to land where that image expects it.`,
+      );
+    }
 
     // The source must be quiesced or we'd copy a live, changing world.
     if (info.State?.Running) {

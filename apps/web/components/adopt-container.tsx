@@ -66,7 +66,11 @@ export function AdoptContainerPanel({ onDone }: { onDone: () => void }) {
 
       {candidates === null && !err && <p className="text-sm text-slate-400">Scanning containers…</p>}
       {candidates?.length === 0 && (
-        <p className="text-sm text-slate-400">No adoptable containers found.</p>
+        <p className="text-sm text-slate-400">
+          No adoptable containers found. Palisade only adopts containers built from the same image
+          it runs for that game — one from a different image keeps its files elsewhere, so it has to
+          be moved across by hand.
+        </p>
       )}
 
       {candidates?.map((c) => (
