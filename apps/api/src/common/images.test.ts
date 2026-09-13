@@ -1,6 +1,14 @@
 import { describe, it, expect } from "vitest";
 import { Game } from "@ark/shared";
-import { splitImageRef, imageRefFor, imageRepoFor, defaultImageTagFor, IMAGE_TAG_RE } from "./images";
+import {
+  splitImageRef,
+  imageRefFor,
+  imageRepoFor,
+  defaultImageTagFor,
+  gameForImageRef,
+  IMAGES,
+  IMAGE_TAG_RE,
+} from "./images";
 
 describe("splitImageRef", () => {
   it("splits repo:tag on the last colon after the last slash", () => {
@@ -50,5 +58,38 @@ describe("IMAGE_TAG_RE", () => {
     for (const bad of ["", "bad tag", "-leadingdash", "a/b", "../x", "tag;rm", ".start"]) {
       expect(IMAGE_TAG_RE.test(bad), bad).toBe(false);
     }
+  });
+});
+
+describe("gameForImageRef", () => {
+  it("resolves every image we ship back to its own game", () => {
+    for (const [game, ref] of Object.entries(IMAGES)) {
+      expect(gameForImageRef(ref), ref).toBe(game);
+    }
+  });
+
+  it("tells apart the games sharing ich777's SteamCMD wrapper (GH #77)", () => {
+    expect(gameForImageRef("ghcr.io/ich777/steamcmd:ets2")).toBe(Game.ETS2);
+    expect(gameForImageRef("ghcr.io/ich777/steamcmd:ats")).toBe(Game.ATS);
+    expect(gameForImageRef("ghcr.io/ich777/steamcmd:lifyo")).toBe(Game.LIF);
+  });
+
+  it("does not guess a game for wrapper tags we don't manage", () => {
+    // These used to resolve to whichever shared-repo game was declared last —
+    // an adopted Palworld/V Rising container came back as Euro Truck Simulator 2.
+    expect(gameForImageRef("ghcr.io/ich777/steamcmd:palworld")).toBeUndefined();
+    expect(gameForImageRef("ghcr.io/ich777/steamcmd:vrising")).toBeUndefined();
+    expect(gameForImageRef("ghcr.io/ich777/steamcmd")).toBeUndefined();
+  });
+
+  it("matches any tag on a repo only one game uses", () => {
+    expect(gameForImageRef("hermsi/ark-server:1.2")).toBe(Game.ASE);
+    expect(gameForImageRef("itzg/minecraft-server")).toBe(Game.MINECRAFT);
+    expect(gameForImageRef("docker.io/itzg/minecraft-server:java21")).toBe(Game.MINECRAFT);
+  });
+
+  it("returns undefined for images we don't manage", () => {
+    expect(gameForImageRef("lscr.io/linuxserver/plex")).toBeUndefined();
+    expect(gameForImageRef("")).toBeUndefined();
   });
 });
