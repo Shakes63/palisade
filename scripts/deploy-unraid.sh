@@ -26,8 +26,10 @@
 # `docker run --env-file /dev/stdin` (no /tmp file to leak on a crash).
 #
 # First install only (no container by that name yet), it falls back to the
-# documented defaults: port 8970, /mnt/cache/appdata/ark-manager, the shared
-# network, and the docker-socket proxy when one is running.
+# documented defaults: port 8970, /mnt/cache/appdata/palisade, the shared
+# network, and the docker-socket proxy when one is running. An install made
+# before the appdata default was renamed keeps whatever path it already has —
+# that default is only ever read when there is no container to copy from.
 set -euo pipefail
 
 HOST="${1:-tower}"
@@ -52,7 +54,7 @@ NAME="$2"
 PROXY_NAME="palisade-docker-proxy"
 PROXY_NET="palisade-proxy"
 DEF_PORT="8970"
-DEF_DATA="/mnt/cache/appdata/ark-manager"
+DEF_DATA="/mnt/cache/appdata/palisade"
 DEF_NET="palisade-net" # DEFAULT_SHARED_NETWORK in apps/api/src/common/naming.ts
 
 docker pull "$IMAGE" >/dev/null

@@ -12,6 +12,10 @@
      least-privilege access instead, front Docker with a tecnativa/docker-socket-proxy
      on 'palisade-net', set DOCKER_HOST to tcp://socket-proxy:2375, and drop the socket mount.
 
+     The App data default is /mnt/cache/appdata/palisade. It was ark-manager (the
+     project's old name) until that release, so its description carries a note for
+     anyone reinstalling on top of existing data — keep it there.
+
      IMPORTANT: use a path on the cache disk itself (/mnt/cache/appdata/...), NOT
      the /mnt/user FUSE mount — the manager reflink-clones the ~13 GB game files
      between servers, which only works on a single real filesystem (btrfs/XFS).
@@ -42,7 +46,7 @@
 
   <Config Name="Web UI" Target="3000" Default="8970" Mode="tcp" Type="Port" Display="always" Required="true" Description="Port for the web control panel. Open http://your-server-ip:this-port in a browser (the WebUI button uses it too). It maps to the app's internal port 3000 - only change this host number if it is already in use.">8970</Config>
 
-  <Config Name="App data" Target="/data" Default="/mnt/cache/appdata/ark-manager" Mode="rw" Type="Path" Display="always" Required="true" Description="Where the manager keeps everything: its database, your settings, and every game server's installed files and saves. Use a path on /mnt/cache (a real disk), not /mnt/user (the FUSE share), so the large game-file cache can reflink-clone between servers.">/mnt/cache/appdata/ark-manager</Config>
+  <Config Name="App data" Target="/data" Default="/mnt/cache/appdata/palisade" Mode="rw" Type="Path" Display="always" Required="true" Description="Where the manager keeps everything: its database, your settings, and every game server's installed files and saves. Use a path on /mnt/cache (a real disk), not /mnt/user (the FUSE share), so the large game-file cache can reflink-clone between servers. Installs made before this release use /mnt/cache/appdata/ark-manager. Keeping that path is fine and nothing needs to move. If you deleted the container and reinstalled it, and Palisade now looks empty, set this field back to your old folder. The data is still there.">/mnt/cache/appdata/palisade</Config>
   <Config Name="Docker socket" Target="/var/run/docker.sock" Default="/var/run/docker.sock" Mode="rw" Type="Path" Display="advanced" Required="true" Description="Lets the manager create, start, stop and monitor the game-server containers - it controls Docker through this socket. Leave as-is.">/var/run/docker.sock</Config>
 
   <Config Name="PUBLIC_BASE_URL" Target="PUBLIC_BASE_URL" Default="" Type="Variable" Display="always" Required="false" Description="The address you actually reach the manager at, e.g. http://10.10.10.10:8970. Used for links and for each game server's WebUI button on the Unraid Docker page. Also settable later in Settings - General, where it overrides this field."/>
