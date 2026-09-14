@@ -106,6 +106,32 @@ function CoreKeeperJoinCard({ serverId, className = "" }: { serverId: string; cl
   );
 }
 
+/**
+ * The address to show players. The browser's own hostname is a last resort, not
+ * an answer: the manager and the game servers only share an address when they
+ * share a network stack, and an Unraid manager on a custom/macvlan network does
+ * not (GH #88). The API resolves the real one from what the operator configured
+ * — the explicit setting, else the port-forward target IP, else PUBLIC_BASE_URL.
+ */
+function useConnectHost(): string {
+  const [host, setHost] = useState("");
+  useEffect(() => {
+    let live = true;
+    // Resolve after mount (not during render) so SSR and the first client render
+    // agree — avoids a hydration mismatch.
+    setHost(window.location.hostname);
+    apiGet<{ host: string | null }>("/settings/connect-host")
+      .then((r) => {
+        if (live && r.host) setHost(r.host);
+      })
+      .catch(() => undefined); // an unreachable setting is not worth an error here
+    return () => {
+      live = false;
+    };
+  }, []);
+  return host;
+}
+
 export function ConnectCommand({
   game,
   serverId,
@@ -124,10 +150,7 @@ export function ConnectCommand({
   joinPassword?: string | null;
   className?: string;
 }) {
-  const [host, setHost] = useState("");
-  // Resolve the host after mount (not during render) so SSR and the first client
-  // render agree — avoids a hydration mismatch.
-  useEffect(() => setHost(window.location.hostname), []);
+  const host = useConnectHost();
   const hostOr = host || "<server-ip>";
 
   if (game === Game.CORE_KEEPER && serverId) {

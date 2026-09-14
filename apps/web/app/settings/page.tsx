@@ -36,6 +36,7 @@ export default function SettingsPage() {
   const [gameHostNetwork, setGameHostNetwork] = useState("");
   const [autoCreateNetwork, setAutoCreateNetwork] = useState("");
   const [publicBaseUrl, setPublicBaseUrl] = useState("");
+  const [connectHost, setConnectHost] = useState("");
   const [hostDataDir, setHostDataDir] = useState("");
   // Per-card save state: which card is mid-save / which just saved.
   const [busyCard, setBusyCard] = useState<string | null>(null);
@@ -60,6 +61,7 @@ export default function SettingsPage() {
         setGameHostNetwork(typeof v.game_host_network === "string" ? v.game_host_network : "");
         setAutoCreateNetwork(typeof v.auto_create_network === "string" ? v.auto_create_network : "");
         setPublicBaseUrl(typeof v.public_base_url === "string" ? v.public_base_url : "");
+        setConnectHost(typeof v.connect_host === "string" ? v.connect_host : "");
         setHostDataDir(typeof v.host_data_dir === "string" ? v.host_data_dir : "");
       })
       .catch(() => undefined);
@@ -149,6 +151,7 @@ export default function SettingsPage() {
       gameHostNetwork: tri(gameHostNetwork),
       autoCreateNetwork: tri(autoCreateNetwork),
       publicBaseUrl,
+      connectHost,
       hostDataDir,
     });
   const saveStartGuard = () => void saveCard("startguard", { autoStopOnStart: autoStop });
@@ -295,6 +298,22 @@ export default function SettingsPage() {
               <p className="mt-1 text-xs text-slate-500">
                 The address you actually reach Palisade at. Used for links and for the WebUI button
                 on each game server in the Unraid Docker page.
+              </p>
+            </div>
+            <div>
+              <label className="label">Address players connect to</label>
+              <input
+                className="input"
+                value={connectHost}
+                placeholder="10.0.0.5 — blank to work it out"
+                onChange={(e) => setConnectHost(e.target.value)}
+              />
+              <p className="mt-1 text-xs text-slate-500">
+                The IP or hostname players type into the game, shown on every server&apos;s connect
+                card. Set it when the game servers answer somewhere other than the address you reach
+                Palisade at — a manager on a custom/macvlan network and host-networked game servers
+                is the usual case. Blank uses your port-forward target IP, then the public base URL,
+                then the address you are browsing from.
               </p>
             </div>
             <div>

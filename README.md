@@ -309,6 +309,15 @@ On Unraid, make sure the Palisade container's **Network Type** is `palisade-net`
 (the template sets it, but it's easy to change). If you use `GAME_HOST_NETWORK=true`,
 the manager instead needs `--add-host host.docker.internal:host-gateway`.
 
+**The connect address on a server's card is wrong.**
+It's the address *players* type into the game, and Palisade can't see the host's LAN
+IP from inside a container, so it works it out: the **Address players connect to**
+setting (Settings → General) if you set one, then your port-forward target IP, then
+the public base URL, then whatever address you're browsing Palisade at. That last
+fallback is the one that goes wrong — a manager on a custom/macvlan network has its
+own LAN IP, while host-networked game servers answer on the host's, so the panel's
+address is not the game's. Set the field and every connect card follows it.
+
 ### Moving off `ark-net`
 
 The shared bridge was called `ark-net` before v1.11. The rename is not cosmetic: on
