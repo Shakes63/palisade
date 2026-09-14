@@ -19,7 +19,7 @@ const schema = z.object({
 
   // The data dir as seen by the HOST Docker daemon. Bind mounts for spawned
   // game containers are resolved on the host, not inside the manager container,
-  // so on Unraid this is e.g. /mnt/user/appdata/ark-manager. Defaults to DATA_DIR
+  // so on Unraid this is e.g. /mnt/user/appdata/palisade. Defaults to DATA_DIR
   // for single-host/dev setups where the two paths coincide.
   HOST_DATA_DIR: z.string().optional(),
 

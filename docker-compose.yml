@@ -11,7 +11,7 @@
 #
 # On Unraid, set HOST_DATA_DIR to the real appdata path so bind mounts for the
 # spawned game containers resolve correctly on the host, e.g.
-#   HOST_DATA_DIR=/mnt/user/appdata/ark-manager
+#   HOST_DATA_DIR=/mnt/user/appdata/palisade
 name: palisade
 
 services:
@@ -28,7 +28,7 @@ services:
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:3000}
       DATA_DIR: /data
       DATABASE_URL: file:/data/db.sqlite
-      HOST_DATA_DIR: ${HOST_DATA_DIR:-/mnt/user/appdata/ark-manager}
+      HOST_DATA_DIR: ${HOST_DATA_DIR:-/mnt/user/appdata/palisade}
       DOCKER_HOST: unix:///var/run/docker.sock
       SECRETS_KEY: ${SECRETS_KEY:?set a 64-hex-char SECRETS_KEY}
       JWT_SECRET: ${JWT_SECRET:?set a JWT_SECRET}

@@ -327,6 +327,37 @@ It migrates itself, and a half-migrated install works throughout:
   in those cases the Servers page tells you the one step left.
 - To keep the old name, set `SHARED_NETWORK=ark-net`.
 
+### Moving off `ark-manager`
+
+The default **App data** path is `/mnt/cache/appdata/palisade`. It used to be
+`/mnt/cache/appdata/ark-manager`, left over from when the project itself was called
+ark-manager and the folder didn't match the container.
+
+Unlike `ark-net`, this one does **not** migrate itself — nothing on disk moves. Only
+the defaults changed: the Community Applications template, `docker-compose.yml`, and
+the first-install path in `scripts/deploy-unraid.sh`. Your container already has its
+bind mount, and Unraid keeps your own copy of the template, so an update keeps the path
+you have. Staying on `ark-manager` forever costs nothing.
+
+**The one case that bites.** Delete the container and reinstall fresh from the Apps tab
+and you get the new default, so Palisade comes up empty while your data still sits in
+`ark-manager`. It looks like data loss and isn't — set **App data** back to your old
+directory, or move the data:
+
+1. Stop every game server, then stop the Palisade container.
+2. `mv /mnt/cache/appdata/ark-manager /mnt/cache/appdata/palisade`
+3. Point the container's **App data** at the new directory and start it.
+4. Only if you set `HOST_DATA_DIR` by hand: clear it (it auto-detects) or update it to
+   the new path. A stale value is loud, not silent — the boot log and `GET /api/health`
+   both report `HOST_DATA_DIR is set to "X", but this container's /data actually comes
+   from "Y"`.
+
+The database stores container-side paths (`/data/backups/...`), not host ones, so
+backups, snapshots and instances all survive the move, as long as the whole directory
+goes together and `/data` stays the mount target. Game containers get their bind paths
+rebuilt from the data dir on every start, so each server picks up the new location the
+next time it starts.
+
 ---
 
 ## Integrations (all optional, all in Settings)

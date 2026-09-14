@@ -50,7 +50,7 @@ Unraid host
 ├── /var/run/docker.sock ──┐
 │                          ▼
 │   ┌─────────────────────────────────────────────┐
-│   │  ark-manager  (the container you install)    │
+│   │  palisade  (the container you install)       │
 │   │  ┌─────────────┐  ┌──────────────────────┐   │
 │   │  │ Next.js UI  │  │ Node API + WebSocket  │   │
 │   │  └─────────────┘  └──────────────────────┘   │
@@ -210,7 +210,7 @@ dedicated UX or wiring):
 
 ---
 
-## Storage layout (`/mnt/user/appdata/ark-manager/`)
+## Storage layout (`/mnt/user/appdata/palisade/`)
 
 ```
 db.sqlite · steamcmd/ · steam-asa/ · steam-ase/
