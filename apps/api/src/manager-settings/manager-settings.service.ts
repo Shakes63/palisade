@@ -2,6 +2,8 @@ import { Injectable, Logger, OnModuleInit } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { CryptoService } from "../crypto/crypto.service";
 import { applyHostDataDirOverride } from "../config/ensure-host-data-dir";
+import { loadEnv } from "../config/env";
+import { resolveConnectHost } from "./connect-host";
 
 /** Well-known manager setting keys. */
 export const SettingKeys = {
@@ -26,6 +28,7 @@ export const SettingKeys = {
   GameHostNetwork: "game_host_network",
   AutoCreateNetwork: "auto_create_network",
   PublicBaseUrl: "public_base_url",
+  ConnectHost: "connect_host", // the address PLAYERS use, when it isn't the panel's
   HostDataDir: "host_data_dir",
   // pfSense REST API (jaredhendrickson13 package) for one-click port-forwards.
   PfsenseHost: "pfsense_host",
@@ -155,6 +158,18 @@ export class ManagerSettingsService implements OnModuleInit {
    *  HOST_DATA_DIR (or its boot-time auto-detection). */
   getHostDataDir(): Promise<string | null> {
     return this.getStringOverride(SettingKeys.HostDataDir);
+  }
+
+  /** The address players type into the game to reach this box (GH #88). */
+  async getConnectHost(): Promise<string | null> {
+    const router = (await this.get(SettingKeys.PortForwardRouter))?.trim();
+    return resolveConnectHost({
+      explicit: await this.getStringOverride(SettingKeys.ConnectHost),
+      router: router === "unifi" ? "unifi" : "pfsense",
+      pfsenseTargetIp: await this.getStringOverride(SettingKeys.PfsenseTargetIp),
+      unifiTargetIp: await this.getStringOverride(SettingKeys.UnifiTargetIp),
+      publicBaseUrl: (await this.getPublicBaseUrl()) ?? loadEnv().PUBLIC_BASE_URL,
+    });
   }
 
   /** Whether starting a server may offer to back up + stop a running one to free

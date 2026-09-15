@@ -1,6 +1,16 @@
 import { Body, Controller, Get, Patch } from "@nestjs/common";
 import { ModuleRef } from "@nestjs/core";
-import { IsBoolean, IsIn, IsInt, IsOptional, IsString, Max, Min, ValidateIf } from "class-validator";
+import {
+  IsBoolean,
+  IsIn,
+  IsInt,
+  IsOptional,
+  IsString,
+  Max,
+  MaxLength,
+  Min,
+  ValidateIf,
+} from "class-validator";
 import { ManagerSettingsService, SettingKeys } from "./manager-settings.service";
 import { SchedulerService } from "../scheduler/scheduler.service";
 import { MinRole } from "../auth/min-role.decorator";
@@ -18,6 +28,7 @@ class UpdateSettingsBody {
   @IsOptional() @ValidateIf((_o, v) => v !== null) @IsBoolean() gameHostNetwork?: boolean | null;
   @IsOptional() @ValidateIf((_o, v) => v !== null) @IsBoolean() autoCreateNetwork?: boolean | null;
   @IsOptional() @IsString() publicBaseUrl?: string;
+  @IsOptional() @IsString() @MaxLength(255) connectHost?: string;
   @IsOptional() @IsString() hostDataDir?: string;
   @IsOptional() @IsString() pfsenseHost?: string;
   @IsOptional() @IsString() pfsenseApiKey?: string;
@@ -51,6 +62,14 @@ export class ManagerSettingsController {
   @Get()
   view() {
     return this.settings.publicView();
+  }
+
+  /** The address to hand players for the in-game connect field (GH #88). Readable
+   *  by every role: the connect card is on the dashboard, not just Settings. */
+  @MinRole("viewer")
+  @Get("connect-host")
+  async connectHost(): Promise<{ host: string | null }> {
+    return { host: await this.settings.getConnectHost() };
   }
 
   @MinRole("admin")
@@ -91,6 +110,8 @@ export class ManagerSettingsController {
       await this.settings.set(SettingKeys.AutoCreateNetwork, boolOverride(body.autoCreateNetwork));
     if (body.publicBaseUrl !== undefined)
       await this.settings.set(SettingKeys.PublicBaseUrl, body.publicBaseUrl.trim());
+    if (body.connectHost !== undefined)
+      await this.settings.set(SettingKeys.ConnectHost, body.connectHost.trim());
     if (body.hostDataDir !== undefined) {
       await this.settings.set(SettingKeys.HostDataDir, body.hostDataDir.trim());
       // Takes effect for the next container created, without a restart (GH #29).
