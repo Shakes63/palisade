@@ -11,6 +11,7 @@ import {
   Query,
 } from "@nestjs/common";
 import { IsBoolean, IsDateString, IsIn, IsInt, IsOptional, IsString, Min } from "class-validator";
+import { RCON_SCHEDULE_ACTIONS, SCHEDULE_ACTIONS } from "@ark/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { SchedulerService } from "./scheduler.service";
 import { AccessService } from "../auth/access.service";
@@ -21,18 +22,7 @@ class ScheduleBody {
   @IsString() serverId!: string;
   @IsString() name!: string;
   @IsString() cron!: string;
-  @IsIn([
-    "restart",
-    "update",
-    "update-if-available",
-    "update-mods",
-    "backup",
-    "stop",
-    "start",
-    "announce",
-    "command",
-  ])
-  action!: string;
+  @IsIn([...SCHEDULE_ACTIONS]) action!: string;
   /** RCON payload: the chat message for "announce", the raw console command for
    *  "command". Required by those two actions, ignored by the rest (GH #78). */
   @IsOptional() @IsString() command?: string;
@@ -44,13 +34,10 @@ class ScheduleBody {
   @IsOptional() @IsDateString() runAt?: string;
 }
 
-/** Actions that send something over RCON, so they need a payload in `command`. */
-const RCON_ACTIONS = new Set(["announce", "command"]);
-
 /** An "announce"/"command" schedule with nothing to send would fire forever and do
  *  nothing, so it's rejected at the door rather than logged every firing. */
 function assertPayload(action: string | undefined, command: string | undefined): void {
-  if (!action || !RCON_ACTIONS.has(action)) return;
+  if (!action || !RCON_SCHEDULE_ACTIONS.has(action)) return;
   if (!command?.trim()) {
     throw new BadRequestException(
       action === "announce" ? "A message to announce is required" : "A command to run is required",
@@ -92,7 +79,7 @@ export class SchedulesController {
         name: body.name,
         cron: body.cron,
         action: body.action,
-        command: RCON_ACTIONS.has(body.action) ? body.command!.trim() : null,
+        command: RCON_SCHEDULE_ACTIONS.has(body.action) ? body.command!.trim() : null,
         warnMinutes: body.warnMinutes ?? 10,
         enabled: body.enabled ?? true,
         skipIfPlayersOnline: body.skipIfPlayersOnline ?? false,
@@ -128,7 +115,7 @@ export class SchedulesController {
       runAt: body.runAt !== undefined ? new Date(body.runAt) : undefined,
       // Switching away from announce/command leaves a stale payload behind otherwise.
       ...(body.action !== undefined || body.command !== undefined
-        ? { command: RCON_ACTIONS.has(action) ? command!.trim() : null }
+        ? { command: RCON_SCHEDULE_ACTIONS.has(action) ? command!.trim() : null }
         : {}),
     };
     const updated = await this.prisma.schedule.update({ where: { id }, data });

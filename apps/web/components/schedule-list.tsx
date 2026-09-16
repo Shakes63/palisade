@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CalendarClock, Plus, Trash2 } from "lucide-react";
 import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/api";
+import { RCON_SCHEDULE_ACTIONS } from "@ark/shared";
 import { buildCron, describeCron, onceCron, fmtLocal, type Frequency } from "@/lib/cron";
 
 interface Schedule {
@@ -53,8 +54,6 @@ const FREQS: { value: Frequency; label: string }[] = [
 ];
 const DAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 const DISRUPTIVE = new Set(["restart", "update", "update-if-available", "update-mods", "stop"]);
-// Actions that carry text the user types: the message to say, or the command to run.
-const NEEDS_TEXT = new Set(["announce", "command"]);
 const actionLabel = (a: string) => ACTIONS.find((x) => x.value === a)?.label ?? a;
 
 export function ScheduleList({ serverId }: { serverId: string }) {
@@ -82,7 +81,7 @@ export function ScheduleList({ serverId }: { serverId: string }) {
     [frequency, time, days, intervalHours, minute],
   );
   const disruptive = DISRUPTIVE.has(action);
-  const needsText = NEEDS_TEXT.has(action);
+  const needsText = RCON_SCHEDULE_ACTIONS.has(action);
   const what = needsText && command.trim() ? `${actionLabel(action)} "${command.trim()}"` : actionLabel(action);
   const summary = isOnce
     ? `${what} · ${onceAt ? `once on ${fmtLocal(onceAt)}` : "once — pick a date & time"}`

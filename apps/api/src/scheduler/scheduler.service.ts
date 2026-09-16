@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnModuleInit, BadRequestException } from "@nestjs/common";
 import * as cron from "node-cron";
-import { EventType, ServerState } from "@ark/shared";
+import { EventType, RCON_SCHEDULE_ACTIONS, ServerState } from "@ark/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { EventsService } from "../events/events.service";
 import { ServersService } from "../servers/servers.service";
@@ -159,25 +159,32 @@ export class SchedulerService implements OnModuleInit {
       }
     }
 
-    // "announce" and "command" talk to a live server over RCON. On a stopped one
-    // every firing would fail and post an error, so an hourly announcement would
-    // fill the event feed while the server is down. Skip quietly instead.
-    if ((action === "announce" || action === "command") && !sched.command?.trim()) {
-      await this.events.emit({
-        type: EventType.Warning,
-        message: `Schedule "${sched.name}" has no ${action === "announce" ? "message" : "command"} to send`,
-        serverId: sched.serverId,
-      });
-      return;
-    }
-    if (action === "announce" || action === "command") {
+    // "announce" and "command" talk to a live server over RCON, so both need a
+    // payload and something on the other end to receive it.
+    if (RCON_SCHEDULE_ACTIONS.has(action)) {
+      if (!sched.command?.trim()) {
+        await this.events.emit({
+          type: EventType.Warning,
+          message: `Schedule "${sched.name}" has no ${action === "announce" ? "message" : "command"} to send`,
+          serverId: sched.serverId,
+        });
+        return;
+      }
+      // Only Running, not Starting: RCON isn't up until the server is. Skipping
+      // beats erroring, because rcon.exec throws when it can't connect and fire()
+      // turns that into an Error event — an hourly announcement on a server that's
+      // down overnight would post eight failures before breakfast. A one-time
+      // schedule is consumed either way, same as the players-online guard below,
+      // so say so rather than leave it looking delivered.
       const state = await this.prisma.server
         .findUnique({ where: { id: sched.serverId }, select: { state: true } })
         .catch(() => null);
       if (state?.state !== ServerState.Running) {
         await this.events.emit({
-          type: EventType.ScheduleFired,
-          message: `Schedule "${sched.name}" skipped — server isn't running`,
+          type: sched.runAt ? EventType.Warning : EventType.ScheduleFired,
+          message: `Schedule "${sched.name}" skipped — the server isn't running${
+            sched.runAt ? ", and a one-time schedule doesn't run again" : ""
+          }`,
           serverId: sched.serverId,
         });
         return;

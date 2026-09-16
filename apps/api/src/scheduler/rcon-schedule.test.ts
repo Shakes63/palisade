@@ -15,7 +15,7 @@ import type { AuthUser } from "../auth/auth-user";
 const admin: AuthUser = { sub: "u1", role: "admin", ver: 1, restricted: false };
 
 function makeScheduler(
-  sched: { action: string; command: string | null; warnMinutes?: number },
+  sched: { action: string; command: string | null; warnMinutes?: number; runAt?: Date },
   state: ServerState = ServerState.Running,
 ) {
   const prisma = {
@@ -27,6 +27,7 @@ function makeScheduler(
         enabled: true,
         warnMinutes: 10,
         skipIfPlayersOnline: false,
+        runAt: null,
         ...sched,
       })),
       update: vi.fn(async () => undefined),
@@ -84,7 +85,16 @@ describe("scheduled RCON actions (GH #78)", () => {
     );
     await fire("sch-1");
     expect(rcon.broadcast).not.toHaveBeenCalled();
-    expect(messages(events)).toContain("skipped — server isn't running");
+    expect(messages(events)).toContain("skipped — the server isn't running");
+  });
+
+  it("says so when a skipped one-time schedule is spent, since it won't run again", async () => {
+    const { fire, events } = makeScheduler(
+      { action: "announce", command: "hello", runAt: new Date() },
+      ServerState.Stopped,
+    );
+    await fire("sch-1");
+    expect(messages(events)).toContain("a one-time schedule doesn't run again");
   });
 
   it("warns and sends nothing when the payload is missing", async () => {

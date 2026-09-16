@@ -250,21 +250,33 @@ export interface RconCommandDto {
   command: string;
 }
 
+/** Every action a schedule can take, in the order the picker offers them. */
+export const SCHEDULE_ACTIONS = [
+  "restart",
+  "backup",
+  "update",
+  "update-if-available",
+  "update-mods",
+  "stop",
+  "start",
+  "announce",
+  "command",
+] as const;
+export type ScheduleAction = (typeof SCHEDULE_ACTIONS)[number];
+
+/** The actions that send `ScheduleDto.command` over RCON, and so require one.
+ *  The API, the scheduler and the form all key off this (GH #78). */
+export const RCON_SCHEDULE_ACTIONS: ReadonlySet<string> = new Set<ScheduleAction>([
+  "announce",
+  "command",
+]);
+
 export interface ScheduleDto {
   id?: string;
   serverId: string;
   name: string;
   cron: string; // standard 5-field cron
-  action:
-    | "restart"
-    | "update"
-    | "update-if-available"
-    | "update-mods"
-    | "backup"
-    | "stop"
-    | "start"
-    | "announce"
-    | "command";
+  action: ScheduleAction;
   /** The chat message for "announce", the raw console command for "command".
    *  Unset for every other action. */
   command?: string | null;
