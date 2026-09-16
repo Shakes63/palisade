@@ -255,7 +255,19 @@ export interface ScheduleDto {
   serverId: string;
   name: string;
   cron: string; // standard 5-field cron
-  action: "restart" | "update" | "backup" | "stop" | "start";
+  action:
+    | "restart"
+    | "update"
+    | "update-if-available"
+    | "update-mods"
+    | "backup"
+    | "stop"
+    | "start"
+    | "announce"
+    | "command";
+  /** The chat message for "announce", the raw console command for "command".
+   *  Unset for every other action. */
+  command?: string | null;
   /** Minutes of in-game warning countdown before a disruptive action. */
   warnMinutes?: number;
   enabled: boolean;

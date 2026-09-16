@@ -9,6 +9,7 @@ interface Schedule {
   name: string;
   cron: string;
   action: string;
+  command: string | null;
   warnMinutes: number;
   enabled: boolean;
   skipIfPlayersOnline: boolean;
@@ -32,6 +33,16 @@ const ACTIONS: { value: string; label: string; hint: string }[] = [
   },
   { value: "stop", label: "Stop", hint: "Shut the server down." },
   { value: "start", label: "Start", hint: "Bring the server up." },
+  {
+    value: "announce",
+    label: "Announce",
+    hint: "Send a chat message to everyone in-game. Skipped while the server is stopped.",
+  },
+  {
+    value: "command",
+    label: "Run a console command",
+    hint: "Send a raw RCON command, exactly as you would type it in the Console tab. Skipped while the server is stopped.",
+  },
 ];
 const FREQS: { value: Frequency; label: string }[] = [
   { value: "once", label: "One time" },
@@ -42,6 +53,8 @@ const FREQS: { value: Frequency; label: string }[] = [
 ];
 const DAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 const DISRUPTIVE = new Set(["restart", "update", "update-if-available", "update-mods", "stop"]);
+// Actions that carry text the user types: the message to say, or the command to run.
+const NEEDS_TEXT = new Set(["announce", "command"]);
 const actionLabel = (a: string) => ACTIONS.find((x) => x.value === a)?.label ?? a;
 
 export function ScheduleList({ serverId }: { serverId: string }) {
@@ -52,6 +65,7 @@ export function ScheduleList({ serverId }: { serverId: string }) {
   const [days, setDays] = useState<number[]>([0, 1, 2, 3, 4, 5, 6]);
   const [intervalHours, setIntervalHours] = useState(6);
   const [minute, setMinute] = useState(0);
+  const [command, setCommand] = useState("");
   const [warnMinutes, setWarnMinutes] = useState(10);
   const [skipIfPlayersOnline, setSkipIfPlayersOnline] = useState(false);
   const [name, setName] = useState("");
@@ -68,9 +82,11 @@ export function ScheduleList({ serverId }: { serverId: string }) {
     [frequency, time, days, intervalHours, minute],
   );
   const disruptive = DISRUPTIVE.has(action);
+  const needsText = NEEDS_TEXT.has(action);
+  const what = needsText && command.trim() ? `${actionLabel(action)} "${command.trim()}"` : actionLabel(action);
   const summary = isOnce
-    ? `${actionLabel(action)} · ${onceAt ? `once on ${fmtLocal(onceAt)}` : "once — pick a date & time"}`
-    : `${actionLabel(action)} · ${describeCron(cron)}`;
+    ? `${what} · ${onceAt ? `once on ${fmtLocal(onceAt)}` : "once — pick a date & time"}`
+    : `${what} · ${describeCron(cron)}`;
   // "now" in datetime-local format, for the picker's min.
   const nowLocal = new Date(Date.now() - new Date().getTimezoneOffset() * 60000)
     .toISOString()
@@ -92,18 +108,23 @@ export function ScheduleList({ serverId }: { serverId: string }) {
     } else if (frequency === "weekly" && days.length === 0) {
       return alert("Pick at least one day.");
     }
+    if (needsText && !command.trim()) {
+      return alert(action === "announce" ? "Type a message to announce." : "Type a command to run.");
+    }
     try {
       await apiPost("/schedules", {
         serverId,
         name: name.trim() || summary,
         cron: cronStr,
         action,
+        ...(needsText ? { command: command.trim() } : {}),
         warnMinutes: disruptive ? Number(warnMinutes) : 0,
         enabled: true,
         skipIfPlayersOnline: disruptive ? skipIfPlayersOnline : false,
         ...(runAt ? { runAt } : {}),
       });
       setName("");
+      setCommand("");
       refresh();
     } catch (err) {
       alert((err as Error).message);
@@ -149,6 +170,27 @@ export function ScheduleList({ serverId }: { serverId: string }) {
             </select>
           </div>
         </div>
+
+        {needsText && (
+          <div>
+            <label className="label">
+              {action === "announce" ? "Message" : "Command"}
+            </label>
+            <input
+              className="input"
+              value={command}
+              placeholder={
+                action === "announce" ? "Server restarts in 15 minutes!" : "SaveWorld"
+              }
+              onChange={(e) => setCommand(e.target.value)}
+            />
+            <p className="mt-1 text-xs text-slate-500">
+              {action === "announce"
+                ? "Sent as in-game chat. The panel picks the right syntax for the game, so type the message on its own."
+                : "Sent to the server's console verbatim. Anything the Console tab accepts works here."}
+            </p>
+          </div>
+        )}
 
         {/* When-controls per frequency */}
         <div className="flex flex-wrap items-end gap-4">
@@ -295,7 +337,8 @@ export function ScheduleList({ serverId }: { serverId: string }) {
                 <div>
                   <div className="font-medium">{s.name}</div>
                   <div className="text-xs text-slate-400">
-                    {actionLabel(s.action)} ·{" "}
+                    {actionLabel(s.action)}
+                    {s.command ? ` "${s.command}"` : ""} ·{" "}
                     {s.runAt ? `Once · ${fmtLocal(s.runAt)}` : describeCron(s.cron)}
                     {s.warnMinutes ? ` · warn ${s.warnMinutes}m` : ""}
                     {s.skipIfPlayersOnline ? " · skips if players online" : ""}

@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnModuleInit, BadRequestException } from "@nestjs/common";
 import * as cron from "node-cron";
-import { EventType } from "@ark/shared";
+import { EventType, ServerState } from "@ark/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { EventsService } from "../events/events.service";
 import { ServersService } from "../servers/servers.service";
@@ -159,6 +159,31 @@ export class SchedulerService implements OnModuleInit {
       }
     }
 
+    // "announce" and "command" talk to a live server over RCON. On a stopped one
+    // every firing would fail and post an error, so an hourly announcement would
+    // fill the event feed while the server is down. Skip quietly instead.
+    if ((action === "announce" || action === "command") && !sched.command?.trim()) {
+      await this.events.emit({
+        type: EventType.Warning,
+        message: `Schedule "${sched.name}" has no ${action === "announce" ? "message" : "command"} to send`,
+        serverId: sched.serverId,
+      });
+      return;
+    }
+    if (action === "announce" || action === "command") {
+      const state = await this.prisma.server
+        .findUnique({ where: { id: sched.serverId }, select: { state: true } })
+        .catch(() => null);
+      if (state?.state !== ServerState.Running) {
+        await this.events.emit({
+          type: EventType.ScheduleFired,
+          message: `Schedule "${sched.name}" skipped — server isn't running`,
+          serverId: sched.serverId,
+        });
+        return;
+      }
+    }
+
     const disruptive = ["restart", "update", "update-mods", "stop"].includes(action);
     try {
       if (disruptive && sched.skipIfPlayersOnline) {
@@ -199,6 +224,12 @@ export class SchedulerService implements OnModuleInit {
           // Replaces a stop → installGame → start dance that ran a whole install job
           // to achieve what the one-shot flag does on its own.
           await this.servers.updateGame(sched.serverId);
+          break;
+        case "announce":
+          await this.rcon.broadcast(sched.serverId, sched.command!);
+          break;
+        case "command":
+          await this.rcon.exec(sched.serverId, sched.command!);
           break;
         case "update-mods": {
           // Apply pending mod updates (files/config on disk), then restart to load
