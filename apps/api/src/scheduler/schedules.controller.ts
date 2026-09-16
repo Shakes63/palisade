@@ -10,10 +10,11 @@ import {
   Post,
   Query,
 } from "@nestjs/common";
+import { PartialType } from "@nestjs/mapped-types";
 import { IsBoolean, IsDateString, IsIn, IsInt, IsOptional, IsString, Min } from "class-validator";
 import { RCON_SCHEDULE_ACTIONS, SCHEDULE_ACTIONS } from "@ark/shared";
 import { PrismaService } from "../prisma/prisma.service";
-import { SchedulerService } from "./scheduler.service";
+import { SchedulerService, assertValidCron } from "./scheduler.service";
 import { AccessService } from "../auth/access.service";
 import { CurrentUser } from "../auth/current-user.decorator";
 import type { AuthUser } from "../auth/auth-user";
@@ -32,6 +33,22 @@ class ScheduleBody {
   @IsOptional() @IsBoolean() skipIfPlayersOnline?: boolean;
   /** Set for a ONE-TIME schedule: ISO instant to fire once (cron then ignored). */
   @IsOptional() @IsDateString() runAt?: string;
+}
+
+/**
+ * A patch is the same fields, all optional. It has to be a real class: declaring
+ * the body as `Partial<ScheduleBody>` emitted `Object` as its design:paramtype,
+ * which ValidationPipe skips, so every decorator above was dead on PATCH and an
+ * unknown action sailed straight into the database (GH #99).
+ */
+export class SchedulePatchBody extends PartialType(ScheduleBody) {}
+
+/** `new Date("garbage")` is an Invalid Date, which Prisma only rejects at write
+ *  time as a 500; parse it here so a bad instant is a plain 400. */
+function parseRunAt(iso: string): Date {
+  const at = new Date(iso);
+  if (Number.isNaN(at.getTime())) throw new BadRequestException(`Invalid runAt: ${iso}`);
+  return at;
 }
 
 /** An "announce"/"command" schedule with nothing to send would fire forever and do
@@ -73,6 +90,9 @@ export class SchedulesController {
   async create(@Body() body: ScheduleBody, @CurrentUser() user: AuthUser) {
     await this.access.assertServer(user, body.serverId);
     assertPayload(body.action, body.command);
+    // Create had the same write-then-validate ordering as update: the row landed
+    // and registerWithTimezone raised the 400 afterwards.
+    assertValidCron(body.cron);
     const created = await this.prisma.schedule.create({
       data: {
         serverId: body.serverId,
@@ -83,7 +103,7 @@ export class SchedulesController {
         warnMinutes: body.warnMinutes ?? 10,
         enabled: body.enabled ?? true,
         skipIfPlayersOnline: body.skipIfPlayersOnline ?? false,
-        runAt: body.runAt ? new Date(body.runAt) : null,
+        runAt: body.runAt ? parseRunAt(body.runAt) : null,
       },
     });
     // One-time schedules (runAt) are driven by the poll, not cron.
@@ -96,7 +116,7 @@ export class SchedulesController {
   @Patch(":id")
   async update(
     @Param("id") id: string,
-    @Body() body: Partial<ScheduleBody>,
+    @Body() body: SchedulePatchBody,
     @CurrentUser() user: AuthUser,
   ) {
     const { serverId: current, action: currentAction, command: currentCommand } = await this.owned(
@@ -110,9 +130,12 @@ export class SchedulesController {
     const action = body.action ?? currentAction;
     const command = body.command !== undefined ? body.command : currentCommand ?? undefined;
     assertPayload(action, command);
+    // Everything that can fail is checked before the write, so a rejected edit
+    // leaves the row exactly as it was (GH #99).
+    if (body.cron !== undefined) assertValidCron(body.cron);
     const data = {
       ...body,
-      runAt: body.runAt !== undefined ? new Date(body.runAt) : undefined,
+      runAt: body.runAt !== undefined ? parseRunAt(body.runAt) : undefined,
       // Switching away from announce/command leaves a stale payload behind otherwise.
       ...(body.action !== undefined || body.command !== undefined
         ? { command: RCON_SCHEDULE_ACTIONS.has(action) ? command!.trim() : null }

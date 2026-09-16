@@ -18,6 +18,13 @@ const ONE_SHOT_POLL_MS = 60_000;
 // but only within this window — beyond it, it's stale and marked missed.
 const ONE_SHOT_GRACE_MS = 60 * 60_000;
 
+/** Shared with the controller so an edit is rejected BEFORE it reaches the
+ *  database. A stored-but-unparseable cron used to survive its own 400 and then
+ *  break the next boot (GH #99). */
+export function assertValidCron(expr: string): void {
+  if (!cron.validate(expr)) throw new BadRequestException(`Invalid cron: ${expr}`);
+}
+
 @Injectable()
 export class SchedulerService implements OnModuleInit {
   private readonly logger = new Logger(SchedulerService.name);
@@ -50,8 +57,38 @@ export class SchedulerService implements OnModuleInit {
     for (const id of [...this.tasks.keys()]) this.unregister(id);
     const tz = await this.settings.getTimezone();
     const enabled = await this.prisma.schedule.findMany({ where: { enabled: true, runAt: null } });
-    for (const s of enabled) this.register(s.id, s.cron, tz);
-    this.logger.log(`Registered ${enabled.length} recurring schedule(s) (tz ${tz})`);
+    let registered = 0;
+    for (const s of enabled) {
+      try {
+        this.register(s.id, s.cron, tz);
+        registered++;
+      } catch {
+        // This runs inside onModuleInit, so a throw here used to exit the container
+        // and keep it down until someone edited SQLite by hand — one bad row took
+        // every other schedule with it (GH #99). Databases written before the
+        // controller started validating can still hold one, so quarantine it here.
+        await this.quarantine(s);
+      }
+    }
+    this.logger.log(`Registered ${registered} recurring schedule(s) (tz ${tz})`);
+  }
+
+  /** Park a schedule whose cron can't be parsed. Disabled rather than merely
+   *  skipped: it can never fire, and leaving it "enabled" in the panel would show
+   *  a schedule that looks armed and silently never runs. The event is how the
+   *  operator finds out, since the edit that broke it may have been long ago. */
+  private async quarantine(s: { id: string; name: string; cron: string; serverId: string }): Promise<void> {
+    this.logger.warn(`Schedule "${s.name}" (${s.id}) disabled — invalid cron: ${s.cron}`);
+    await this.prisma.schedule
+      .update({ where: { id: s.id }, data: { enabled: false } })
+      .catch(() => undefined);
+    await this.events
+      .emit({
+        type: EventType.Warning,
+        message: `Schedule "${s.name}" was disabled — "${s.cron}" isn't a valid cron expression.`,
+        serverId: s.serverId,
+      })
+      .catch(() => undefined);
   }
 
   /** Fire any one-time schedules whose moment has arrived (within the grace window),
@@ -97,7 +134,7 @@ export class SchedulerService implements OnModuleInit {
   }
 
   register(scheduleId: string, expr: string, timezone: string): void {
-    if (!cron.validate(expr)) throw new BadRequestException(`Invalid cron: ${expr}`);
+    assertValidCron(expr);
     this.unregister(scheduleId);
     const task = cron.schedule(expr, () => void this.fire(scheduleId), { timezone });
     this.tasks.set(scheduleId, task);
