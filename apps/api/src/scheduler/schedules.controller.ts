@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -10,6 +11,7 @@ import {
   Query,
 } from "@nestjs/common";
 import { IsBoolean, IsDateString, IsIn, IsInt, IsOptional, IsString, Min } from "class-validator";
+import { RCON_SCHEDULE_ACTIONS, SCHEDULE_ACTIONS } from "@ark/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { SchedulerService } from "./scheduler.service";
 import { AccessService } from "../auth/access.service";
@@ -20,13 +22,27 @@ class ScheduleBody {
   @IsString() serverId!: string;
   @IsString() name!: string;
   @IsString() cron!: string;
-  @IsIn(["restart", "update", "update-if-available", "update-mods", "backup", "stop", "start"]) action!: string;
+  @IsIn([...SCHEDULE_ACTIONS]) action!: string;
+  /** RCON payload: the chat message for "announce", the raw console command for
+   *  "command". Required by those two actions, ignored by the rest (GH #78). */
+  @IsOptional() @IsString() command?: string;
   @IsOptional() @IsInt() @Min(0) warnMinutes?: number;
   @IsOptional() @IsBoolean() enabled?: boolean;
   /** Skip disruptive actions (restart/update/stop) while players are online. */
   @IsOptional() @IsBoolean() skipIfPlayersOnline?: boolean;
   /** Set for a ONE-TIME schedule: ISO instant to fire once (cron then ignored). */
   @IsOptional() @IsDateString() runAt?: string;
+}
+
+/** An "announce"/"command" schedule with nothing to send would fire forever and do
+ *  nothing, so it's rejected at the door rather than logged every firing. */
+function assertPayload(action: string | undefined, command: string | undefined): void {
+  if (!action || !RCON_SCHEDULE_ACTIONS.has(action)) return;
+  if (!command?.trim()) {
+    throw new BadRequestException(
+      action === "announce" ? "A message to announce is required" : "A command to run is required",
+    );
+  }
 }
 
 /**
@@ -56,12 +72,14 @@ export class SchedulesController {
   @Post()
   async create(@Body() body: ScheduleBody, @CurrentUser() user: AuthUser) {
     await this.access.assertServer(user, body.serverId);
+    assertPayload(body.action, body.command);
     const created = await this.prisma.schedule.create({
       data: {
         serverId: body.serverId,
         name: body.name,
         cron: body.cron,
         action: body.action,
+        command: RCON_SCHEDULE_ACTIONS.has(body.action) ? body.command!.trim() : null,
         warnMinutes: body.warnMinutes ?? 10,
         enabled: body.enabled ?? true,
         skipIfPlayersOnline: body.skipIfPlayersOnline ?? false,
@@ -81,10 +99,25 @@ export class SchedulesController {
     @Body() body: Partial<ScheduleBody>,
     @CurrentUser() user: AuthUser,
   ) {
-    const current = await this.owned(id, user);
+    const { serverId: current, action: currentAction, command: currentCommand } = await this.owned(
+      id,
+      user,
+    );
     // Moving a schedule onto another server needs that server too.
     if (body.serverId && body.serverId !== current) await this.access.assertServer(user, body.serverId);
-    const data = { ...body, runAt: body.runAt !== undefined ? new Date(body.runAt) : undefined };
+    // A patch can change the action, the payload, or neither, so validate the row
+    // as it will be once merged rather than what arrived in the body.
+    const action = body.action ?? currentAction;
+    const command = body.command !== undefined ? body.command : currentCommand ?? undefined;
+    assertPayload(action, command);
+    const data = {
+      ...body,
+      runAt: body.runAt !== undefined ? new Date(body.runAt) : undefined,
+      // Switching away from announce/command leaves a stale payload behind otherwise.
+      ...(body.action !== undefined || body.command !== undefined
+        ? { command: RCON_SCHEDULE_ACTIONS.has(action) ? command!.trim() : null }
+        : {}),
+    };
     const updated = await this.prisma.schedule.update({ where: { id }, data });
     this.scheduler.unregister(id);
     if (updated.enabled && !updated.runAt) {
@@ -101,12 +134,18 @@ export class SchedulesController {
     return { ok: true };
   }
 
-  /** The schedule's server id, after checking the caller may see that server.
-   *  A missing schedule and a hidden one both 404. */
-  private async owned(id: string, user: AuthUser): Promise<string> {
-    const row = await this.prisma.schedule.findUnique({ where: { id }, select: { serverId: true } });
+  /** The schedule's server id, action and RCON payload, after checking the caller
+   *  may see that server. A missing schedule and a hidden one both 404. */
+  private async owned(
+    id: string,
+    user: AuthUser,
+  ): Promise<{ serverId: string; action: string; command: string | null }> {
+    const row = await this.prisma.schedule.findUnique({
+      where: { id },
+      select: { serverId: true, action: true, command: true },
+    });
     if (!row) throw new NotFoundException("Schedule not found");
     await this.access.assertServer(user, row.serverId);
-    return row.serverId;
+    return row;
   }
 }

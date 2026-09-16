@@ -90,6 +90,9 @@ player administration, and even your router's port-forwards.
   its own database nightly, with its own retention in Settings → Backups.
 - Schedules (restart / update / backup / stop / start) with in-game countdown
   warnings, pre-action snapshots, and a "skip while players are online" guard.
+  Two more actions talk to a live server over RCON: **Announce** sends an in-game
+  chat message, and **Run a console command** sends a raw command, the same one
+  you would type in the Console tab. Both skip unless the server is running.
 - **Version pinning** from registry-populated dropdowns: pin the **game version /
   Steam branch** where the server image supports it (Minecraft, OpenTTD, 7DTD,
   Enshrouded, Valheim, Palworld, V Rising, Satisfactory, ATS/ETS2, LiF:YO), and —

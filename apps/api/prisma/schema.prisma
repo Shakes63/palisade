@@ -185,7 +185,10 @@ model Schedule {
   server      Server    @relation(fields: [serverId], references: [id], onDelete: Cascade)
   name        String
   cron        String
-  action      String // restart | update | update-if-available | backup | stop | start
+  action      String // restart | update | update-if-available | update-mods | backup | stop | start | announce | command
+  // The RCON payload for the "announce" (chat message) and "command" (raw console
+  // command) actions. Null for every other action, which carries no payload.
+  command     String?
   warnMinutes Int       @default(10)
   enabled     Boolean   @default(true)
   // Skip disruptive actions (restart/update/stop) while players are online.
