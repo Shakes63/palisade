@@ -29,8 +29,11 @@ class ScheduleBody {
   @IsOptional() @IsString() command?: string;
   @IsOptional() @IsInt() @Min(0) warnMinutes?: number;
   @IsOptional() @IsBoolean() enabled?: boolean;
-  /** Skip disruptive actions (restart/update/stop) while players are online. */
-  @IsOptional() @IsBoolean() skipIfPlayersOnline?: boolean;
+  /** Player-count condition (GH #97): run only while the number of players online
+   *  is at least/at most this. Null or absent = unbounded on that side. Applies to
+   *  every action, not just the disruptive ones. */
+  @IsOptional() @IsInt() @Min(0) minPlayersOnline?: number | null;
+  @IsOptional() @IsInt() @Min(0) maxPlayersOnline?: number | null;
   /** Set for a ONE-TIME schedule: ISO instant to fire once (cron then ignored). */
   @IsOptional() @IsDateString() runAt?: string;
 }
@@ -102,7 +105,8 @@ export class SchedulesController {
         command: RCON_SCHEDULE_ACTIONS.has(body.action) ? body.command!.trim() : null,
         warnMinutes: body.warnMinutes ?? 10,
         enabled: body.enabled ?? true,
-        skipIfPlayersOnline: body.skipIfPlayersOnline ?? false,
+        minPlayersOnline: body.minPlayersOnline ?? null,
+        maxPlayersOnline: body.maxPlayersOnline ?? null,
         runAt: body.runAt ? parseRunAt(body.runAt) : null,
       },
     });

@@ -1,6 +1,11 @@
 import { Injectable, Logger, OnModuleInit, BadRequestException } from "@nestjs/common";
 import * as cron from "node-cron";
-import { EventType, RCON_SCHEDULE_ACTIONS, ServerState } from "@ark/shared";
+import {
+  describePlayerCondition,
+  EventType,
+  RCON_SCHEDULE_ACTIONS,
+  ServerState,
+} from "@ark/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { EventsService } from "../events/events.service";
 import { ServersService } from "../servers/servers.service";
@@ -230,14 +235,24 @@ export class SchedulerService implements OnModuleInit {
 
     const disruptive = ["restart", "update", "update-mods", "stop"].includes(action);
     try {
-      if (disruptive && sched.skipIfPlayersOnline) {
-        // Don't interrupt a live session: skip this firing when anyone is online.
-        // Recurring schedules just try again next time; a one-shot is consumed.
+      // The player-count condition gates EVERY action (GH #97): "announce only
+      // when 10+ are on" is as much a use for it as "don't restart a busy server".
+      // Recurring schedules just try again next time; a one-shot is consumed.
+      const condition = describePlayerCondition(sched.minPlayersOnline, sched.maxPlayersOnline);
+      if (condition) {
         const players = await this.players.count(sched.serverId).catch(() => null);
-        if ((players?.online ?? 0) > 0) {
+        const online = players?.online ?? null;
+        // A count that can't be read never blocks the firing, same as the flag this
+        // replaced: failing closed would leave a schedule permanently dead whenever
+        // the query port is unreachable.
+        const blocked =
+          online !== null &&
+          ((sched.minPlayersOnline !== null && online < sched.minPlayersOnline) ||
+            (sched.maxPlayersOnline !== null && online > sched.maxPlayersOnline));
+        if (blocked) {
           await this.events.emit({
             type: EventType.ScheduleFired,
-            message: `Schedule "${sched.name}" skipped — ${players!.online} player${players!.online === 1 ? "" : "s"} online`,
+            message: `Schedule "${sched.name}" skipped — ${online} player${online === 1 ? "" : "s"} online, but it only runs when ${condition}`,
             serverId: sched.serverId,
           });
           return;

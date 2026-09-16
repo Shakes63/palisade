@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CalendarClock, Plus, Trash2 } from "lucide-react";
 import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/api";
-import { RCON_SCHEDULE_ACTIONS } from "@ark/shared";
+import { describePlayerCondition, RCON_SCHEDULE_ACTIONS } from "@ark/shared";
 import { buildCron, describeCron, onceCron, fmtLocal, type Frequency } from "@/lib/cron";
 
 interface Schedule {
@@ -13,7 +13,8 @@ interface Schedule {
   command: string | null;
   warnMinutes: number;
   enabled: boolean;
-  skipIfPlayersOnline: boolean;
+  minPlayersOnline: number | null;
+  maxPlayersOnline: number | null;
   lastRunAt: string | null;
   runAt: string | null;
 }
@@ -55,6 +56,17 @@ const FREQS: { value: Frequency; label: string }[] = [
 const DAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 const DISRUPTIVE = new Set(["restart", "update", "update-if-available", "update-mods", "stop"]);
 const actionLabel = (a: string) => ACTIONS.find((x) => x.value === a)?.label ?? a;
+const conditionSuffix = (s: Schedule) => {
+  const text = describePlayerCondition(s.minPlayersOnline, s.maxPlayersOnline);
+  return text ? ` · only when ${text}` : "";
+};
+/** The player-count condition, as one picker rather than a comparison plus a
+ *  threshold — "at most 0" is the old "skip while players are online" (GH #97). */
+const CONDITIONS: { value: string; label: string }[] = [
+  { value: "any", label: "Ignore it — always run" },
+  { value: "atMost", label: "Run only when at most this many are online" },
+  { value: "atLeast", label: "Run only when at least this many are online" },
+];
 
 export function ScheduleList({ serverId }: { serverId: string }) {
   const [schedules, setSchedules] = useState<Schedule[]>([]);
@@ -66,7 +78,8 @@ export function ScheduleList({ serverId }: { serverId: string }) {
   const [minute, setMinute] = useState(0);
   const [command, setCommand] = useState("");
   const [warnMinutes, setWarnMinutes] = useState(10);
-  const [skipIfPlayersOnline, setSkipIfPlayersOnline] = useState(false);
+  const [condition, setCondition] = useState("any");
+  const [threshold, setThreshold] = useState(0);
   const [name, setName] = useState("");
   const [onceAt, setOnceAt] = useState("");
 
@@ -83,9 +96,15 @@ export function ScheduleList({ serverId }: { serverId: string }) {
   const disruptive = DISRUPTIVE.has(action);
   const needsText = RCON_SCHEDULE_ACTIONS.has(action);
   const what = needsText && command.trim() ? `${actionLabel(action)} "${command.trim()}"` : actionLabel(action);
-  const summary = isOnce
-    ? `${what} · ${onceAt ? `once on ${fmtLocal(onceAt)}` : "once — pick a date & time"}`
-    : `${what} · ${describeCron(cron)}`;
+  const minPlayersOnline = condition === "atLeast" ? threshold : null;
+  const maxPlayersOnline = condition === "atMost" ? threshold : null;
+  const conditionText = describePlayerCondition(minPlayersOnline, maxPlayersOnline);
+  const when = isOnce
+    ? onceAt
+      ? `once on ${fmtLocal(onceAt)}`
+      : "once — pick a date & time"
+    : describeCron(cron);
+  const summary = `${what} · ${when}${conditionText ? ` · only when ${conditionText}` : ""}`;
   // "now" in datetime-local format, for the picker's min.
   const nowLocal = new Date(Date.now() - new Date().getTimezoneOffset() * 60000)
     .toISOString()
@@ -119,7 +138,8 @@ export function ScheduleList({ serverId }: { serverId: string }) {
         ...(needsText ? { command: command.trim() } : {}),
         warnMinutes: disruptive ? Number(warnMinutes) : 0,
         enabled: true,
-        skipIfPlayersOnline: disruptive ? skipIfPlayersOnline : false,
+        minPlayersOnline,
+        maxPlayersOnline,
         ...(runAt ? { runAt } : {}),
       });
       setName("");
@@ -269,38 +289,53 @@ export function ScheduleList({ serverId }: { serverId: string }) {
         </div>
 
         {disruptive && (
-          <div className="space-y-3">
-            <div className="max-w-xs">
-              <label className="label">Warn players (minutes)</label>
+          <div className="max-w-xs">
+            <label className="label">Warn players (minutes)</label>
+            <input
+              type="number"
+              min={0}
+              max={60}
+              className="input w-24"
+              value={warnMinutes}
+              onChange={(e) => setWarnMinutes(Math.max(0, Number(e.target.value)))}
+            />
+            <p className="mt-1 text-xs text-slate-500">
+              In-game countdown chat to players before it runs (one message per minute). A backup is
+              also taken first. 0 = no warning.
+            </p>
+          </div>
+        )}
+
+        <div>
+          <label className="label">Player count</label>
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              className="input w-auto"
+              value={condition}
+              onChange={(e) => setCondition(e.target.value)}
+            >
+              {CONDITIONS.map((c) => (
+                <option key={c.value} value={c.value}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+            {condition !== "any" && (
               <input
                 type="number"
                 min={0}
-                max={60}
-                className="input w-24"
-                value={warnMinutes}
-                onChange={(e) => setWarnMinutes(Math.max(0, Number(e.target.value)))}
+                className="input w-20"
+                value={threshold}
+                onChange={(e) => setThreshold(Math.max(0, Number(e.target.value)))}
               />
-              <p className="mt-1 text-xs text-slate-500">
-                In-game countdown chat to players before it runs (one message per minute). A backup is
-                also taken first. 0 = no warning.
-              </p>
-            </div>
-            <label className="flex cursor-pointer items-start gap-2">
-              <input
-                type="checkbox"
-                className="mt-0.5 h-4 w-4 accent-ark-accent"
-                checked={skipIfPlayersOnline}
-                onChange={(e) => setSkipIfPlayersOnline(e.target.checked)}
-              />
-              <span className="text-sm text-slate-300">
-                Skip while players are online
-                <span className="block text-xs text-slate-500">
-                  A recurring schedule just tries again next time; a one-time schedule is consumed.
-                </span>
-              </span>
-            </label>
+            )}
           </div>
-        )}
+          <p className="mt-1 text-xs text-slate-500">
+            {condition === "any"
+              ? "The player count is ignored — it runs every time."
+              : "Checked against the live player count when the schedule fires. A recurring schedule just tries again next time; a one-time schedule is consumed. If the count can't be read, it runs anyway."}
+          </p>
+        </div>
 
         <div>
           <label className="label">Name (optional)</label>
@@ -340,7 +375,7 @@ export function ScheduleList({ serverId }: { serverId: string }) {
                     {s.command ? ` "${s.command}"` : ""} ·{" "}
                     {s.runAt ? `Once · ${fmtLocal(s.runAt)}` : describeCron(s.cron)}
                     {s.warnMinutes ? ` · warn ${s.warnMinutes}m` : ""}
-                    {s.skipIfPlayersOnline ? " · skips if players online" : ""}
+                    {conditionSuffix(s)}
                     {s.lastRunAt ? ` · last ${new Date(s.lastRunAt).toLocaleString()}` : ""}
                   </div>
                 </div>
