@@ -39,12 +39,11 @@ Pull requests should be created from personal forks. We follow a fork and rebase
 You need Node 20+, [pnpm](https://pnpm.io) 9, and a working Docker daemon.
 
 ```bash
-pnpm install                     # install the workspace
-cp .env.example apps/api/.env    # never commit a real .env
-sed -i '/^DOCKER_HOST=/d' apps/api/.env   # see below
-pnpm db:generate                 # generate the Prisma client
-pnpm --filter @ark/api db:push   # create the dev SQLite database
-pnpm dev                         # API on :8787, web UI on :3000
+pnpm install                                          # install the workspace
+grep -v '^DOCKER_HOST=' .env.example > apps/api/.env  # see below; never commit a real .env
+pnpm db:generate                                      # generate the Prisma client
+pnpm --filter @ark/api db:push                        # create the dev SQLite database
+pnpm dev                                              # API on :8787, web UI on :3000
 ```
 
 The API and the Prisma CLI both run with `apps/api` as their working directory, so that is
@@ -52,10 +51,11 @@ where `dotenv` and `prisma` look. A `.env` in the repo root is ignored by `pnpm 
 any warning. You can leave `SECRETS_KEY` and `JWT_SECRET` blank for local work: the API
 generates them on first start and persists them to `data/.secrets.json`.
 
-Drop `DOCKER_HOST` from that copy, as above. The example file points it at
-`tcp://socket-proxy:2375`, a hostname that only resolves inside Compose, so every Docker call
-in `pnpm dev` fails. Unset, it defaults to the host's `unix:///var/run/docker.sock`, which is
-what you want locally, and what Compose uses regardless of the file.
+That `grep` is why the copy above is not a plain `cp`. The example file points
+`DOCKER_HOST` at `tcp://socket-proxy:2375`, a hostname that only resolves inside Compose, so
+every Docker call in `pnpm dev` fails. Left out, it defaults to the host's
+`unix:///var/run/docker.sock`, which is what you want locally, and what Compose uses
+regardless of the file.
 
 To run the whole manager the way users do, bring it up with Compose. It reads its own `.env`
 in the repo root, and needs `SECRETS_KEY` and `JWT_SECRET` filled in there - the example file
@@ -64,11 +64,15 @@ leaves both blank:
 ```bash
 cp .env.example .env    # the root copy, read by Compose
 
-# two separate values — each command prints one 64-character hex string,
-# ready to paste into .env
+# each command prints one 64-character hex string, ready to paste into .env
 node -e "console.log('SECRETS_KEY=' + require('crypto').randomBytes(32).toString('hex'))"
 node -e "console.log('JWT_SECRET='  + require('crypto').randomBytes(32).toString('hex'))"
+```
 
+Paste both lines into `.env` before you go further. Compose aborts while either value is
+still blank. Then:
+
+```bash
 docker compose up --build
 ```
 
