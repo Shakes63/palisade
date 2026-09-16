@@ -51,8 +51,10 @@ NAME="$2"
 
 # Defaults for a first install; every one of them is overridden below by what an
 # existing container already has.
-PROXY_NAME="palisade-docker-proxy"
-PROXY_NET="palisade-proxy"
+# Names the docs have pointed a socket-proxy at, newest first. The old
+# palisade-docker-proxy stays so installs made from an older compose file are
+# still recognised.
+PROXY_NAMES=(socket-proxy palisade-socket-proxy palisade-docker-proxy)
 DEF_PORT="8970"
 DEF_DATA="/mnt/cache/appdata/palisade"
 DEF_NET="palisade-net" # DEFAULT_SHARED_NETWORK in apps/api/src/common/naming.ts
@@ -128,9 +130,18 @@ else
   docker network inspect "$DEF_NET" >/dev/null 2>&1 || docker network create "$DEF_NET" >/dev/null
   # Least-privilege Docker access when a proxy is already running; otherwise the
   # classic socket mount.
-  if docker inspect "$PROXY_NAME" >/dev/null 2>&1; then
-    ARGS+=( -e "DOCKER_HOST=tcp://${PROXY_NAME}:2375" )
-    NETWORKS+=( "$PROXY_NET" )
+  PROXY=""
+  for candidate in "${PROXY_NAMES[@]}"; do
+    if docker inspect "$candidate" >/dev/null 2>&1; then PROXY="$candidate"; break; fi
+  done
+  if [ -n "$PROXY" ]; then
+    ARGS+=( -e "DOCKER_HOST=tcp://${PROXY}:2375" )
+    # Read the proxy's own networks rather than assuming one: the hostname only
+    # resolves where the two containers already share a user-defined network.
+    while IFS= read -r net; do
+      case "$net" in "" | bridge | host | none | "$DEF_NET") continue ;; esac
+      NETWORKS+=( "$net" )
+    done < <(docker inspect "$PROXY" --format '{{range $k, $v := .NetworkSettings.Networks}}{{println $k}}{{end}}')
   else
     ARGS+=( -e DOCKER_HOST=unix:///var/run/docker.sock -v /var/run/docker.sock:/var/run/docker.sock:rw )
   fi

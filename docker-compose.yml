@@ -1,9 +1,9 @@
 # Reference deployment: a single manager container that controls Docker through
 # the host's Docker socket, mounted directly (DOCKER_HOST=unix:///var/run/docker.sock).
 #
-# RECOMMENDED HARDENING: uncomment the docker-proxy service below, then on the
-# manager set DOCKER_HOST to tcp://docker-proxy:2375, remove the socket bind
-# mount, and add docker-proxy-net to its networks. The manager then only gets
+# RECOMMENDED HARDENING: uncomment the socket-proxy service below, then on the
+# manager set DOCKER_HOST to tcp://socket-proxy:2375, remove the socket bind
+# mount, and add socket-proxy-net to its networks. The manager then only gets
 # the Docker API endpoints it actually uses (containers, images, ping) — exec,
 # volumes, networks, build, swarm, and secrets stay blocked at the proxy.
 # Caveat: the proxy filters endpoints, not payloads — container *creation* is
@@ -55,9 +55,9 @@ services:
     restart: unless-stopped
 
   # Least-privilege Docker API gateway (opt in — see header comment).
-  # docker-proxy:
+  # socket-proxy:
   #   image: tecnativa/docker-socket-proxy:latest
-  #   container_name: palisade-docker-proxy
+  #   container_name: palisade-socket-proxy
   #   environment:
   #     # Palisade's full API surface: container lifecycle + image pulls + ping.
   #     CONTAINERS: 1        # list/inspect/logs/stats/attach/wait
@@ -70,7 +70,7 @@ services:
   #     # EXEC/VOLUMES/NETWORKS/BUILD/SWARM/SECRETS/AUTH/PLUGINS = 0
   #   volumes:
   #     - /var/run/docker.sock:/var/run/docker.sock:ro
-  #   networks: [docker-proxy-net]
+  #   networks: [socket-proxy-net]
   #   restart: unless-stopped
 
 networks:
@@ -78,5 +78,5 @@ networks:
   # name. It sorts after br0/bond0/eth0 on purpose — see DEFAULT_SHARED_NETWORK.
   palisade-net:
     name: palisade-net
-  # docker-proxy-net:
+  # socket-proxy-net:
   #   internal: true   # no outbound access; only the manager talks to the proxy
