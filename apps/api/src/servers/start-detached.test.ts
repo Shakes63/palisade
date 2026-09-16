@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, beforeEach } from "vitest";
+import { describe, it, expect, beforeAll, beforeEach, vi } from "vitest";
 import { FakeDocker, makeRow, makeService, neuterGuards, setupE2eEnv } from "./lifecycle-harness";
 import { Game, ServerState } from "@ark/shared";
 
@@ -80,10 +80,12 @@ describe("startDetached", () => {
     docker.missingImage = true;
 
     await service.startDetached(row.id);
-    await new Promise((r) => setTimeout(r, 50)); // let the detached launch settle
-
-    const after = await prisma.server.findUnique();
-    expect(after?.state).toBe(ServerState.Crashed);
+    // Poll for the detached write: a fixed wait raced the test runner under load.
+    const after = await vi.waitFor(async () => {
+      const current = await prisma.server.findUnique();
+      expect(current?.state).toBe(ServerState.Crashed);
+      return current;
+    });
     expect(after?.crashReason).toMatch(/isn't available/);
   });
 
