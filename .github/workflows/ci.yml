@@ -49,6 +49,16 @@ jobs:
       - run: pnpm test
       - run: pnpm build
 
+      # `pnpm build` regenerates the game-docs bundle from docs/games. A dirty tree
+      # here means a doc edit landed without it, so the in-app Guide tab ships stale
+      # (GH #98) and the diff turns up uninvited in whatever PR is open next.
+      - name: Check the bundled game docs are current
+        run: |
+          git diff --exit-code -- apps/web/lib/game-docs.generated.ts || {
+            echo "::error::docs/games changed without regenerating the bundle. Run 'node scripts/generate-game-docs.mjs' and commit the result."
+            exit 1
+          }
+
   integration:
     runs-on: ubuntu-latest
     steps:
