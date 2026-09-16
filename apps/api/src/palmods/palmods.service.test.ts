@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtemp, readFile, writeFile, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, writeFile, rm, stat, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { BadRequestException } from "@nestjs/common";
 import { Game } from "@ark/shared";
 import {
   PalModsService,
@@ -10,6 +11,9 @@ import {
   PAL_FRAMEWORK_WINE_LOADER,
   PAL_WINE_PROXY_DLLS,
   filterWineProxyDlls,
+  PALSCHEMA,
+  PAL_SCHEMA_DLL,
+  PAL_SCHEMA_ENABLED_MARKER,
 } from "./palmods.service";
 
 /** UE4SS ships GuiConsoleEnabled=1 (no display on a dedicated server) and
@@ -130,5 +134,158 @@ describe("filterWineProxyDlls", () => {
     // mods silently stop loading again.
     expect(PAL_WINE_PROXY_DLLS).toContain("dwmapi");
     expect(PAL_WINE_PROXY_DLLS).toContain("d3d9");
+  });
+});
+
+describe("PalSchema pin", () => {
+  it("pins an exact release asset and digest (verified against the real downloaded zip)", () => {
+    expect(PALSCHEMA.url).toMatch(/\/releases\/download\/[\d.]+\/PalSchema_[\d.]+\.zip$/);
+    expect(PALSCHEMA.sha256).toMatch(/^[0-9a-f]{64}$/);
+    // The release zip's root IS the "PalSchema" folder, so it extracts straight into
+    // UE4SS's Mods dir and lands here.
+    expect(PAL_SCHEMA_DLL).toBe("Pal/Binaries/Win64/Mods/PalSchema/dlls/main.dll");
+  });
+});
+
+/**
+ * UE4SS starts a DLL mod from an `enabled.txt` marker in the mod's own folder,
+ * NOT from Mods/mods.txt (that's the Lua-mod list). Confirmed against a live
+ * server: its UE4SS.log reads "Mod 'PalSchema' has enabled.txt, starting mod."
+ * while PalSchema appears nowhere in mods.txt. Writing a mods.txt entry for
+ * PalSchema would be cargo-culting.
+ */
+/**
+ * Pak mods are listed recursively (a mod zip ships a `ModName/` folder with the
+ * .pak/.ucas/.utoc trio), so delete takes a path with separators rather than a
+ * basename — which is exactly the input that needs a traversal guard. It uses the
+ * same shared resolveSafe() the file manager does, so these run against a real
+ * filesystem with real symlinks rather than asserting on string math.
+ */
+describe("removePak() containment", () => {
+  let dataDir: string;
+  let mods: string; // the server's ~mods dir
+  let outside: string; // a sibling dir that must stay unreachable
+  let svc: PalModsService;
+
+  beforeEach(async () => {
+    process.env.SECRETS_KEY = "a".repeat(64);
+    process.env.JWT_SECRET = "test-jwt-secret-1234";
+    dataDir = await mkdtemp(join(tmpdir(), "palmods-rm-"));
+    process.env.DATA_DIR = dataDir;
+    const { resetEnvCache } = await import("../config/env");
+    resetEnvCache();
+
+    mods = join(dataDir, "instances", "srv1", "Pal/Content/Paks/~mods");
+    outside = join(dataDir, "outside");
+    await mkdir(join(mods, "ModName"), { recursive: true });
+    await mkdir(outside, { recursive: true });
+    await writeFile(join(outside, "secret.pak"), "host-secret");
+    await writeFile(join(mods, "loose_P.pak"), "x");
+    await writeFile(join(mods, "ModName", "ModName_P.pak"), "x");
+    await writeFile(join(mods, "ModName", "ModName_P.ucas"), "x");
+
+    svc = new PalModsService({
+      server: { findUnique: async () => ({ id: "srv1", game: Game.PALWORLD, configJson: "{}" }) },
+    } as never);
+  });
+
+  afterEach(async () => {
+    await rm(dataDir, { recursive: true, force: true });
+    const { resetEnvCache } = await import("../config/env");
+    resetEnvCache();
+  });
+
+  const exists = (p: string) => stat(p).then(() => true).catch(() => false);
+
+  it("deletes a nested mod file, the case the flat listing used to miss", async () => {
+    await svc.removePak("srv1", "ModName/ModName_P.pak");
+    expect(await exists(join(mods, "ModName", "ModName_P.pak"))).toBe(false);
+    // Its siblings stay: only the named file goes.
+    expect(await exists(join(mods, "ModName", "ModName_P.ucas"))).toBe(true);
+  });
+
+  it("deletes a file sitting directly in ~mods", async () => {
+    await svc.removePak("srv1", "loose_P.pak");
+    expect(await exists(join(mods, "loose_P.pak"))).toBe(false);
+  });
+
+  it("drops the mod folder once its last file is gone, and not before", async () => {
+    await svc.removePak("srv1", "ModName/ModName_P.pak");
+    expect(await exists(join(mods, "ModName"))).toBe(true); // .ucas still there
+    await svc.removePak("srv1", "ModName/ModName_P.ucas");
+    expect(await exists(join(mods, "ModName"))).toBe(false);
+  });
+
+  it("refuses traversal, absolute paths, and null bytes", async () => {
+    for (const evil of [
+      "../../../../../outside/secret.pak",
+      "ModName/../../../../outside/secret.pak",
+      "/etc/passwd",
+      "a\0b.pak",
+    ]) {
+      await expect(svc.removePak("srv1", evil), evil).rejects.toThrow(BadRequestException);
+    }
+    expect(await exists(join(outside, "secret.pak"))).toBe(true);
+  });
+
+  it("refuses a delete aimed through a symlinked mod folder", async () => {
+    // The shared guard canonicalizes the deepest existing ancestor, which is what
+    // the old lexical-only check could not see.
+    await symlink(outside, join(mods, "sneaky"));
+    await expect(svc.removePak("srv1", "sneaky/secret.pak")).rejects.toThrow(/symlink/i);
+    expect(await exists(join(outside, "secret.pak"))).toBe(true);
+  });
+
+  it("refuses anything that is not a pak file, including the mods dir itself", async () => {
+    await writeFile(join(mods, "readme.txt"), "x");
+    for (const bad of ["readme.txt", ".", ""]) {
+      await expect(svc.removePak("srv1", bad), bad).rejects.toThrow(/not a pak file/i);
+    }
+    expect(await exists(mods)).toBe(true);
+  });
+
+  it("is a no-op when the ~mods dir was never created", async () => {
+    await rm(mods, { recursive: true, force: true });
+    await expect(svc.removePak("srv1", "loose_P.pak")).resolves.toMatchObject({ paks: [] });
+  });
+});
+
+/** PalSchema is a UE4SS mod: without the framework its files sit inert in Mods/ and
+ *  never load. Every write path must refuse rather than produce that silent no-op. */
+describe("PalSchema requires UE4SS (server-side gate)", () => {
+  process.env.SECRETS_KEY = "a".repeat(64);
+  process.env.JWT_SECRET = "test-jwt-secret-1234";
+  process.env.DATA_DIR = "/data";
+
+  // A Wine server whose instance dir has no UE4SS loader on disk.
+  const svc = new PalModsService({
+    server: { findUnique: async () => ({ id: "srv1", game: Game.PALWORLD_WINE, configJson: "{}" }) },
+  } as never);
+
+  it("refuses the one-click install before spending a download", async () => {
+    await expect(svc.installPalSchemaFromUpstream("srv1")).rejects.toThrow(/UE4SS framework first/i);
+  });
+
+  it("refuses a manual PalSchema upload too (not just the gated button)", async () => {
+    await expect(svc.installPalSchema("srv1", Buffer.from("zip"))).rejects.toThrow(/UE4SS framework first/i);
+  });
+
+  it("refuses content-mod uploads", async () => {
+    await expect(svc.addPalSchemaMod("srv1", "mod.zip", Buffer.from("zip"))).rejects.toThrow(/UE4SS framework first/i);
+  });
+
+  it("rejects PalSchema on the native Linux variant regardless of UE4SS", async () => {
+    const native = new PalModsService({
+      server: { findUnique: async () => ({ id: "srv2", game: Game.PALWORLD, configJson: "{}" }) },
+    } as never);
+    await expect(native.installPalSchemaFromUpstream("srv2")).rejects.toThrow(/Wine/i);
+  });
+});
+
+describe("PalSchema enablement marker", () => {
+  it("lives inside the mod folder, beside the dlls dir it enables", () => {
+    expect(PAL_SCHEMA_ENABLED_MARKER).toBe("Pal/Binaries/Win64/Mods/PalSchema/enabled.txt");
+    const modDir = PAL_SCHEMA_DLL.replace(/\/dlls\/main\.dll$/, "");
+    expect(PAL_SCHEMA_ENABLED_MARKER.startsWith(`${modDir}/`)).toBe(true);
   });
 });
