@@ -39,23 +39,17 @@ Pull requests should be created from personal forks. We follow a fork and rebase
 You need Node 20+, [pnpm](https://pnpm.io) 9, and a working Docker daemon.
 
 ```bash
-pnpm install                                          # install the workspace
-grep -v '^DOCKER_HOST=' .env.example > apps/api/.env  # see below; never commit a real .env
-pnpm db:generate                                      # generate the Prisma client
-pnpm --filter @ark/api db:push                        # create the dev SQLite database
-pnpm dev                                              # API on :8787, web UI on :3000
+pnpm install                     # install the workspace
+cp .env.example apps/api/.env    # never commit a real .env
+pnpm db:generate                 # generate the Prisma client
+pnpm --filter @ark/api db:push   # create the dev SQLite database
+pnpm dev                         # API on :8787, web UI on :3000
 ```
 
 The API and the Prisma CLI both run with `apps/api` as their working directory, so that is
 where `dotenv` and `prisma` look. A `.env` in the repo root is ignored by `pnpm dev` without
 any warning. You can leave `SECRETS_KEY` and `JWT_SECRET` blank for local work: the API
 generates them on first start and persists them to `data/.secrets.json`.
-
-That `grep` is why the copy above is not a plain `cp`. The example file points
-`DOCKER_HOST` at `tcp://socket-proxy:2375`, a hostname that only resolves inside Compose, so
-every Docker call in `pnpm dev` fails. Left out, it defaults to the host's
-`unix:///var/run/docker.sock`, which is what you want locally, and what Compose uses
-regardless of the file.
 
 To run the whole manager the way users do, bring it up with Compose. It reads its own `.env`
 in the repo root, and needs `SECRETS_KEY` and `JWT_SECRET` filled in there - the example file
