@@ -191,8 +191,12 @@ model Schedule {
   command     String?
   warnMinutes Int       @default(10)
   enabled     Boolean   @default(true)
-  // Skip disruptive actions (restart/update/stop) while players are online.
-  skipIfPlayersOnline Boolean @default(false)
+  // Player-count condition (GH #97): the firing is skipped unless the number of
+  // players online is at least `minPlayersOnline` and at most `maxPlayersOnline`.
+  // Null = unbounded on that side, so both null = fires unconditionally. Replaces
+  // the old `skipIfPlayersOnline` flag, which was this with maxPlayersOnline = 0.
+  minPlayersOnline Int?
+  maxPlayersOnline Int?
   lastRunAt   DateTime?
   // Set for ONE-TIME schedules: the absolute instant to fire once. When non-null,
   // `cron` is ignored for scheduling — a poll fires it (and catches up if the

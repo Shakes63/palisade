@@ -60,7 +60,8 @@ describe("schedule edit validation (GH #99)", () => {
         command: "SaveWorld",
         warnMinutes: 5,
         enabled: false,
-        skipIfPlayersOnline: true,
+        minPlayersOnline: 2,
+        maxPlayersOnline: 10,
         runAt: "2026-01-01T00:00:00.000Z",
         bogus: "dropped",
       }),
@@ -72,7 +73,8 @@ describe("schedule edit validation (GH #99)", () => {
       command: "SaveWorld",
       warnMinutes: 5,
       enabled: false,
-      skipIfPlayersOnline: true,
+      minPlayersOnline: 2,
+      maxPlayersOnline: 10,
       runAt: "2026-01-01T00:00:00.000Z",
     });
     // An absent field stays absent: update() spreads the body into Prisma's data.

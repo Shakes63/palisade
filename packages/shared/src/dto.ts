@@ -282,7 +282,32 @@ export interface ScheduleDto {
   command?: string | null;
   /** Minutes of in-game warning countdown before a disruptive action. */
   warnMinutes?: number;
+  /** Player-count condition (GH #97): the firing is skipped unless the number of
+   *  players online is at least `minPlayersOnline` and at most `maxPlayersOnline`.
+   *  Null on either side = unbounded there, so both null = fires unconditionally.
+   *  The two are checked independently, so they can also express a range. */
+  minPlayersOnline?: number | null;
+  maxPlayersOnline?: number | null;
   enabled: boolean;
+}
+
+/** The player-count condition as a phrase that completes "only when ...", or null
+ *  when the schedule carries no condition. Shared so the skip event, the schedule
+ *  row and the form all word it the same way (GH #97). */
+export function describePlayerCondition(
+  minPlayersOnline?: number | null,
+  maxPlayersOnline?: number | null,
+): string | null {
+  // The verb agrees with the bound that carries the noun, or a threshold of 1
+  // reads "at least 1 player are online".
+  const players = (n: number) => `${n} player${n === 1 ? " is" : "s are"}`;
+  if (minPlayersOnline != null && maxPlayersOnline != null) {
+    return `between ${minPlayersOnline} and ${players(maxPlayersOnline)} online`;
+  }
+  if (minPlayersOnline != null) return `at least ${players(minPlayersOnline)} online`;
+  if (maxPlayersOnline === 0) return "nobody is online";
+  if (maxPlayersOnline != null) return `at most ${players(maxPlayersOnline)} online`;
+  return null;
 }
 
 export interface LoginDto {
