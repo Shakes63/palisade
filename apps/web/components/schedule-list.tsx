@@ -37,12 +37,12 @@ const ACTIONS: { value: string; label: string; hint: string }[] = [
   {
     value: "announce",
     label: "Announce",
-    hint: "Send a chat message to everyone in-game. Skipped while the server is stopped.",
+    hint: "Send a chat message to everyone in-game. Runs only while the server is up.",
   },
   {
     value: "command",
     label: "Run a console command",
-    hint: "Send a raw RCON command, exactly as you would type it in the Console tab. Skipped while the server is stopped.",
+    hint: "Send a raw RCON command, exactly as you would type it in the Console tab. Runs only while the server is up.",
   },
 ];
 const FREQS: { value: Frequency; label: string }[] = [
