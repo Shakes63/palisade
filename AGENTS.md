@@ -206,10 +206,10 @@ key, or API token.
   every "the old thing must be there" assumption (GH #71, #89, #91).
 - **`docs/games/*.md` is shipped content**, bundled into the in-app Guide tab. A doc edit is
   a product change, and the generated bundle is checked in so a stale checkout still builds.
-- **Publishing is tag-driven.** A push to `main` publishes no image; a `vX.Y.Z` tag builds and
-  pushes `latest` plus the semver and short-sha tags, gated on `pnpm audit --prod
-  --audit-level high` and a Trivy CRITICAL scan. `nightly.yml` is manual-only and never moves
-  `latest`.
+- **Stable publishing is tag-driven.** A `vX.Y.Z` tag builds and pushes `latest` plus the
+  semver and short-sha tags, gated on `pnpm audit --prod --audit-level high` and a Trivy
+  CRITICAL scan. Every push to `main` runs `nightly.yml`, which publishes `:nightly` through
+  the same gates and never moves `latest`.
 - **Secrets are generated on first start and encrypted at rest.** Don't add a setup step that
   asks a user to generate a key in a terminal, and never log a decrypted secret or write one
   into a game container's config in plain sight of the logs.

@@ -283,7 +283,7 @@ published release remains pullable as a rollback pin.
 | --- | --- | --- |
 | `latest` | a `vX.Y.Z` release is cut | most people |
 | `vX.Y.Z` / `vX.Y` | that release | pinning / rollback |
-| `nightly` | a nightly build is manually triggered | early testing, bleeding edge |
+| `nightly` | every merge to `main` | early testing, bleeding edge |
 | `sha-<short>` | every build | immutable pin of an exact build |
 
 `nightly` is a prerelease of unreleased `main` code (versioned like
