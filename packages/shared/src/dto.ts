@@ -379,3 +379,9 @@ export interface GameArtwork {
   /** Square icon. */
   icon: string | null;
 }
+
+/** Manager log levels, quietest first. Each includes everything above it. */
+export const LOG_LEVELS = ["error", "warn", "log", "debug"] as const;
+export type LogLevel = (typeof LOG_LEVELS)[number];
+/** Everything — what the manager logged before the level was configurable. */
+export const DEFAULT_LOG_LEVEL: LogLevel = "debug";

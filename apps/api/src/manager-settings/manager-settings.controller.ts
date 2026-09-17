@@ -14,6 +14,7 @@ import {
 import { ManagerSettingsService, SettingKeys } from "./manager-settings.service";
 import { SchedulerService } from "../scheduler/scheduler.service";
 import { MinRole } from "../auth/min-role.decorator";
+import { LOG_LEVELS, type LogLevel } from "@ark/shared";
 
 class UpdateSettingsBody {
   @IsOptional() @IsString() timezone?: string;
@@ -23,6 +24,7 @@ class UpdateSettingsBody {
   /** Palisade's own database snapshots. Game-server retention is per-server. */
   @IsOptional() @IsInt() @Min(1) @Max(500) managerBackupKeep?: number;
   @IsOptional() @IsBoolean() autoStopOnStart?: boolean;
+  @IsOptional() @IsIn(LOG_LEVELS) logLevel?: LogLevel;
   // Host/runtime overrides. Null clears the override and hands the decision back to
   // the environment variable, so "unset" stays reachable from the UI.
   @IsOptional() @ValidateIf((_o, v) => v !== null) @IsBoolean() gameHostNetwork?: boolean | null;
@@ -90,6 +92,10 @@ export class ManagerSettingsController {
       await this.settings.set(SettingKeys.ManagerBackupKeep, String(body.managerBackupKeep));
     if (body.autoStopOnStart !== undefined)
       await this.settings.set(SettingKeys.AutoStopOnStart, String(body.autoStopOnStart));
+    if (body.logLevel !== undefined) {
+      await this.settings.set(SettingKeys.LogLevel, body.logLevel);
+      await this.settings.applyLogLevel();
+    }
     if (body.pfsenseHost !== undefined) await this.settings.set(SettingKeys.PfsenseHost, body.pfsenseHost);
     if (body.pfsenseApiKey) await this.settings.set(SettingKeys.PfsenseApiKey, body.pfsenseApiKey);
     if (body.pfsenseTargetIp !== undefined)

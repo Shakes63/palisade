@@ -4,6 +4,8 @@ import { CryptoService } from "../crypto/crypto.service";
 import { applyHostDataDirOverride } from "../config/ensure-host-data-dir";
 import { loadEnv } from "../config/env";
 import { resolveConnectHost } from "./connect-host";
+import { setLogLevel } from "../common/app-logger";
+import { DEFAULT_LOG_LEVEL, LOG_LEVELS, type LogLevel } from "@ark/shared";
 
 /** Well-known manager setting keys. */
 export const SettingKeys = {
@@ -22,6 +24,7 @@ export const SettingKeys = {
   // each server and no longer read.
   ManagerBackupKeep: "manager_backup_keep",
   AutoStopOnStart: "auto_stop_on_start",
+  LogLevel: "log_level",
   // Host/runtime knobs that used to be env-only. Each is an OVERRIDE: unset here
   // means the environment variable (and its default) still decides, so an install
   // behaves exactly as its Docker template says until someone changes it in the UI.
@@ -85,11 +88,21 @@ export class ManagerSettingsService implements OnModuleInit {
    * that runs in one of those hooks already resolves paths.
    */
   async onModuleInit(): Promise<void> {
-    await this.applyHostOverrides().catch((e) =>
+    await Promise.all([this.applyHostOverrides(), this.applyLogLevel()]).catch((e) =>
       // A fresh install has no settings table rows yet, and a broken read here must
       // not take the boot down — the env vars still decide.
       this.logger.debug(`host overrides not applied: ${(e as Error).message}`),
     );
+  }
+
+  /** How much the manager writes to its own log. Applied at boot and on save. */
+  async applyLogLevel(): Promise<void> {
+    setLogLevel(await this.getLogLevel());
+  }
+
+  async getLogLevel(): Promise<LogLevel> {
+    const v = await this.get(SettingKeys.LogLevel);
+    return (LOG_LEVELS as readonly string[]).includes(v ?? "") ? (v as LogLevel) : DEFAULT_LOG_LEVEL;
   }
 
   /** Re-apply the stored HOST_DATA_DIR (or fall back to the auto-detected path).
