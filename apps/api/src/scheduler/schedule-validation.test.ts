@@ -111,6 +111,28 @@ describe("schedule edit validation (GH #99)", () => {
   });
 });
 
+describe("editing a schedule's timing (GH #83)", () => {
+  it("clears the one-time instant when an edit makes it recurring", async () => {
+    const { ctl, prisma, scheduler } = makeController();
+    await ctl.update("sch-1", { cron: "0 4 * * *", runAt: null, enabled: true }, admin);
+    expect(prisma.schedule.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ runAt: null }) }),
+    );
+    expect(scheduler.registerWithTimezone).toHaveBeenCalledWith("sch-1", "0 4 * * *");
+  });
+
+  it("makes a re-timed one-time schedule fireable again", async () => {
+    const { ctl, prisma, scheduler } = makeController();
+    await ctl.update("sch-1", { runAt: "2030-01-01T00:00:00.000Z" }, admin);
+    expect(prisma.schedule.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ runAt: new Date("2030-01-01T00:00:00.000Z"), lastRunAt: null }),
+      }),
+    );
+    expect(scheduler.registerWithTimezone).not.toHaveBeenCalled();
+  });
+});
+
 function makeScheduler(rows: Array<{ id: string; name: string; cron: string; serverId: string }>) {
   const prisma = {
     schedule: { findMany: vi.fn(async () => rows), update: vi.fn(async () => undefined) },

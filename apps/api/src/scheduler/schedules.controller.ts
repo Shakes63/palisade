@@ -34,8 +34,9 @@ class ScheduleBody {
    *  every action, not just the disruptive ones. */
   @IsOptional() @IsInt() @Min(0) minPlayersOnline?: number | null;
   @IsOptional() @IsInt() @Min(0) maxPlayersOnline?: number | null;
-  /** Set for a ONE-TIME schedule: ISO instant to fire once (cron then ignored). */
-  @IsOptional() @IsDateString() runAt?: string;
+  /** Set for a ONE-TIME schedule: ISO instant to fire once (cron then ignored).
+   *  Null on PATCH turns a one-time schedule back into a recurring one. */
+  @IsOptional() @IsDateString() runAt?: string | null;
 }
 
 /**
@@ -139,7 +140,9 @@ export class SchedulesController {
     if (body.cron !== undefined) assertValidCron(body.cron);
     const data = {
       ...body,
-      runAt: body.runAt !== undefined ? parseRunAt(body.runAt) : undefined,
+      runAt: body.runAt === undefined ? undefined : body.runAt === null ? null : parseRunAt(body.runAt),
+      // The one-shot poll only picks unfired rows, so a re-timed one must look unfired.
+      ...(body.runAt ? { lastRunAt: null } : {}),
       // Switching away from announce/command leaves a stale payload behind otherwise.
       ...(body.action !== undefined || body.command !== undefined
         ? { command: RCON_SCHEDULE_ACTIONS.has(action) ? command!.trim() : null }

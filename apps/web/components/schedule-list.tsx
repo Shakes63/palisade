@@ -1,9 +1,9 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CalendarClock, Plus, Trash2 } from "lucide-react";
+import { CalendarClock, Pencil, Plus, Save, Trash2 } from "lucide-react";
 import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/api";
 import { describePlayerCondition, RCON_SCHEDULE_ACTIONS } from "@ark/shared";
-import { buildCron, describeCron, onceCron, fmtLocal, type Frequency } from "@/lib/cron";
+import { buildCron, describeCron, onceCron, parseCron, fmtLocal, type Frequency } from "@/lib/cron";
 
 interface Schedule {
   id: string;
@@ -56,6 +56,9 @@ const FREQS: { value: Frequency; label: string }[] = [
 const DAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 const DISRUPTIVE = new Set(["restart", "update", "update-if-available", "update-mods", "stop"]);
 const actionLabel = (a: string) => ACTIONS.find((x) => x.value === a)?.label ?? a;
+/** A Date as a datetime-local value ("YYYY-MM-DDTHH:MM") in the browser's zone. */
+const localInput = (d: Date) =>
+  new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
 const conditionSuffix = (s: Schedule) => {
   const text = describePlayerCondition(s.minPlayersOnline, s.maxPlayersOnline);
   return text ? ` · only when ${text}` : "";
@@ -82,6 +85,7 @@ export function ScheduleList({ serverId }: { serverId: string }) {
   const [threshold, setThreshold] = useState(0);
   const [name, setName] = useState("");
   const [onceAt, setOnceAt] = useState("");
+  const [editing, setEditing] = useState<Schedule | null>(null);
 
   const refresh = useCallback(() => {
     apiGet<Schedule[]>(`/schedules?serverId=${serverId}`).then(setSchedules).catch(() => undefined);
@@ -106,14 +110,52 @@ export function ScheduleList({ serverId }: { serverId: string }) {
     : describeCron(cron);
   const summary = `${what} · ${when}${conditionText ? ` · only when ${conditionText}` : ""}`;
   // "now" in datetime-local format, for the picker's min.
-  const nowLocal = new Date(Date.now() - new Date().getTimezoneOffset() * 60000)
-    .toISOString()
-    .slice(0, 16);
+  const nowLocal = localInput(new Date());
 
   const toggleDay = (d: number) =>
     setDays((ds) => (ds.includes(d) ? ds.filter((x) => x !== d) : [...ds, d]));
 
-  const create = async (e: React.FormEvent) => {
+  const resetForm = () => {
+    setEditing(null);
+    setAction("restart");
+    setFrequency("daily");
+    setTime("05:00");
+    setDays([0, 1, 2, 3, 4, 5, 6]);
+    setIntervalHours(6);
+    setMinute(0);
+    setCommand("");
+    setWarnMinutes(10);
+    setCondition("any");
+    setThreshold(0);
+    setName("");
+    setOnceAt("");
+  };
+
+  /** Load a saved schedule into the form (GH #83). A hand-written cron the form
+   *  can't express keeps the form's current timing. */
+  const startEdit = (s: Schedule) => {
+    setEditing(s);
+    setAction(s.action);
+    setCommand(s.command ?? "");
+    setWarnMinutes(s.warnMinutes);
+    setCondition(s.minPlayersOnline !== null ? "atLeast" : s.maxPlayersOnline !== null ? "atMost" : "any");
+    setThreshold(s.minPlayersOnline ?? s.maxPlayersOnline ?? 0);
+    setName(s.name);
+    if (s.runAt) {
+      setFrequency("once");
+      setOnceAt(localInput(new Date(s.runAt)));
+      return;
+    }
+    const parts = parseCron(s.cron);
+    if (!parts) return;
+    setFrequency(parts.frequency);
+    setTime(parts.time);
+    setDays(parts.days);
+    setIntervalHours(parts.intervalHours);
+    setMinute(parts.minute);
+  };
+
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     let cronStr = cron;
     let runAt: string | undefined;
@@ -129,21 +171,21 @@ export function ScheduleList({ serverId }: { serverId: string }) {
     if (needsText && !command.trim()) {
       return alert(action === "announce" ? "Type a message to announce." : "Type a command to run.");
     }
+    const body = {
+      name: name.trim() || summary,
+      cron: cronStr,
+      action,
+      ...(needsText ? { command: command.trim() } : {}),
+      warnMinutes: disruptive ? Number(warnMinutes) : 0,
+      minPlayersOnline,
+      maxPlayersOnline,
+      // Null so an edit from one-time to recurring clears the stored instant.
+      runAt: runAt ?? null,
+    };
     try {
-      await apiPost("/schedules", {
-        serverId,
-        name: name.trim() || summary,
-        cron: cronStr,
-        action,
-        ...(needsText ? { command: command.trim() } : {}),
-        warnMinutes: disruptive ? Number(warnMinutes) : 0,
-        enabled: true,
-        minPlayersOnline,
-        maxPlayersOnline,
-        ...(runAt ? { runAt } : {}),
-      });
-      setName("");
-      setCommand("");
+      if (editing) await apiPatch(`/schedules/${editing.id}`, body);
+      else await apiPost("/schedules", { serverId, enabled: true, ...body });
+      resetForm();
       refresh();
     } catch (err) {
       alert((err as Error).message);
@@ -161,7 +203,7 @@ export function ScheduleList({ serverId }: { serverId: string }) {
 
   return (
     <div className="space-y-4">
-      <form onSubmit={create} className="card space-y-4">
+      <form onSubmit={submit} className="card space-y-4">
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
             <label className="label">Do this</label>
@@ -352,9 +394,24 @@ export function ScheduleList({ serverId }: { serverId: string }) {
             <CalendarClock className="mr-1 inline h-4 w-4 text-ark-accent2" />
             {summary}
           </p>
-          <button className="btn-primary">
-            <Plus className="h-4 w-4" /> Add schedule
-          </button>
+          <div className="flex items-center gap-2">
+            {editing && (
+              <button type="button" className="btn-secondary" onClick={resetForm}>
+                Cancel
+              </button>
+            )}
+            <button className="btn-primary">
+              {editing ? (
+                <>
+                  <Save className="h-4 w-4" /> Save changes
+                </>
+              ) : (
+                <>
+                  <Plus className="h-4 w-4" /> Add schedule
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </form>
 
@@ -390,6 +447,9 @@ export function ScheduleList({ serverId }: { serverId: string }) {
                   }`}
                 >
                   {s.enabled ? "On" : "Off"}
+                </button>
+                <button className="btn-secondary" title="Edit" onClick={() => startEdit(s)}>
+                  <Pencil className="h-4 w-4" />
                 </button>
                 <button className="btn-danger" onClick={() => remove(s.id)}>
                   <Trash2 className="h-4 w-4" />
