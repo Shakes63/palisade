@@ -10,6 +10,7 @@ import { AppModule } from "./app.module";
 import { loadEnv, resetEnvCache } from "./config/env";
 import { ensureHostDataDir } from "./config/ensure-host-data-dir";
 import { installProcessSafetyNet } from "./common/process-safety";
+import { appLogger } from "./common/app-logger";
 
 async function bootstrap() {
   // Guard against a single background error (a socket reset, a stray rejection)
@@ -21,7 +22,7 @@ async function bootstrap() {
   await ensureHostDataDir();
   resetEnvCache();
   const env = loadEnv();
-  const app = await NestFactory.create(AppModule, { bufferLogs: false });
+  const app = await NestFactory.create(AppModule, { bufferLogs: false, logger: appLogger });
 
   app.setGlobalPrefix("api");
   app.useGlobalPipes(

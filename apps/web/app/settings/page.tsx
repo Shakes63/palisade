@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { Save, KeyRound, Send, CheckCircle2, Circle } from "lucide-react";
 import { apiGet, apiPatch, apiPost } from "@/lib/api";
+import { DEFAULT_LOG_LEVEL, LOG_LEVELS, type LogLevel } from "@ark/shared";
 import { TimezoneSelect, detectZone } from "@/components/timezone-select";
 import { NotificationTargetsCard } from "@/components/notification-targets";
 import { ReplicationCard } from "@/components/replication-card";
@@ -15,6 +16,7 @@ export default function SettingsPage() {
   const [tab, setTab] = useState<Tab>("General");
   const [view, setView] = useState<SettingsView>({});
   const [timezone, setTimezone] = useState("");
+  const [logLevel, setLogLevel] = useState<LogLevel>(DEFAULT_LOG_LEVEL);
   const [curseForgeApiKey, setCurseForgeApiKey] = useState("");
   const [steamWebApiKey, setSteamWebApiKey] = useState("");
   const [steamGridDbApiKey, setSteamGridDbApiKey] = useState("");
@@ -49,6 +51,7 @@ export default function SettingsPage() {
         // Pre-select the user's detected zone when nothing is saved yet, so they
         // rarely have to touch it.
         setTimezone(typeof v.timezone === "string" && v.timezone ? v.timezone : detectZone());
+        if (LOG_LEVELS.includes(v.log_level as LogLevel)) setLogLevel(v.log_level as LogLevel);
         if (typeof v.manager_backup_keep === "string" && v.manager_backup_keep)
           setManagerBackupKeep(v.manager_backup_keep);
         setAutoStop(v.auto_stop_on_start !== "false"); // default on when unset
@@ -142,7 +145,7 @@ export default function SettingsPage() {
     void saveCard("backups", { managerBackupKeep: keep });
   };
 
-  const saveGeneral = () => void saveCard("general", timezone ? { timezone } : {});
+  const saveGeneral = () => void saveCard("general", { logLevel, ...(timezone ? { timezone } : {}) });
   /** "" (defer to the env var) has to travel as null, not "" — the API reads a
    *  missing key as "no change", and an empty string as a value. */
   const tri = (v: string) => (v === "" ? null : v === "true");
@@ -225,6 +228,18 @@ export default function SettingsPage() {
               <TimezoneSelect value={timezone} onChange={setTimezone} />
               <p className="mt-1 text-xs text-slate-500">
                 Used for schedule times. Defaults to this device&apos;s timezone.
+              </p>
+            </div>
+            <div>
+              <label className="label">Log level</label>
+              <select className="input" value={logLevel} onChange={(e) => setLogLevel(e.target.value as LogLevel)}>
+                <option value="error">Errors only</option>
+                <option value="warn">Warnings and errors</option>
+                <option value="log">Info</option>
+                <option value="debug">Debug (everything)</option>
+              </select>
+              <p className="mt-1 text-xs text-slate-500">
+                How much the manager writes to its container log. Takes effect on save, no restart.
               </p>
             </div>
             <CardSave card="general" onClick={saveGeneral} />
