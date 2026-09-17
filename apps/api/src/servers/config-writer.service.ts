@@ -9,6 +9,7 @@ import { loadEnv } from "../config/env";
 import {
   patchPalServerLauncher,
   renderSotfConfig,
+  renderVRisingVoipSettings,
   renderSdtdServerXml,
   patchZomboidServerIni,
   patchZomboidSandboxVars,
@@ -67,17 +68,15 @@ export class ServerConfigWriter {
     const game = server.game as Game;
     // Env-driven images build their own config (Minecraft/Bedrock → server.properties,
     // Icarus → ServerSettings.ini, Valheim → launch args, Enshrouded → enshrouded_server.json,
-    // V Rising → HOST/GAME_SETTINGS env patching its JSONs, Core Keeper/Rust/BeamMP →
-    // pure env) — nothing to render. Anything missing from this list falls through to
-    // the ARK INI renderer at the bottom and gets junk GameUserSettings.ini/Game.ini
-    // files (guarded by lifecycle.e2e.test.ts).
+    // Core Keeper/Rust/BeamMP → pure env) — nothing to render. Anything missing from
+    // this list falls through to the ARK INI renderer at the bottom and gets junk
+    // GameUserSettings.ini/Game.ini files (guarded by lifecycle.e2e.test.ts).
     if (
       game === Game.MINECRAFT ||
       game === Game.ICARUS ||
       game === Game.BEDROCK ||
       game === Game.VALHEIM ||
       game === Game.ENSHROUDED ||
-      game === Game.VRISING ||
       game === Game.SATISFACTORY ||
       game === Game.CORE_KEEPER ||
       game === Game.RUST ||
@@ -165,6 +164,19 @@ export class ServerConfigWriter {
       // The image's fixed steam user must be able to rewrite the file on boot.
       await chown(dir, SERVER_UID[game], SERVER_GID[game]).catch(() => undefined);
       await chown(file, SERVER_UID[game], SERVER_GID[game]).catch(() => undefined);
+      return;
+    }
+
+    // V Rising: host/game settings ride HOST_/GAME_SETTINGS_ env (the image patches
+    // its own JSONs), but voice chat has no env interface — render its file.
+    if (game === Game.VRISING) {
+      const dir = join(env.DATA_DIR, "instances", server.id, "persistentdata", "Settings");
+      await mkdir(dir, { recursive: true });
+      const voip = renderVRisingVoipSettings({
+        catalog: this.catalog.getCatalog(Game.VRISING),
+        config: JSON.parse(server.configJson) as ServerConfigValues,
+      });
+      await writeFile(join(dir, "ServerVoipSettings.json"), voip, "utf8");
       return;
     }
 

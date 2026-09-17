@@ -1660,13 +1660,30 @@ function buildVRisingSpec(input: RuntimeSpecInput): Docker.ContainerCreateOption
 function vrisingCatalogEnv(input: RuntimeSpecInput): string[] {
   const out: string[] = [];
   for (const def of input.catalog.settings) {
-    if (def.target !== SettingTarget.Env) continue;
+    if (def.target !== SettingTarget.Env || def.noEmit) continue; // noEmit: the VOIP block
     const raw = input.config.values?.[def.key] ?? def.default;
     if (raw === undefined || raw === null || raw === "") continue;
     const val = typeof raw === "boolean" ? (raw ? "true" : "false") : String(raw);
     out.push(`${def.emitAs ?? def.key}=${val}`);
   }
   return out;
+}
+
+/**
+ * V Rising voice chat: the trueosiris image only env-patches ServerHostSettings /
+ * ServerGameSettings, so the flat VOIP* keys are rendered into
+ * persistentdata/Settings/ServerVoipSettings.json before every start.
+ */
+export function renderVRisingVoipSettings(input: {
+  catalog: SettingsCatalog;
+  config: ServerConfigValues;
+}): string {
+  const cfg: Record<string, unknown> = {};
+  for (const def of input.catalog.settings) {
+    if (!def.key.startsWith("VOIP")) continue;
+    cfg[def.key] = input.config.values?.[def.key] ?? def.default;
+  }
+  return JSON.stringify(cfg, null, 2);
 }
 
 /**

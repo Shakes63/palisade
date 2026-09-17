@@ -5,7 +5,9 @@ import { Game, SettingTarget, type SettingsCatalog, type SettingDef } from "@ark
  * `GAME_SETTINGS_<key>` env var onto ServerHostSettings.json / ServerGameSettings.json
  * (keys case-insensitive, `__` = one JSON nesting level, type-validated, unknown keys
  * ignored) — so every setting targets `Env` and buildVRisingSpec passes it through
- * (key = env var name). Keys below are the games' real JSON keys.
+ * (key = env var name). Keys below are the games' real JSON keys. The one exception is
+ * the VOIP block: the image never patches ServerVoipSettings.json, so those are noEmit
+ * and the config writer renders that file itself (renderVRisingVoipSettings).
  *
  * First-class fields the orchestrator owns (server name, slots, ports, RCON + join
  * passwords) are NOT here.
@@ -193,6 +195,55 @@ const settings: SettingDef[] = [
       ...gchoices(["Difficulty_Easy", "Difficulty_Normal", "Difficulty_Brutal"]),
     ],
     help: "Applied after the game settings preset, so it wins wherever both define the same setting.",
+  }),
+
+  // ── Voice chat (ServerVoipSettings.json, rendered by the config writer) ───────
+  vset("VOIPEnabled", "Voice chat", "Voice chat", "bool", false, {
+    noEmit: true,
+    help: "Proximity voice chat through Vivox. Needs a free Unity Gaming Services project with Vivox enabled — copy its Credentials page into the fields below. Players must also turn voice chat on in-game.",
+  }),
+  vset("VOIPIssuer", "Vivox token issuer", "Voice chat", "string", "", {
+    noEmit: true,
+    help: "Token issuer from the Vivox Credentials page.",
+  }),
+  vset("VOIPSecret", "Vivox token key", "Voice chat", "string", "", {
+    noEmit: true,
+    help: "Token key from the Vivox Credentials page. Stored in the server settings and visible to panel users.",
+  }),
+  vset("VOIPVivoxDomain", "Vivox domain", "Voice chat", "string", "", {
+    noEmit: true,
+    help: "Domain from the Vivox Credentials page.",
+  }),
+  vset("VOIPAPIEndpoint", "Vivox server URL", "Voice chat", "string", "", {
+    noEmit: true,
+    help: "Server URL from the Vivox Credentials page.",
+  }),
+  vset("VOIPAppUserId", "Vivox admin user ID", "Voice chat", "string", "notneeded-notused", {
+    noEmit: true,
+    help: "Only the retired Vivox developer portal issued this; Unity Dashboard accounts keep the placeholder.",
+  }),
+  vset("VOIPAppUserPwd", "Vivox admin password", "Voice chat", "string", "notneeded-notused", {
+    noEmit: true,
+    help: "Only the retired Vivox developer portal issued this; Unity Dashboard accounts keep the placeholder.",
+  }),
+  vset("VOIPConversationalDistance", "Full-volume distance", "Voice chat", "int", 14, {
+    noEmit: true,
+    min: 1,
+    max: 100,
+    help: "Metres within which voices play at full volume.",
+  }),
+  vset("VOIPAudibleDistance", "Audible distance", "Voice chat", "int", 40, {
+    noEmit: true,
+    min: 1,
+    max: 200,
+    help: "Metres beyond which players cannot be heard.",
+  }),
+  vset("VOIPFadeIntensity", "Fade intensity", "Voice chat", "float", 2, {
+    noEmit: true,
+    min: 0,
+    max: 10,
+    step: 0.1,
+    help: "How sharply voices fade between the two distances.",
   }),
 ];
 

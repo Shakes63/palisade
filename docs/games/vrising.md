@@ -9,6 +9,9 @@
 ## First boot
 The image installs the game (~2 GB) via SteamCMD on the first start. The server is Running at the log line `Server connected to Steam successfully!`. The world is Vardoran (single fixed map); the supported player ceiling is 40 (MaxConnectedUsers). Settings are env-driven: `HOST_SETTINGS_`/`GAME_SETTINGS_` variables patch the two settings JSONs in `persistentdata` on boot.
 
+## Voice chat
+V Rising's proximity voice chat runs through Vivox and is off by default. Create a free project at dashboard.unity.com, enable Voice and Text Chat (Vivox), and copy the Credentials page (token issuer, token key, domain, server) into the Voice chat settings, then restart. Palisade writes them to `persistentdata/Settings/ServerVoipSettings.json`. Players still have to turn on Use Voice Chat in their own game settings.
+
 ## Gotchas
 - First-boot SteamCMD flake: `Failed to install app '1829350' (Missing configuration)` can fail several boots in a row (the image's start script doesn't retry). If a fresh server crash-loops, just keep retrying start — Palisade's crash watchdog restarts ARE the retries; it may take a few.
 - A2S player counts only work with `ListOnSteam=true` — an unlisted server binds the query port but never reads the socket, so counts show null until listing is on.
