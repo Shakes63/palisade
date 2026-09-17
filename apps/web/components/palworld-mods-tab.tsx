@@ -143,12 +143,16 @@ export function PalworldModsTab({ serverId }: { serverId: string }) {
     }
   };
 
-  const closeCfg = () => {
-    if (cfgDirty && !confirm("Discard unsaved changes?")) return;
+  // Returns whether the editor actually closed — false when the user backed out of the
+  // "Discard unsaved changes?" prompt. Callers that do something destructive on close
+  // (e.g. deleting the mod) must gate on this; the Escape handler can ignore it.
+  const closeCfg = (): boolean => {
+    if (cfgDirty && !confirm("Discard unsaved changes?")) return false;
     setCfgMod(null);
     setCfgPath(null);
     setCfgText("");
     setCfgSaved("");
+    return true;
   };
 
   // Escape closes the editor, like ModDetailModal — routed through closeCfg so an
@@ -527,7 +531,9 @@ export function PalworldModsTab({ serverId }: { serverId: string }) {
                       title="Remove"
                       disabled={busy}
                       onClick={() => {
-                        if (cfgMod === m) closeCfg();
+                        // If this mod's editor is open, closeCfg() may prompt about unsaved
+                        // edits — respect a cancel and DON'T delete out from under it.
+                        if (cfgMod === m && !closeCfg()) return;
                         void run(() => apiDelete(`/servers/${serverId}/palmods/palschema/mods/${encodeURIComponent(m)}`));
                       }}
                     >

@@ -517,12 +517,28 @@ export class PalModsService {
     await this.requirePalSchemaReady(id);
     const dir = this.ue4ssModsDir(id);
     await mkdir(dir, { recursive: true });
-    await this.extractZip(data, dir);
-    const dllPath = join(LocalPaths.instanceRoot(id), PAL_SCHEMA_DLL);
-    if (!(await stat(dllPath).then(() => true).catch(() => false))) {
-      throw new BadRequestException(
-        `Extracted the archive but ${PAL_SCHEMA_DLL} is missing — is this actually a PalSchema release zip?`,
-      );
+    // Extract to a sibling staging dir and VALIDATE before touching the live Mods
+    // folder: an unrelated zip would otherwise overwrite mods.txt and any same-named
+    // mod folders, and a failed check below would leave those extracted files behind.
+    // Staging lives beside the instance so the promote is a same-filesystem rename.
+    const staging = join(LocalPaths.instanceRoot(id), `.palschema-install-${process.pid}-${Date.now()}`);
+    await mkdir(staging, { recursive: true });
+    try {
+      await this.extractZip(data, staging);
+      // The zip root is the "PalSchema" folder, so relative to the Mods dir the DLL
+      // lands at the tail of PAL_SCHEMA_DLL after its Mods/ prefix. Derive it from the
+      // constant rather than hardcoding, so the two can't drift.
+      const dllRel = PAL_SCHEMA_DLL.slice(PAL_SCHEMA_DLL.indexOf("/Mods/") + "/Mods/".length);
+      const stagedDll = join(staging, dllRel);
+      if (!(await stat(stagedDll).then(() => true).catch(() => false))) {
+        throw new BadRequestException(
+          `Extracted the archive but ${PAL_SCHEMA_DLL} is missing — is this actually a PalSchema release zip?`,
+        );
+      }
+      // Only now that it's confirmed to be PalSchema, merge it into the live Mods dir.
+      await this.extractZip(data, dir);
+    } finally {
+      await rm(staging, { recursive: true, force: true }).catch(() => undefined);
     }
     // The release zip ships enabled.txt; recreate it only if a custom archive didn't.
     const marker = join(LocalPaths.instanceRoot(id), PAL_SCHEMA_ENABLED_MARKER);
@@ -560,9 +576,22 @@ export class PalModsService {
             "(optionally nested under Mods/PalSchema/mods). Is this a pak mod? Those go in the Pak mods section above.",
         );
       }
+      // planPalSchemaMods derives both names from untrusted archive contents, so a mod
+      // name like ".." (flat archive named "...zip") or a "PalSchema/mods/../x" entry can
+      // resolve `dest` back onto Mods/PalSchema itself — and the rm below would then take
+      // the whole install with it. Contain both paths the same way removePalSchemaMod does:
+      // resolveSafe() rejects any escape outright, and requiring the parent to BE the mods
+      // dir keeps this to a single mod folder rather than something deeper or the root.
+      const destRoot = await canonicalRoot(dir); // just created it, so realpath resolves
+      const stageRoot = await canonicalRoot(staging);
       for (const plan of plans) {
-        const src = plan.from ? join(staging, plan.from) : staging;
-        const dest = join(dir, plan.name);
+        const dest = await resolveSafe(destRoot ?? dir, plan.name);
+        if (dest === destRoot || dirname(dest) !== destRoot) {
+          throw new BadRequestException("That archive names a mod folder that escapes the mods directory");
+        }
+        // `join(staging, "..")` is the instance root — guard `from` the same way so a
+        // crafted `from` can't point the move source outside the staging dir.
+        const src = plan.from ? await resolveSafe(stageRoot ?? staging, plan.from) : staging;
         // Replace wholesale so re-uploading a newer build can't leave stale files from
         // the old one behind.
         await rm(dest, { recursive: true, force: true });
@@ -591,7 +620,12 @@ export class PalModsService {
     const dir = await resolveSafe(root, name);
     if (dir === root) throw new BadRequestException("Missing mod name");
     const entries = await readdir(dir, { recursive: true }).catch(() => [] as string[]);
-    const instance = join(LocalPaths.instanceRoot(id));
+    // `dir` traces back through canonicalRoot() (a realpath), so canonicalize the
+    // instance root the same way before diffing. Left raw, a symlinked DATA_DIR (or any
+    // parent) makes the two stop sharing a prefix and every relative() comes back as
+    // "../…", which the file-manager read endpoint rejects — the editor would 400 on
+    // open for every mod on that install. Fall back to the raw path if it's not yet on disk.
+    const instance = (await canonicalRoot(LocalPaths.instanceRoot(id))) ?? LocalPaths.instanceRoot(id);
     const files = entries
       .map((e) => e.replace(/\\/g, "/"))
       .filter((e) => PAL_SCHEMA_CONFIG_EXT.test(e))
