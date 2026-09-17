@@ -1,21 +1,28 @@
 name: Nightly image
 
-# PRERELEASE channel, manual-only: fire it with `gh workflow run nightly.yml`
-# (or the Actions tab) when there's something on main worth testing. No
-# schedule, no on-push — a nightly exists only when you ask for one.
+# PRERELEASE channel: every push to main (each squash-merged PR) publishes
+# `ghcr.io/shakes63/palisade:nightly` plus an immutable `sha-<short>` pin, and
+# `gh workflow run nightly.yml` still works for a build on demand. It NEVER
+# touches `latest` or the semver tags, so stable (Community Applications) users
+# can't see it. A box opts in by pointing its container at `:nightly`
+# (scripts/deploy-unraid.sh tower nightly) and rejoins stable by pointing back
+# at `:latest` — the tag you track IS the channel.
 #
-# What it publishes: `ghcr.io/shakes63/palisade:nightly` plus an immutable
-# `sha-<short>` pin. It NEVER touches `latest` or the semver tags, so stable
-# (Community Applications) users can't see it. A box opts in by pointing its
-# container at `:nightly` (scripts/deploy-unraid.sh tower nightly) and rejoins
-# stable by pointing back at `:latest` — the tag you track IS the channel.
+# Merges landing back-to-back cancel the older in-flight build, so `:nightly`
+# always ends up at the tip of main and only that merge gets a `sha-` pin.
 #
 # The image self-identifies as a prerelease: package.json's version is stamped
 # to `<base>-nightly.<UTC timestamp>` in the workflow workspace only — nothing
 # is committed and no tags land in the repo. Same audit + Trivy gates as the
 # stable pipeline.
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
+
+concurrency:
+  group: nightly
+  cancel-in-progress: true
 
 permissions:
   contents: read

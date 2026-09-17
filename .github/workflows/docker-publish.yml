@@ -2,9 +2,9 @@ name: Build and publish Docker image
 
 # STABLE channel: pushing a vX.Y.Z tag publishes `latest`, the semver tags
 # (vX.Y.Z + vX.Y), and an immutable short-sha tag. This is what Community
-# Applications users track; it only moves when a release is cut. Plain pushes
-# to main build nothing — the prerelease channel is nightly.yml (manual-only,
-# publishes `:nightly` and never touches `latest`).
+# Applications users track; it only moves when a release is cut. Pushes to
+# main go through nightly.yml instead, which publishes `:nightly` and never
+# touches `latest`.
 #
 # Security gates: the dependency audit must pass (no high/critical prod vulns)
 # before the image builds, and the built image is Trivy-scanned for CRITICAL
