@@ -67,3 +67,22 @@ export function describeCron(cron: string): string {
   }
   return cron;
 }
+
+/** The inverse of buildCron, so a saved schedule can be loaded back into the
+ *  form. Null for anything buildCron would not have emitted. */
+export function parseCron(cron: string): CronParts | null {
+  const parts = cron.trim().split(/\s+/);
+  if (parts.length !== 5) return null;
+  const [m, h, dom, mon, dow] = parts;
+  if (dom !== "*" || mon !== "*" || !/^\d+$/.test(m)) return null;
+  const base: CronParts = { frequency: "daily", time: "05:00", days: [0, 1, 2, 3, 4, 5, 6], intervalHours: 6, minute: 0 };
+  const minute = Number(m);
+  if (h === "*" && dow === "*") return { ...base, frequency: "hourly", minute };
+  if (/^\*\/\d+$/.test(h) && dow === "*")
+    return { ...base, frequency: "everyN", intervalHours: Number(h.slice(2)), minute };
+  if (!/^\d+$/.test(h)) return null;
+  const time = `${String(Number(h)).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+  if (dow === "*") return { ...base, frequency: "daily", time };
+  if (!/^\d+(,\d+)*$/.test(dow)) return null;
+  return { ...base, frequency: "weekly", time, days: dow.split(",").map(Number) };
+}
