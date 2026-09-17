@@ -367,6 +367,18 @@ export class DockerService {
     }
   }
 
+  /** The named network's driver ("bridge", "macvlan", …), or null when it is absent
+   *  or the API is denied to us. */
+  async networkDriver(networkName: string): Promise<string | null> {
+    try {
+      const info = (await this.docker.getNetwork(networkName).inspect()) as { Driver?: string };
+      return info.Driver ?? null;
+    } catch (err) {
+      this.logger.debug(`could not inspect network ${networkName} (${(err as Error).message})`);
+      return null;
+    }
+  }
+
   /** Whether a container currently has an endpoint on the named network. */
   async containerOnNetwork(networkName: string, containerId: string): Promise<boolean> {
     try {

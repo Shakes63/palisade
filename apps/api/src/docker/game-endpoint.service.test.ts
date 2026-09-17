@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { resetEnvCache } from "../config/env";
+import { loadEnv, resetEnvCache } from "../config/env";
 import { GameEndpointService } from "./game-endpoint.service";
 
 // The only module seam that can't run here: finding our own container id reads
@@ -60,6 +60,11 @@ class FakeDocker {
     this.legacyInspects++;
     return this.legacyMembers;
   }
+  legacyDriver: string | null = "bridge";
+  async networkDriver() {
+    this.legacyInspects++;
+    return this.legacyDriver;
+  }
   async listManagedServers() {
     return this.managedServers.map((id) => ({ id, serverId: id, running: true, status: "Up" }));
   }
@@ -78,6 +83,34 @@ beforeEach(() => {
   process.env.AUTO_CREATE_NETWORK = "true";
   delete process.env.SHARED_NETWORK;
   resetEnvCache();
+});
+
+describe("a hand-built ark-net (GH #69)", () => {
+  it("is kept as the shared network instead of being migrated off", async () => {
+    // The reporter's setup: ark-net is a macvlan on a VLAN they made themselves.
+    const docker = new FakeDocker();
+    docker.networks = ["br0", "ark-net"];
+    docker.legacyDriver = "macvlan";
+    expect(await make(docker).ensureManagerNetworks()).toBe(true);
+    expect(loadEnv().SHARED_NETWORK).toBe("ark-net");
+    expect(docker.connected).toEqual([]);
+    expect(docker.disconnected).toEqual([]);
+  });
+
+  it("still migrates a plain bridge ark-net", async () => {
+    const docker = new FakeDocker();
+    docker.networks = ["br0", "ark-net"];
+    expect(await make(docker).ensureManagerNetworks()).toBe(true);
+    expect(loadEnv().SHARED_NETWORK).toBeUndefined();
+    expect(docker.connected).toEqual(["palisade-net"]);
+  });
+
+  it("never asks about ark-net when the manager isn't on it", async () => {
+    const docker = new FakeDocker();
+    docker.legacyDriver = "macvlan";
+    await make(docker).ensureManagerNetworks();
+    expect(loadEnv().SHARED_NETWORK).toBeUndefined();
+  });
 });
 
 describe("ensureManagerNetworks", () => {

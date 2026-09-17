@@ -4,10 +4,11 @@ import { DockerService } from "./docker.service";
 import { ManagerSettingsService } from "../manager-settings/manager-settings.service";
 import { findSelfContainerId } from "../config/ensure-host-data-dir";
 import { LEGACY_NETWORK } from "../common/naming";
-import { loadEnv } from "../config/env";
+import { loadEnv, resetEnvCache } from "../config/env";
 import {
   NetworkPlanInput,
   dockerViaProxy,
+  keepLegacyNetwork,
   legacyMigrationNote,
   sameContainerId,
   shouldLeaveLegacy,
@@ -116,6 +117,7 @@ export class GameEndpointService {
    * yet. Returns whether the manager ended up on the target network.
    */
   async ensureManagerNetworks(): Promise<boolean> {
+    await this.keepHandBuiltLegacy();
     if (!(await this.autoCreateNetwork())) return false;
     const manager = await this.manager();
     if (!manager.inContainer || manager.hostNetwork) return false;
@@ -135,6 +137,25 @@ export class GameEndpointService {
     }
     await this.retireLegacyNetwork().catch(() => undefined);
     return joined;
+  }
+
+  /**
+   * A hand-built "ark-net" (macvlan/ipvlan — a driver Palisade never created) is the
+   * user's network, not the bridge the migration replaces (GH #69). Pin it as the
+   * shared network for this process, exactly as SHARED_NETWORK=ark-net would, so no
+   * server moves and no new bridge gets made.
+   */
+  private async keepHandBuiltLegacy(): Promise<void> {
+    if (loadEnv().SHARED_NETWORK?.trim()) return;
+    const manager = await this.manager();
+    if (!manager.networks.includes(LEGACY_NETWORK)) return;
+    if (!keepLegacyNetwork(await this.docker.networkDriver(LEGACY_NETWORK))) return;
+    process.env.SHARED_NETWORK = LEGACY_NETWORK;
+    resetEnvCache();
+    this.forgetManagerFacts();
+    this.logger.log(
+      `"${LEGACY_NETWORK}" is a hand-built network — keeping it as the shared network instead of migrating`,
+    );
   }
 
   /**

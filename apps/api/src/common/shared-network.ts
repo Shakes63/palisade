@@ -46,6 +46,17 @@ export function sameContainerId(a: string | null | undefined, b: string | null |
   return a.slice(0, n) === b.slice(0, n);
 }
 
+/**
+ * Whether the legacy network is one someone built by hand rather than the bridge
+ * Palisade used to create (GH #69). Palisade only ever made a plain bridge, so any
+ * other driver (macvlan/ipvlan on a VLAN) is the user's network and stays the
+ * shared network as if SHARED_NETWORK named it. Null (missing, or Docker won't say)
+ * means no.
+ */
+export function keepLegacyNetwork(driver: string | null): boolean {
+  return driver !== null && driver !== "bridge";
+}
+
 /** True when Docker is fronted by a proxy rather than the mounted unix socket. */
 export function dockerViaProxy(dockerHost: string): boolean {
   return !/^unix:\/\//i.test(dockerHost.trim());
