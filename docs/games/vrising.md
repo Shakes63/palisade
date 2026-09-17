@@ -15,3 +15,4 @@ The image installs the game (~2 GB) via SteamCMD on the first start. The server 
 - A `wine: Assertion failed` line during boot is non-fatal — the server keeps loading chunks; don't treat it as a crash.
 - The image's `/start.sh` ships with CRLF line endings; Palisade overrides the entrypoint to strip them before exec (harmless once upstream fixes it — don't remove the override until then).
 - Data is split: `server/` (game install) and `persistentdata/` (saves + settings JSONs). Backups target only persistentdata.
+- The difficulty preset is applied after the game settings preset, so a setting both define comes from the difficulty preset (e.g. `Difficulty_Brutal` resets `DurabilityDrainModifier` even if a custom game settings preset zeroes it).

@@ -168,6 +168,32 @@ const settings: SettingDef[] = [
     max: 3600,
   }),
   vset("HOST_SETTINGS_AutoSaveCount", "Autosaves kept", "Server", "int", 20, { min: 2, max: 100 }),
+  vset("HOST_SETTINGS_AutoSaveSmartKeep", "Smart autosave retention", "Server", "string", "", {
+    help: "Comma-separated A:B:C entries — within the past A minutes keep the B newest and C oldest saves. Each window excludes the ones before it; the autosave cap still applies afterwards. Empty = keep only the newest. Stunlock's example: 10:1:1,30:0:1,60:0:1,120:0:1,180:0:1,240:0:1,360:0:1,720:0:1,1440:0:1,2880:0:1,52560000:99:0",
+  }),
+  vset("HOST_SETTINGS_CompressSaveFiles", "Compress save files", "Server", "bool", true, {
+    help: "Off trades disk space for less hitching during an autosave.",
+  }),
+  vset("HOST_SETTINGS_ServerFps", "Server tick rate (FPS)", "Server", "int", 30, {
+    min: 1,
+    max: 60,
+    help: "30 is plenty for casual play; 60 suits intense PvP at higher CPU use.",
+  }),
+  vset("HOST_SETTINGS_LowerFPSWhenEmpty", "Lower tick rate when empty", "Server", "bool", false),
+  vset("HOST_SETTINGS_LowerFPSWhenEmptyValue", "Empty-server tick rate (FPS)", "Server", "int", 1, {
+    min: 1,
+    max: 60,
+  }),
+  vset("HOST_SETTINGS_GameSettingsPreset", "Game settings preset", "Server", "string", "", {
+    help: "A preset name (e.g. StandardPvP) from VRisingServer_Data/StreamingAssets/GameSettingPresets (custom files there work too). Applied before the difficulty preset, so any setting both define comes from the difficulty preset.",
+  }),
+  vset("HOST_SETTINGS_GameDifficultyPreset", "Difficulty preset", "Server", "enum", "", {
+    choices: [
+      { value: "", label: "None" },
+      ...gchoices(["Difficulty_Easy", "Difficulty_Normal", "Difficulty_Brutal"]),
+    ],
+    help: "Applied after the game settings preset, so it wins wherever both define the same setting.",
+  }),
 ];
 
 export const VRISING_CATALOG: SettingsCatalog = { game: Game.VRISING, version: "1", settings };
