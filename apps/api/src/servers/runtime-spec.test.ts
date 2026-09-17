@@ -698,6 +698,25 @@ describe("buildContainerSpec (V Rising / trueosiris)", () => {
     expect(env.some((e) => e.startsWith("HOST_SETTINGS_GameSettingsPreset="))).toBe(false);
   });
 
+  it("keeps the VOIP block out of the env and renders it to ServerVoipSettings.json", async () => {
+    const { renderVRisingVoipSettings } = await import("./runtime-spec");
+    const { VRISING_CATALOG } = await import("../catalog/vrising.catalog");
+    const config = { values: { VOIPEnabled: true, VOIPSecret: "s3cret", VOIPAudibleDistance: 60 } };
+    expect(envOf(await buildVRising(config)).some((e) => e.includes("VOIP"))).toBe(false);
+    expect(JSON.parse(renderVRisingVoipSettings({ catalog: VRISING_CATALOG, config }))).toEqual({
+      VOIPEnabled: true,
+      VOIPIssuer: "",
+      VOIPSecret: "s3cret",
+      VOIPVivoxDomain: "",
+      VOIPAPIEndpoint: "",
+      VOIPAppUserId: "notneeded-notused",
+      VOIPAppUserPwd: "notneeded-notused",
+      VOIPConversationalDistance: 14,
+      VOIPAudibleDistance: 60,
+      VOIPFadeIntensity: 2,
+    });
+  });
+
   it("caps MaxConnectedUsers at V Rising's 40", async () => {
     const { buildContainerSpec } = await import("./runtime-spec");
     const { VRISING_CATALOG } = await import("../catalog/vrising.catalog");
