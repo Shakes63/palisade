@@ -74,6 +74,14 @@ export class ManagerSettingsController {
     return { host: await this.settings.getConnectHost() };
   }
 
+  /** The zone recurring schedules fire in (GH #87). Readable by every role: the
+   *  Schedules tab is not admin-only. */
+  @MinRole("viewer")
+  @Get("timezone")
+  async timezone(): Promise<{ timezone: string }> {
+    return { timezone: await this.settings.getTimezone() };
+  }
+
   @MinRole("admin")
   @Patch()
   async update(@Body() body: UpdateSettingsBody) {

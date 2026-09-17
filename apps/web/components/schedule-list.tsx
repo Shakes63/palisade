@@ -59,6 +59,11 @@ const actionLabel = (a: string) => ACTIONS.find((x) => x.value === a)?.label ?? 
 /** A Date as a datetime-local value ("YYYY-MM-DDTHH:MM") in the browser's zone. */
 const localInput = (d: Date) =>
   new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+/** Short zone name right now, e.g. "CDT" (or "GMT+2" where there is no abbreviation). */
+const zoneAbbr = (tz: string) =>
+  new Intl.DateTimeFormat("en-US", { timeZone: tz, timeZoneName: "short" })
+    .formatToParts(new Date())
+    .find((p) => p.type === "timeZoneName")?.value ?? tz;
 const conditionSuffix = (s: Schedule) => {
   const text = describePlayerCondition(s.minPlayersOnline, s.maxPlayersOnline);
   return text ? ` · only when ${text}` : "";
@@ -86,11 +91,25 @@ export function ScheduleList({ serverId }: { serverId: string }) {
   const [name, setName] = useState("");
   const [onceAt, setOnceAt] = useState("");
   const [editing, setEditing] = useState<Schedule | null>(null);
+  // Recurring schedules fire in the scheduler zone from Settings, not the browser's (GH #87).
+  const [timezone, setTimezone] = useState<string | null>(null);
 
   const refresh = useCallback(() => {
     apiGet<Schedule[]>(`/schedules?serverId=${serverId}`).then(setSchedules).catch(() => undefined);
   }, [serverId]);
   useEffect(() => refresh(), [refresh]);
+  useEffect(() => {
+    apiGet<{ timezone: string }>("/settings/timezone")
+      .then((r) => setTimezone(r.timezone))
+      .catch(() => undefined);
+  }, []);
+  const abbr = timezone ? ` ${zoneAbbr(timezone)}` : "";
+  // Only a clock time ("… at 5:00 AM") means anything in a zone; "Every 6 hours" doesn't.
+  const describeInZone = (c: string) => {
+    const text = describeCron(c);
+    return /\d [AP]M$/.test(text) ? text + abbr : text;
+  };
+  const browserZone = timezone ? Intl.DateTimeFormat().resolvedOptions().timeZone : "";
 
   const isOnce = frequency === "once";
   const cron = useMemo(
@@ -107,7 +126,7 @@ export function ScheduleList({ serverId }: { serverId: string }) {
     ? onceAt
       ? `once on ${fmtLocal(onceAt)}`
       : "once — pick a date & time"
-    : describeCron(cron);
+    : describeInZone(cron);
   const summary = `${what} · ${when}${conditionText ? ` · only when ${conditionText}` : ""}`;
   // "now" in datetime-local format, for the picker's min.
   const nowLocal = localInput(new Date());
@@ -329,6 +348,14 @@ export function ScheduleList({ serverId }: { serverId: string }) {
             </div>
           )}
         </div>
+        {timezone && (
+          <p className="text-xs text-slate-500">
+            {isOnce
+              ? `The date and time are in your browser's zone (${browserZone}).`
+              : `Times are in ${timezone}${abbr}, the scheduler timezone from Settings → General.` +
+                (browserZone !== timezone ? ` Your browser is in ${browserZone}.` : "")}
+          </p>
+        )}
 
         {disruptive && (
           <div className="max-w-xs">
@@ -430,7 +457,7 @@ export function ScheduleList({ serverId }: { serverId: string }) {
                   <div className="text-xs text-slate-400">
                     {actionLabel(s.action)}
                     {s.command ? ` "${s.command}"` : ""} ·{" "}
-                    {s.runAt ? `Once · ${fmtLocal(s.runAt)}` : describeCron(s.cron)}
+                    {s.runAt ? `Once · ${fmtLocal(s.runAt)}` : describeInZone(s.cron)}
                     {s.warnMinutes ? ` · warn ${s.warnMinutes}m` : ""}
                     {conditionSuffix(s)}
                     {s.lastRunAt ? ` · last ${new Date(s.lastRunAt).toLocaleString()}` : ""}
