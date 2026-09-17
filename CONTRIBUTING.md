@@ -127,7 +127,7 @@ Each commit is one atomic logical change:
 Fold review fixes and typo corrections into the commit they fix (`git commit --fixup` plus
 `git rebase --autosquash`) rather than leaving them in the history as separate commits. Do
 not go the other way either: a branch that genuinely does several separable things stays
-several commits.
+several commits, and because pull requests are squashed, it becomes several pull requests.
 
 Pull requests are squash-merged, so **your branch's individual commit messages do not survive
 the merge — the pull request title becomes the commit message on its own.** Write the title
