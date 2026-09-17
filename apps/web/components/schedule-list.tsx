@@ -20,20 +20,28 @@ interface Schedule {
 }
 
 const ACTIONS: { value: string; label: string; hint: string }[] = [
-  { value: "restart", label: "Restart", hint: "Stop and start (clears memory creep)." },
-  { value: "backup", label: "Backup", hint: "Take a world snapshot." },
-  { value: "update", label: "Update", hint: "Update game files, then restart." },
+  {
+    value: "restart",
+    label: "Restart",
+    hint: "Warn players, take a backup, then stop and start. Some game images also install game updates on every start — the Guide tab says whether this one does.",
+  },
+  { value: "backup", label: "Backup", hint: "Take a world snapshot. No warning, no downtime." },
+  {
+    value: "update",
+    label: "Update game",
+    hint: "Warn players, take a backup, install the latest game build, then restart (a stopped server updates on its next start).",
+  },
   {
     value: "update-if-available",
-    label: "Update if available",
-    hint: "Check Steam for a new build first — update + restart only when one exists (no downtime otherwise).",
+    label: "Update game if available",
+    hint: "Check Steam for a newer build first. If there is one: warn players, take a backup, update, then restart. Otherwise nothing happens — no downtime.",
   },
   {
     value: "update-mods",
     label: "Update mods",
-    hint: "Update installed mods (Valheim/Thunderstore or a pinned Minecraft modpack), then restart — only when an update exists.",
+    hint: "Check for mod updates first (Valheim/Thunderstore or a pinned Minecraft modpack). If there are any: warn players, take a backup, install them, then restart. Otherwise nothing happens.",
   },
-  { value: "stop", label: "Stop", hint: "Shut the server down." },
+  { value: "stop", label: "Stop", hint: "Warn players, take a backup, then shut the server down." },
   { value: "start", label: "Start", hint: "Bring the server up." },
   {
     value: "announce",
