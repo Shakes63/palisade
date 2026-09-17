@@ -685,12 +685,17 @@ describe("buildContainerSpec (V Rising / trueosiris)", () => {
           GAME_SETTINGS_GameModeType: "PvE",
           HOST_SETTINGS_ListOnSteam: true,
           GAME_SETTINGS_UnitStatModifiers_Global__PowerModifier: 1.5,
+          HOST_SETTINGS_AutoSaveSmartKeep: "10:1:1,60:0:1",
+          HOST_SETTINGS_GameDifficultyPreset: "Difficulty_Brutal",
         },
       }),
     );
     expect(env).toContain("GAME_SETTINGS_GameModeType=PvE");
     expect(env).toContain("HOST_SETTINGS_ListOnSteam=true");
     expect(env).toContain("GAME_SETTINGS_UnitStatModifiers_Global__PowerModifier=1.5");
+    expect(env).toContain("HOST_SETTINGS_AutoSaveSmartKeep=10:1:1,60:0:1");
+    expect(env).toContain("HOST_SETTINGS_GameDifficultyPreset=Difficulty_Brutal");
+    expect(env.some((e) => e.startsWith("HOST_SETTINGS_GameSettingsPreset="))).toBe(false);
   });
 
   it("caps MaxConnectedUsers at V Rising's 40", async () => {
