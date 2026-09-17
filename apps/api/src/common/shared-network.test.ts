@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   NetworkPlanInput,
   dockerViaProxy,
+  keepLegacyNetwork,
   sameContainerId,
   legacyMigrationNote,
   legacyStillNeeded,
@@ -23,6 +24,18 @@ const done: NetworkPlanInput = {
   otherOnLegacy: false,
   dockerViaProxy: false,
 };
+
+describe("keepLegacyNetwork (GH #69)", () => {
+  it("keeps a network Palisade could not have created", () => {
+    expect(keepLegacyNetwork("macvlan")).toBe(true);
+    expect(keepLegacyNetwork("ipvlan")).toBe(true);
+  });
+
+  it("migrates the plain bridge, and does nothing on a guess", () => {
+    expect(keepLegacyNetwork("bridge")).toBe(false);
+    expect(keepLegacyNetwork(null)).toBe(false);
+  });
+});
 
 describe("targetNetwork", () => {
   it("defaults to the name chosen to sort after Unraid's interface networks", () => {

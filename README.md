@@ -341,6 +341,9 @@ It migrates itself, and a half-migrated install works throughout:
   is reached through a socket-proxy or another container is still on that network —
   in those cases the Servers page tells you the one step left.
 - To keep the old name, set `SHARED_NETWORK=ark-net`.
+- An `ark-net` you built yourself as a macvlan or ipvlan network (a custom subnet or
+  VLAN on Unraid) is left alone: Palisade keeps using it and never migrates, exactly
+  as if `SHARED_NETWORK=ark-net` were set.
 
 ### Moving off `ark-manager`
 
