@@ -1,11 +1,12 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
-import { mkdir, readdir, readFile, rm, writeFile, stat } from "node:fs/promises";
+import { mkdir, readdir, readFile, realpath, rename, rm, rmdir, writeFile, stat } from "node:fs/promises";
 import { createHash } from "node:crypto";
-import { join, basename } from "node:path";
+import { join, basename, dirname, relative } from "node:path";
 import { Game, type ServerConfigValues } from "@ark/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { LocalPaths } from "../common/paths";
 import { extractZipSafe, listZipEntries } from "../common/safe-extract";
+import { canonicalRoot, resolveSafe } from "../common/safe-path";
 
 
 /** UE4SS drops its loader here; the server is launched with this on LD_PRELOAD
@@ -82,6 +83,38 @@ export function frameworkArchiveIssue(entries: string[], wine: boolean): string 
 }
 
 /**
+ * PalSchema (Okaetsu/PalSchema): a UE4SS logic mod that lets JSON-based content mods
+ * (new Pals, items, recipes) load without writing a Blueprint mod. It's a Windows DLL
+ * loaded by UE4SS itself, so it only runs under the Wine variant, and needs UE4SS
+ * installed first. Its release zip's root IS the "PalSchema" folder UE4SS expects
+ * under Mods/, so it extracts straight into UE4SS's Mods dir. Pinned like the UE4SS
+ * assets above (verified against the actual downloaded asset, not just its docs);
+ * bump both fields together.
+ */
+export const PALSCHEMA = {
+  url: "https://github.com/Okaetsu/PalSchema/releases/download/0.6.5/PalSchema_0.6.5.zip",
+  sha256: "d8ef2758a696c017751b479c7dd0cf40c1c772ee68049501f846754fa4f0307d",
+  releasePage: "https://github.com/Okaetsu/PalSchema/releases/tag/0.6.5",
+} as const;
+
+/** Where PalSchema's loader DLL ends up once installed under UE4SS's Mods folder —
+ *  used both to detect "is it installed" and to sanity-check an upload/download. */
+export const PAL_SCHEMA_DLL = "Pal/Binaries/Win64/Mods/PalSchema/dlls/main.dll";
+
+/**
+ * UE4SS starts a C++/DLL mod when its folder contains an `enabled.txt` marker —
+ * verified against a live server, whose UE4SS.log reads
+ * "Mod 'PalSchema' has enabled.txt, starting mod." while PalSchema is absent
+ * from Mods/mods.txt entirely.
+ *
+ * mods.txt is the OTHER, Lua-mod enable list (`Name : 1`/`0`); writing a
+ * PalSchema entry there does nothing. The release zip already ships this
+ * marker, so a clean install needs no help — we only recreate it if a
+ * hand-rolled archive left it out.
+ */
+export const PAL_SCHEMA_ENABLED_MARKER = "Pal/Binaries/Win64/Mods/PalSchema/enabled.txt";
+
+/**
  * Windows system DLL names that proxy-loader mods ship under, dropped next to the
  * server exe. Wine only loads a native (on-disk) DLL over its builtin when that name
  * is listed in WINEDLLOVERRIDES, so each of these works on Windows but sits inert
@@ -112,6 +145,99 @@ export const PAL_WINE_PROXY_DLLS = [
   "dinput8",
   "dsound",
 ] as const;
+
+/** Files a PalSchema mod is allowed to carry as editable config. */
+const PAL_SCHEMA_CONFIG_EXT = /\.jsonc?$/i;
+
+/** Archive noise that is never part of a mod. */
+const ARCHIVE_JUNK = /^__MACOSX\/|(^|\/)\.DS_Store$|(^|\/)Thumbs\.db$/i;
+
+/** Where a mod folder lands, and which directory inside the archive holds it. */
+export interface PalSchemaModPlan {
+  /** Folder name under Mods/PalSchema/mods. */
+  name: string;
+  /** Directory inside the extracted archive to move there ("" = the archive root). */
+  from: string;
+}
+
+/**
+ * Work out where a PalSchema mod's files actually live inside an uploaded archive.
+ *
+ * Authors package these four ways in the wild (all four are in our samples):
+ *   1. `ModName/blueprints/x.jsonc`                            — bare mod folder
+ *   2. `ModName/raw/x.json` + `ModName/README.txt`             — same, with docs
+ *   3. `Mods/PalSchema/mods/ModName/items/x.jsonc`             — partial game path
+ *   4. `Pal/Binaries/Win64/ue4ss/Mods/PalSchema/mods/ModName/` — full game path
+ *
+ * Extracting the archive verbatim into Mods/PalSchema/mods (what we used to do) only
+ * works for 1 and 2. For 3 and 4 it produced a nested `mods/Mods/PalSchema/mods/...`
+ * that PalSchema never looks at, so the upload "succeeded" into a mod that silently
+ * did nothing. Note #4 also proves the prefix can't be hardcoded: that author packaged
+ * for UE4SS's newer `ue4ss/Mods` layout while this server uses `Win64/Mods`.
+ *
+ * So: find the `PalSchema/mods/<ModName>` marker anywhere in the tree and take what's
+ * under it. Failing that, treat each top-level folder holding JSON as a mod. Failing
+ * that, a flat archive of JSON becomes one mod named after the upload.
+ */
+export function planPalSchemaMods(paths: string[], fallbackName: string): PalSchemaModPlan[] {
+  const files = paths
+    .map((p) => p.replace(/\\/g, "/").replace(/^\.\//, ""))
+    .filter((p) => p && !p.endsWith("/") && !ARCHIVE_JUNK.test(p));
+
+  const add = (out: PalSchemaModPlan[], plan: PalSchemaModPlan) => {
+    if (!out.some((e) => e.from === plan.from)) out.push(plan);
+  };
+
+  // 1+2. The explicit marker, wherever it sits in the path.
+  const marked: PalSchemaModPlan[] = [];
+  for (const f of files) {
+    const segs = f.split("/");
+    const i = segs.findIndex(
+      (seg, n) =>
+        seg.toLowerCase() === "palschema" &&
+        segs[n + 1]?.toLowerCase() === "mods" &&
+        Boolean(segs[n + 2]),
+    );
+    // The marker must have a file BELOW the mod folder, or it's the folder entry itself.
+    const name = i >= 0 ? segs[i + 2] : undefined;
+    if (name && segs.length > i + 3) {
+      add(marked, { name, from: segs.slice(0, i + 3).join("/") });
+    }
+  }
+  if (marked.length) return marked;
+
+  // 3. Top-level folders that carry JSON. A folder of only docs/images isn't a mod.
+  const tops: PalSchemaModPlan[] = [];
+  for (const f of files) {
+    const segs = f.split("/");
+    const top = segs[0];
+    if (segs.length < 2 || !top || !PAL_SCHEMA_CONFIG_EXT.test(f)) continue;
+    add(tops, { name: top, from: top });
+  }
+  if (tops.length) {
+    // Loose JSON at the archive root alongside mod folders can't be represented: a
+    // root plan's `from` is "" (the whole staging dir), which overlaps every folder
+    // plan. Rather than silently drop those root files (half a mod, reported as
+    // success), refuse the archive so the author repackages it under one folder.
+    const rootJson = files.some((f) => !f.includes("/") && PAL_SCHEMA_CONFIG_EXT.test(f));
+    if (rootJson) {
+      throw new BadRequestException(
+        "That archive mixes loose .json/.jsonc files at its root with mod folders. Put all of a " +
+          "mod's files inside its own folder, then re-zip.",
+      );
+    }
+    return tops;
+  }
+
+  // 4. A flat archive of JSON — name the mod after the upload.
+  if (files.some((f) => !f.includes("/") && PAL_SCHEMA_CONFIG_EXT.test(f))) {
+    return [{ name: fallbackName, from: "" }];
+  }
+  return [];
+}
+
+/** File extensions that make up an Unreal pak content mod. */
+const PAK_EXT = /\.(pak|ucas|utoc)$/i;
 
 /** The proxy-loader DLLs present in a Win64 file listing, in PAL_WINE_PROXY_DLLS
  *  order (deterministic env output). Pure — the fs read lives in the async wrapper. */
@@ -170,6 +296,15 @@ export class PalModsService {
   private frameworkDir(id: string, wine: boolean): string {
     return join(LocalPaths.instanceRoot(id), wine ? "Pal/Binaries/Win64" : "Pal/Binaries/Linux");
   }
+  private ue4ssModsDir(id: string): string {
+    return join(this.frameworkDir(id, true), "Mods");
+  }
+  private palSchemaDir(id: string): string {
+    return join(this.ue4ssModsDir(id), "PalSchema");
+  }
+  private palSchemaContentDir(id: string): string {
+    return join(this.palSchemaDir(id), "mods");
+  }
 
   async status(id: string) {
     const s = await this.palServer(id);
@@ -182,7 +317,13 @@ export class PalModsService {
       : (cfg.values?._palFrameworkPreload as string) || PAL_FRAMEWORK_DEFAULT_PRELOAD;
     let paks: string[] = [];
     try {
-      paks = (await readdir(this.paksDir(id))).filter((f) => /\.(pak|ucas|utoc)$/i.test(f));
+      // Recursive on purpose. Mod zips almost always ship a `ModName/` folder holding
+      // the .pak/.ucas/.utoc trio, and Unreal mounts those fine from a subfolder — but
+      // a flat readdir saw only the folder NAME, which fails the extension filter. The
+      // upload silently "succeeded" into a mod the panel could neither show nor delete.
+      // Entries come back relative to the ~mods dir, so they double as delete handles.
+      const entries = await readdir(this.paksDir(id), { recursive: true });
+      paks = entries.filter((f) => PAK_EXT.test(f)).sort();
     } catch {
       /* dir not created yet */
     }
@@ -196,7 +337,31 @@ export class PalModsService {
     // Under Wine the proxy loads whenever it's present, so presence IS enabled; native
     // gates loading behind the LD_PRELOAD flag written into the spec.
     const enabled = wine ? present : Boolean(cfg.values?._palFramework);
-    return { paks, framework: { enabled, preload, present, wine } };
+
+    // PalSchema is a Windows UE4SS mod, so it only exists on the Wine variant.
+    let palschema: { installed: boolean; enabled: boolean; mods: string[] } | undefined;
+    if (wine) {
+      const installed = await stat(join(LocalPaths.instanceRoot(id), PAL_SCHEMA_DLL))
+        .then(() => true)
+        .catch(() => false);
+      // UE4SS only starts a DLL mod whose folder has enabled.txt — a hand-installed
+      // copy can be present but inert.
+      const enabled = await stat(join(LocalPaths.instanceRoot(id), PAL_SCHEMA_ENABLED_MARKER))
+        .then(() => true)
+        .catch(() => false);
+      let mods: string[] = [];
+      try {
+        mods = (await readdir(this.palSchemaContentDir(id), { withFileTypes: true }))
+          .filter((e) => e.isDirectory())
+          .map((e) => e.name)
+          .sort();
+      } catch {
+        /* dir not created yet */
+      }
+      palschema = { installed, enabled, mods };
+    }
+
+    return { paks, framework: { enabled, preload, present, wine }, palschema };
   }
 
   /** Add a .pak (or .ucas/.utoc, or a .zip of them) to the ~mods folder. */
@@ -213,9 +378,30 @@ export class PalModsService {
     return this.status(id);
   }
 
+  /**
+   * Remove one pak file. `name` is the path RELATIVE to ~mods as listed by status(),
+   * so it may contain a mod subfolder — hence the shared resolveSafe() guard rather
+   * than a basename() strip, which would have silently missed nested files.
+   *
+   * Same containment check the file manager uses: lexical escapes, absolute paths and
+   * null bytes are rejected, and the deepest existing ancestor is canonicalized so a
+   * symlinked mod folder can't aim the delete outside the instance dir.
+   */
   async removePak(id: string, name: string) {
     await this.palServer(id);
-    await rm(join(this.paksDir(id), basename(name)), { force: true });
+    const root = await canonicalRoot(this.paksDir(id));
+    if (!root) return this.status(id); // no ~mods dir yet, so nothing to remove
+    const target = await resolveSafe(root, name);
+    // resolveSafe permits the root itself (a listing of "." needs that); the
+    // extension check is what keeps this to actual pak files.
+    if (!PAK_EXT.test(target)) {
+      throw new BadRequestException("Not a pak file inside this server's mod folder");
+    }
+    await rm(target, { force: true });
+    // Drop the mod's folder once its last file is gone; rmdir only succeeds when the
+    // dir is already empty, so a mod with files left standing is untouched.
+    const parent = dirname(target);
+    if (parent !== root) await rmdir(parent).catch(() => undefined);
     return this.status(id);
   }
 
@@ -247,7 +433,15 @@ export class PalModsService {
     if (issue) throw new BadRequestException(issue);
     const dir = this.frameworkDir(id, wine);
     await mkdir(dir, { recursive: true });
+    // UE4SS's archive ships its own Mods/mods.txt (the Lua-mod enable list), so
+    // extracting over an existing install replaces whatever the operator set there.
+    // That matters: PalSchema's install docs have you DISABLE CheatManagerEnablerMod
+    // and ConsoleCommandsMod to avoid crashes, and UE4SS's shipped default turns
+    // them back on. Restore the existing file after extracting.
+    const modsTxt = join(dir, "Mods", "mods.txt");
+    const existingModsTxt = await readFile(modsTxt, "utf8").catch(() => null);
     await this.extractZip(data, dir);
+    if (existingModsTxt !== null) await writeFile(modsTxt, existingModsTxt, "utf8");
     await this.makeHeadlessSafe(dir);
     return this.status(id);
   }
@@ -311,7 +505,207 @@ export class PalModsService {
     return this.setFramework(id, { enabled: true, preload: PAL_FRAMEWORK_DEFAULT_PRELOAD });
   }
 
-  private async download(url: string): Promise<Buffer> {
+  /**
+   * One-click: fetch the pinned PalSchema build, verify its sha256, and extract it
+   * into UE4SS's Mods folder (its zip root IS the "PalSchema" folder UE4SS expects).
+   * Gated on UE4SS being installed — checked BEFORE the download, so a server
+   * missing the framework fails instantly instead of after a 60s fetch.
+   */
+  async installPalSchemaFromUpstream(id: string) {
+    await this.requirePalSchemaReady(id);
+    const data = await this.download(PALSCHEMA.url, "PalSchema");
+
+    const digest = createHash("sha256").update(data).digest("hex");
+    if (digest !== PALSCHEMA.sha256) {
+      throw new BadRequestException(
+        `PalSchema download failed integrity check (expected ${PALSCHEMA.sha256.slice(0, 12)}…, got ${digest.slice(0, 12)}…). Install it manually from ${PALSCHEMA.releasePage}.`,
+      );
+    }
+    return this.installPalSchema(id, data);
+  }
+
+  /** Install a PalSchema build (from upstream or a manual upload) into UE4SS's Mods
+   *  folder, then make sure UE4SS will actually start it. */
+  async installPalSchema(id: string, data: Buffer) {
+    await this.requirePalSchemaReady(id);
+    const dir = this.ue4ssModsDir(id);
+    await mkdir(dir, { recursive: true });
+    // Validate in staging before touching the live Mods dir, so an unrelated zip can't
+    // clobber it and a failed check leaves nothing behind. Staging sits beside the
+    // instance so the promote is a rename, not a copy.
+    const staging = join(LocalPaths.instanceRoot(id), `.palschema-install-${process.pid}-${Date.now()}`);
+    await mkdir(staging, { recursive: true });
+    try {
+      await this.extractZip(data, staging);
+      // The zip root is the "PalSchema" folder, so its DLL lands at PAL_SCHEMA_DLL minus
+      // the leading Mods/ prefix. Derive from the constant so the two can't drift.
+      const dllRel = PAL_SCHEMA_DLL.slice(PAL_SCHEMA_DLL.indexOf("/Mods/") + "/Mods/".length);
+      if (!(await stat(join(staging, dllRel)).then(() => true).catch(() => false))) {
+        throw new BadRequestException(
+          `Extracted the archive but ${PAL_SCHEMA_DLL} is missing — is this actually a PalSchema release zip?`,
+        );
+      }
+      // Promote the staged "PalSchema" folder into Mods/ by rename. Keep the operator's
+      // existing content mods: move their mods/ subfolder into the staged copy first, so
+      // the swap replaces PalSchema itself without wiping what they installed under it.
+      const staged = join(staging, "PalSchema");
+      const live = this.palSchemaDir(id);
+      const liveMods = this.palSchemaContentDir(id);
+      if (await stat(liveMods).then(() => true).catch(() => false)) {
+        await rm(join(staged, "mods"), { recursive: true, force: true });
+        await rename(liveMods, join(staged, "mods"));
+      }
+      await rm(live, { recursive: true, force: true });
+      await rename(staged, live);
+    } finally {
+      await rm(staging, { recursive: true, force: true }).catch(() => undefined);
+    }
+    // The release zip ships enabled.txt; recreate it only if a custom archive didn't.
+    const marker = join(LocalPaths.instanceRoot(id), PAL_SCHEMA_ENABLED_MARKER);
+    if (!(await stat(marker).then(() => true).catch(() => false))) {
+      await writeFile(marker, "", "utf8");
+    }
+    return this.status(id);
+  }
+
+  /** Add a PalSchema content mod — its own .zip, whose folder lands under
+   *  Mods/PalSchema/mods, the same layout PalSchema itself expects. */
+  async addPalSchemaMod(id: string, filename: string, data: Buffer) {
+    await this.requirePalSchemaReady(id);
+    if (!/\.zip$/i.test(basename(filename))) {
+      throw new BadRequestException("Upload the mod's .zip — its folder goes into Mods/PalSchema/mods");
+    }
+    // Content mods are loaded BY PalSchema, so it has to be there too — not just UE4SS.
+    const installed = await stat(join(LocalPaths.instanceRoot(id), PAL_SCHEMA_DLL)).then(() => true).catch(() => false);
+    if (!installed) throw new BadRequestException("Install PalSchema first — it's what loads these mods.");
+
+    const dir = this.palSchemaContentDir(id);
+    await mkdir(dir, { recursive: true });
+    // Extract to a staging dir FIRST and move the mod folder out of it, because the
+    // archive's own layout decides where the files are (see planPalSchemaMods). Staging
+    // lives beside the instance rather than in /tmp so the move is a same-filesystem
+    // rename instead of a copy.
+    const staging = join(LocalPaths.instanceRoot(id), `.palschema-upload-${process.pid}-${Date.now()}`);
+    await mkdir(staging, { recursive: true });
+    try {
+      await this.extractZip(data, staging);
+      // basename(filename, ".zip") only strips a lowercase suffix, but the gate above
+      // accepts .ZIP too — so strip the extension case-insensitively, or "MyMod.ZIP"
+      // installs as "MyMod.ZIP" and a later "MyMod.zip" makes a duplicate instead of
+      // replacing it.
+      const fallbackName = basename(filename).replace(/\.zip$/i, "");
+      const plans = planPalSchemaMods(await listZipEntries(data), fallbackName);
+      if (plans.length === 0) {
+        throw new BadRequestException(
+          "No PalSchema mod found in that archive — expected a mod folder with .json/.jsonc files " +
+            "(optionally nested under Mods/PalSchema/mods). Is this a pak mod? Those go in the Pak mods section above.",
+        );
+      }
+      // planPalSchemaMods derives both paths from untrusted archive contents, so contain
+      // them the way removePalSchemaMod does: resolveSafe() refuses any escape, and the
+      // parent check keeps each move to a single mod folder rather than the mods root.
+      const destRoot = await realpath(dir);
+      const stageRoot = await realpath(staging);
+      for (const plan of plans) {
+        const dest = await resolveSafe(destRoot, plan.name);
+        if (dest === destRoot || dirname(dest) !== destRoot) {
+          throw new BadRequestException("That archive names a mod folder that escapes the mods directory");
+        }
+        const src = plan.from ? await resolveSafe(stageRoot, plan.from) : staging;
+        // Replace wholesale so re-uploading a newer build can't leave stale files behind.
+        await rm(dest, { recursive: true, force: true });
+        await rename(src, dest);
+      }
+    } finally {
+      await rm(staging, { recursive: true, force: true }).catch(() => undefined);
+    }
+    return this.status(id);
+  }
+
+  /**
+   * The .json/.jsonc files inside one installed mod, as paths RELATIVE TO THE INSTANCE
+   * ROOT — which is exactly what the file-manager read/write endpoints take, so the
+   * config editor needs no read/write routes of its own.
+   *
+   * Mods nest these several levels deep (translations/<lang>/x.jsonc), so the walk is
+   * recursive. Directories are skipped; so is anything that isn't JSON, since the point
+   * is editing config rather than browsing the mod.
+   */
+  async palSchemaModConfigFiles(id: string, name: string): Promise<{ files: string[] }> {
+    await this.palServer(id);
+    const modsDir = this.palSchemaContentDir(id);
+    const root = await canonicalRoot(modsDir);
+    if (!root) return { files: [] };
+    const dir = await resolveSafe(root, name);
+    if (dir === root) throw new BadRequestException("Missing mod name");
+    const entries = await readdir(dir, { recursive: true }).catch(() => [] as string[]);
+    // `dir` traces back through canonicalRoot() (a realpath), so canonicalize the
+    // instance root the same way before diffing. Left raw, a symlinked DATA_DIR (or any
+    // parent) makes the two stop sharing a prefix and every relative() comes back as
+    // "../…", which the file-manager read endpoint rejects — the editor would 400 on
+    // open for every mod on that install. Fall back to the raw path if it's not yet on disk.
+    const instance = (await canonicalRoot(LocalPaths.instanceRoot(id))) ?? LocalPaths.instanceRoot(id);
+    const files = entries
+      .map((e) => e.replace(/\\/g, "/"))
+      .filter((e) => PAL_SCHEMA_CONFIG_EXT.test(e))
+      .map((e) => relative(instance, join(dir, e)))
+      .sort();
+    return { files };
+  }
+
+  /**
+   * Remove one installed PalSchema mod, folder and all.
+   *
+   * Uses the shared resolveSafe() like every other client-path route here, rather than
+   * the basename() strip it used to: a basename quietly rewrites an escape attempt into
+   * some other name and deletes whatever that happens to hit, where this refuses it
+   * outright. Requiring the target's parent to BE the mods dir keeps the old
+   * one-folder-only semantics explicit — this deletes a mod, not a file inside one.
+   *
+   * Deliberately not gated on requirePalSchemaReady(): cleaning up after a broken or
+   * half-removed install has to work even when UE4SS is gone.
+   */
+  async removePalSchemaMod(id: string, name: string) {
+    await this.palServer(id);
+    const root = await canonicalRoot(this.palSchemaContentDir(id));
+    if (!root) return this.status(id); // no mods dir yet, so nothing to remove
+    const target = await resolveSafe(root, name);
+    if (target === root || dirname(target) !== root) {
+      throw new BadRequestException("Not an installed PalSchema mod");
+    }
+    await rm(target, { recursive: true, force: true });
+    return this.status(id);
+  }
+
+  /**
+   * Shared precondition for every PalSchema WRITE path. Two gates:
+   *  - Wine variant only. PalSchema is a Windows DLL; the native Linux server
+   *    can't load it at all.
+   *  - UE4SS must already be installed. PalSchema is a UE4SS mod — without the
+   *    framework its files sit inert in Mods/ and never load, which looks
+   *    identical to a working install until you read UE4SS.log.
+   *
+   * Enforced here rather than only by disabling buttons, so a direct API call
+   * (or a stale tab whose status predates a framework wipe) can't slip past it.
+   * Deliberately NOT applied to removal — cleaning up a broken install should
+   * always work.
+   */
+  private async requirePalSchemaReady(id: string): Promise<void> {
+    const s = await this.palServer(id);
+    if (!this.isWine(s)) {
+      throw new BadRequestException("PalSchema is a Windows UE4SS mod — it needs the Palworld (Wine) variant");
+    }
+    const ue4ss = await stat(join(LocalPaths.instanceRoot(id), PAL_FRAMEWORK_WINE_LOADER))
+      .then(() => true)
+      .catch(() => false);
+    if (!ue4ss) {
+      throw new BadRequestException(
+        "Install the UE4SS framework first — PalSchema is a UE4SS mod and can't load without it.",
+      );
+    }
+  }
+
+  private async download(url: string, label = "UE4SS"): Promise<Buffer> {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), UE4SS_DOWNLOAD_TIMEOUT_MS);
     try {
@@ -319,7 +713,7 @@ export class PalModsService {
       if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
       return Buffer.from(await res.arrayBuffer());
     } catch (e) {
-      throw new BadRequestException(`Could not download UE4SS: ${(e as Error).message}`);
+      throw new BadRequestException(`Could not download ${label}: ${(e as Error).message}`);
     } finally {
       clearTimeout(timer);
     }

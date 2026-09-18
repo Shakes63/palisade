@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { Upload, Trash2, Package, ShieldCheck, Loader2, Save, Download, Store, ExternalLink } from "lucide-react";
-import { apiGet, apiPatch, apiPost, apiDelete, apiUpload } from "@/lib/api";
+import { Upload, Trash2, Package, ShieldCheck, Loader2, Save, Download, Store, ExternalLink, Settings2, X } from "lucide-react";
+import { apiGet, apiPatch, apiPost, apiPut, apiDelete, apiUpload } from "@/lib/api";
+import { useRole } from "@/lib/use-role";
 
 /**
  * Curated list of the established Palworld DEDICATED-SERVER mods. Palworld isn't on
@@ -21,6 +22,7 @@ const CURATED_SERVER_MODS: { name: string; desc: string; url: string; host: stri
 type PalModStatus = {
   paks: string[];
   framework: { enabled: boolean; preload: string; present: boolean; wine: boolean };
+  palschema?: { installed: boolean; enabled: boolean; mods: string[] };
 };
 
 /** The only known native-Linux UE4SS build. Official UE4SS releases are Windows-only
@@ -42,12 +44,27 @@ const UE4SS_WINDOWS_RELEASE = "https://github.com/UE4SS-RE/RE-UE4SS/releases/tag
  *    dwmapi.dll proxy (no toggle, no LD_PRELOAD). DLL mods (PalGuard, PalDefender) work.
  */
 export function PalworldModsTab({ serverId }: { serverId: string }) {
+  // Config editing goes through the file-manager endpoints, which are operator-only —
+  // the Files tab is hidden from viewers for the same reason, so the gear is too.
+  const canEditFiles = useRole() !== "viewer";
   const [status, setStatus] = useState<PalModStatus | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [preload, setPreload] = useState("");
   const pakInput = useRef<HTMLInputElement>(null);
   const fwInput = useRef<HTMLInputElement>(null);
+  const palschemaFwInput = useRef<HTMLInputElement>(null);
+  const palschemaModInput = useRef<HTMLInputElement>(null);
+  // PalSchema config editor: which mod is open, its JSON files, and the one being edited.
+  const [cfgMod, setCfgMod] = useState<string | null>(null);
+  const [cfgFiles, setCfgFiles] = useState<string[]>([]);
+  const [cfgPath, setCfgPath] = useState<string | null>(null);
+  const [cfgText, setCfgText] = useState("");
+  const [cfgSaved, setCfgSaved] = useState("");
+  const [cfgBusy, setCfgBusy] = useState(false);
+  // Errors while loading or saving a config file show INSIDE the modal — the page-level
+  // `err` banner renders behind it at z-50, so a load failure would otherwise be invisible.
+  const [cfgErr, setCfgErr] = useState<string | null>(null);
 
   const apply = (s: PalModStatus) => {
     setStatus(s);
@@ -68,6 +85,94 @@ export function PalworldModsTab({ serverId }: { serverId: string }) {
       setBusy(false);
     }
   };
+
+  /**
+   * Config editing rides on the file-manager endpoints rather than palmods routes of
+   * its own: the API hands back instance-root-relative paths, which is exactly what
+   * /files/content reads and writes. Only the listing needs a PalSchema-aware route,
+   * because a mod nests its JSON several levels deep (translations/<lang>/...).
+   */
+  const cfgDirty = cfgText !== cfgSaved;
+
+  const loadCfgFile = async (path: string) => {
+    setCfgBusy(true);
+    setCfgErr(null);
+    try {
+      const r = await apiGet<{ content: string }>(
+        `/servers/${serverId}/files/content?path=${encodeURIComponent(path)}`,
+      );
+      setCfgPath(path);
+      setCfgText(r.content);
+      setCfgSaved(r.content);
+    } catch (e) {
+      // Leave cfgPath as-is (null on first open) and surface the reason in the modal,
+      // e.g. the file-manager read cap on a large raw/ dump.
+      setCfgErr((e as Error).message);
+    } finally {
+      setCfgBusy(false);
+    }
+  };
+
+  const openCfg = async (mod: string) => {
+    setCfgBusy(true);
+    setCfgErr(null);
+    setErr(null);
+    try {
+      const { files } = await apiGet<{ files: string[] }>(
+        `/servers/${serverId}/palmods/palschema/mods/${encodeURIComponent(mod)}/config`,
+      );
+      setCfgMod(mod);
+      setCfgFiles(files);
+      setCfgPath(null);
+      setCfgText("");
+      setCfgSaved("");
+      if (files.length === 0) setCfgErr(`${mod} has no editable .json/.jsonc files.`);
+      else await loadCfgFile(files[0]!);
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setCfgBusy(false);
+    }
+  };
+
+  const saveCfg = async () => {
+    if (!cfgPath) return;
+    setCfgBusy(true);
+    setCfgErr(null);
+    try {
+      await apiPut(`/servers/${serverId}/files/content`, { path: cfgPath, content: cfgText });
+      setCfgSaved(cfgText);
+    } catch (e) {
+      setCfgErr((e as Error).message);
+    } finally {
+      setCfgBusy(false);
+    }
+  };
+
+  // Returns whether the editor actually closed — false when the user backed out of the
+  // "Discard unsaved changes?" prompt. Callers that do something destructive on close
+  // (e.g. deleting the mod) must gate on this; the Escape handler can ignore it.
+  const closeCfg = (): boolean => {
+    if (cfgDirty && !confirm("Discard unsaved changes?")) return false;
+    setCfgMod(null);
+    setCfgPath(null);
+    setCfgText("");
+    setCfgSaved("");
+    setCfgErr(null);
+    return true;
+  };
+
+  // Escape closes the editor, like ModDetailModal — routed through closeCfg so an
+  // unsaved edit still prompts. No dep array: closeCfg is rebuilt every render and
+  // closes over cfgDirty, so the listener has to be rebuilt with it.
+  useEffect(() => {
+    if (!cfgMod) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closeCfg();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  });
 
   const fw = status?.framework;
   const wine = Boolean(fw?.wine);
@@ -158,7 +263,9 @@ export function PalworldModsTab({ serverId }: { serverId: string }) {
                   className="shrink-0 text-slate-500 hover:text-rose-400"
                   title="Remove"
                   disabled={busy}
-                  onClick={() => run(() => apiDelete(`/servers/${serverId}/palmods/paks/${encodeURIComponent(p)}`))}
+                  onClick={() =>
+                    run(() => apiDelete(`/servers/${serverId}/palmods/paks?path=${encodeURIComponent(p)}`))
+                  }
                 >
                   <Trash2 className="h-4 w-4" />
                 </button>
@@ -170,7 +277,8 @@ export function PalworldModsTab({ serverId }: { serverId: string }) {
             No pak mods yet. Upload <span className="font-mono">.pak</span> /{" "}
             <span className="font-mono">.ucas</span> / <span className="font-mono">.utoc</span> files (or a{" "}
             <span className="font-mono">.zip</span> of them) — they go into{" "}
-            <span className="font-mono">Pal/Content/Paks/~mods</span>.
+            <span className="font-mono">Pal/Content/Paks/~mods</span>. A zip that ships its own mod
+            folder keeps it; the files inside are listed here either way.
           </p>
         )}
         <p className="text-[11px] text-slate-500">Restart the server to load mod changes.</p>
@@ -321,6 +429,213 @@ export function PalworldModsTab({ serverId }: { serverId: string }) {
           </p>
         )}
       </div>
+
+      {/* ── PalSchema (JSON content mod loader) ─────────────────────────── */}
+      {wine && (
+        <div className="card space-y-3">
+          <h3 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-ark-accent2">
+            <ShieldCheck className="h-4 w-4" /> PalSchema
+          </h3>
+          <p className="text-[11px] leading-snug text-slate-500">
+            A UE4SS logic mod that lets JSON-based content mods (new Pals, items, recipes) load
+            without writing a Blueprint mod. It runs through UE4SS — install that above first.
+          </p>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              className="btn-primary"
+              disabled={busy || !fw?.present}
+              title={fw?.present ? undefined : "Install the UE4SS framework above first"}
+              onClick={() => run(() => apiPost(`/servers/${serverId}/palmods/framework/install-palschema`))}
+            >
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} Install PalSchema
+            </button>
+            <span className={status?.palschema?.installed ? "text-ark-accent text-xs" : "text-amber-400 text-xs"}>
+              {status?.palschema?.installed ? "● installed" : "○ not installed"}
+            </span>
+            <button
+              className="btn-secondary"
+              disabled={busy || !fw?.present}
+              title={fw?.present ? undefined : "Install the UE4SS framework above first"}
+              onClick={() => palschemaFwInput.current?.click()}
+            >
+              <Upload className="h-4 w-4" /> Upload PalSchema .zip
+            </button>
+            <input
+              ref={palschemaFwInput}
+              type="file"
+              accept=".zip"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) run(() => apiUpload(`/servers/${serverId}/palmods/framework/palschema/upload`, f));
+                e.target.value = "";
+              }}
+            />
+          </div>
+          {!fw?.present && (
+            <p className="rounded border border-amber-500/40 bg-amber-950/30 px-2 py-1.5 text-[11px] leading-snug text-amber-300">
+              Install the UE4SS framework above first — PalSchema loads through it.
+            </p>
+          )}
+          {status?.palschema?.installed && !status.palschema.enabled && (
+            <p className="rounded border border-amber-500/40 bg-amber-950/30 px-2 py-1.5 text-[11px] leading-snug text-amber-300">
+              PalSchema is on disk but has no <span className="font-mono">enabled.txt</span>, so UE4SS
+              won&apos;t start it. Re-run the install above to add the marker.
+            </p>
+          )}
+
+          <div className="flex items-center justify-between gap-2 pt-1">
+            <h4 className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Content mods</h4>
+            <button
+              className="btn-secondary"
+              disabled={busy || !fw?.present || !status?.palschema?.installed}
+              title={
+                !fw?.present
+                  ? "Install the UE4SS framework above first"
+                  : status?.palschema?.installed
+                    ? undefined
+                    : "Install PalSchema first"
+              }
+              onClick={() => palschemaModInput.current?.click()}
+            >
+              <Upload className="h-4 w-4" /> Upload mod .zip
+            </button>
+            <input
+              ref={palschemaModInput}
+              type="file"
+              accept=".zip"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) run(() => apiUpload(`/servers/${serverId}/palmods/palschema/mods`, f));
+                e.target.value = "";
+              }}
+            />
+          </div>
+          {status?.palschema && status.palschema.mods.length > 0 ? (
+            <ul className="divide-y divide-ark-border/50 text-sm">
+              {status.palschema.mods.map((m) => (
+                <li key={m} className="flex items-center justify-between gap-3 py-1.5">
+                  <span className="truncate font-mono text-slate-200">{m}</span>
+                  <span className="flex shrink-0 items-center gap-2">
+                    {canEditFiles && (
+                    <button
+                      className={
+                        cfgMod === m
+                          ? "text-ark-accent2"
+                          : "text-slate-500 hover:text-ark-accent2"
+                      }
+                      title="Edit this mod's JSON config"
+                      disabled={busy || cfgBusy}
+                      onClick={() => void (cfgMod === m ? closeCfg() : openCfg(m))}
+                    >
+                      <Settings2 className="h-4 w-4" />
+                    </button>
+                    )}
+                    <button
+                      className="text-slate-500 hover:text-rose-400"
+                      title="Remove"
+                      disabled={busy}
+                      onClick={() => {
+                        // If this mod's editor is open, closeCfg() may prompt about unsaved
+                        // edits — respect a cancel and DON'T delete out from under it.
+                        if (cfgMod === m && !closeCfg()) return;
+                        void run(() => apiDelete(`/servers/${serverId}/palmods/palschema/mods/${encodeURIComponent(m)}`));
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-xs text-slate-500">
+              No PalSchema mods yet. Upload a mod&apos;s <span className="font-mono">.zip</span> — its folder
+              goes into <span className="font-mono">Mods/PalSchema/mods</span>.
+            </p>
+          )}
+          <p className="text-[11px] text-slate-500">Restart the server to load mod changes.</p>
+        </div>
+      )}
+
+      {/* ── Config editor ──────────────────────────────────────────────────
+          A modal rather than an inline panel: the PalSchema card sits near the
+          bottom of a long tab, so expanding in place left the editor below the
+          fold and the page jumped mid-document on open. Same overlay shape as
+          ModDetailModal. */}
+      {cfgMod && (
+        <div
+          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4 sm:p-8"
+          onClick={closeCfg}
+        >
+          <div className="card my-4 w-full max-w-3xl" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-3 flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h3 className="truncate text-lg font-semibold">
+                  {cfgMod}
+                  {cfgDirty ? " •" : ""}
+                </h3>
+                <p className="truncate font-mono text-[11px] text-slate-500">{cfgPath ?? ""}</p>
+              </div>
+              <span className="flex shrink-0 items-center gap-2">
+                <button
+                  className="btn-primary text-xs"
+                  disabled={cfgBusy || !cfgDirty || !cfgPath}
+                  onClick={() => void saveCfg()}
+                >
+                  {cfgBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />} Save
+                </button>
+                <button className="btn-secondary px-2" onClick={closeCfg}>
+                  <X className="h-4 w-4" />
+                </button>
+              </span>
+            </div>
+
+            {/* One file is the common case; a mod with translations has a dozen. */}
+            {cfgFiles.length > 1 && (
+              <select
+                className="mb-2 w-full rounded-md border border-ark-border bg-ark-bg px-2 py-1 font-mono text-[11px] outline-none focus:border-ark-accent2"
+                value={cfgPath ?? ""}
+                disabled={cfgBusy}
+                onChange={(e) => {
+                  if (cfgDirty && !confirm("Discard unsaved changes?")) return;
+                  void loadCfgFile(e.target.value);
+                }}
+              >
+                {cfgFiles.map((f) => (
+                  <option key={f} value={f}>
+                    {f.split(`mods/${cfgMod}/`)[1] ?? f}
+                  </option>
+                ))}
+              </select>
+            )}
+
+            {cfgErr && (
+              <p className="mb-2 rounded border border-rose-500/40 bg-rose-950/30 px-2 py-1.5 text-[11px] leading-snug text-rose-300">
+                {cfgErr}
+              </p>
+            )}
+
+            {cfgPath ? (
+              <textarea
+                className="h-[60vh] w-full resize-y rounded-lg border border-ark-border bg-ark-bg p-3 font-mono text-xs leading-relaxed outline-none focus:border-ark-accent2"
+                value={cfgText}
+                onChange={(e) => setCfgText(e.target.value)}
+                spellCheck={false}
+              />
+            ) : (
+              !cfgErr && <p className="py-6 text-xs text-slate-500">No editable .json/.jsonc files in this mod.</p>
+            )}
+            <p className="mt-2 text-[11px] text-slate-500">
+              Saved straight to the mod folder. Restart the server to apply. These are{" "}
+              <span className="font-mono">.jsonc</span> files — comments and trailing commas are
+              allowed, so this is not validated as strict JSON.
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
