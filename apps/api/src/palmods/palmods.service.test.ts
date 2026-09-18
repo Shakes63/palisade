@@ -148,13 +148,6 @@ describe("PalSchema pin", () => {
 });
 
 /**
- * UE4SS starts a DLL mod from an `enabled.txt` marker in the mod's own folder,
- * NOT from Mods/mods.txt (that's the Lua-mod list). Confirmed against a live
- * server: its UE4SS.log reads "Mod 'PalSchema' has enabled.txt, starting mod."
- * while PalSchema appears nowhere in mods.txt. Writing a mods.txt entry for
- * PalSchema would be cargo-culting.
- */
-/**
  * Pak mods are listed recursively (a mod zip ships a `ModName/` folder with the
  * .pak/.ucas/.utoc trio), so delete takes a path with separators rather than a
  * basename — which is exactly the input that needs a traversal guard. It uses the

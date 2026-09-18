@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
-import { mkdir, readdir, readFile, rename, rm, rmdir, writeFile, stat } from "node:fs/promises";
+import { mkdir, readdir, readFile, realpath, rename, rm, rmdir, writeFile, stat } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { join, basename, dirname, relative } from "node:path";
 import { Game, type ServerConfigValues } from "@ark/shared";
@@ -214,7 +214,20 @@ export function planPalSchemaMods(paths: string[], fallbackName: string): PalSch
     if (segs.length < 2 || !top || !PAL_SCHEMA_CONFIG_EXT.test(f)) continue;
     add(tops, { name: top, from: top });
   }
-  if (tops.length) return tops;
+  if (tops.length) {
+    // Loose JSON at the archive root alongside mod folders can't be represented: a
+    // root plan's `from` is "" (the whole staging dir), which overlaps every folder
+    // plan. Rather than silently drop those root files (half a mod, reported as
+    // success), refuse the archive so the author repackages it under one folder.
+    const rootJson = files.some((f) => !f.includes("/") && PAL_SCHEMA_CONFIG_EXT.test(f));
+    if (rootJson) {
+      throw new BadRequestException(
+        "That archive mixes loose .json/.jsonc files at its root with mod folders. Put all of a " +
+          "mod's files inside its own folder, then re-zip.",
+      );
+    }
+    return tops;
+  }
 
   // 4. A flat archive of JSON — name the mod after the upload.
   if (files.some((f) => !f.includes("/") && PAL_SCHEMA_CONFIG_EXT.test(f))) {
@@ -500,7 +513,7 @@ export class PalModsService {
    */
   async installPalSchemaFromUpstream(id: string) {
     await this.requirePalSchemaReady(id);
-    const data = await this.download(PALSCHEMA.url);
+    const data = await this.download(PALSCHEMA.url, "PalSchema");
 
     const digest = createHash("sha256").update(data).digest("hex");
     if (digest !== PALSCHEMA.sha256) {
@@ -517,26 +530,33 @@ export class PalModsService {
     await this.requirePalSchemaReady(id);
     const dir = this.ue4ssModsDir(id);
     await mkdir(dir, { recursive: true });
-    // Extract to a sibling staging dir and VALIDATE before touching the live Mods
-    // folder: an unrelated zip would otherwise overwrite mods.txt and any same-named
-    // mod folders, and a failed check below would leave those extracted files behind.
-    // Staging lives beside the instance so the promote is a same-filesystem rename.
+    // Validate in staging before touching the live Mods dir, so an unrelated zip can't
+    // clobber it and a failed check leaves nothing behind. Staging sits beside the
+    // instance so the promote is a rename, not a copy.
     const staging = join(LocalPaths.instanceRoot(id), `.palschema-install-${process.pid}-${Date.now()}`);
     await mkdir(staging, { recursive: true });
     try {
       await this.extractZip(data, staging);
-      // The zip root is the "PalSchema" folder, so relative to the Mods dir the DLL
-      // lands at the tail of PAL_SCHEMA_DLL after its Mods/ prefix. Derive it from the
-      // constant rather than hardcoding, so the two can't drift.
+      // The zip root is the "PalSchema" folder, so its DLL lands at PAL_SCHEMA_DLL minus
+      // the leading Mods/ prefix. Derive from the constant so the two can't drift.
       const dllRel = PAL_SCHEMA_DLL.slice(PAL_SCHEMA_DLL.indexOf("/Mods/") + "/Mods/".length);
-      const stagedDll = join(staging, dllRel);
-      if (!(await stat(stagedDll).then(() => true).catch(() => false))) {
+      if (!(await stat(join(staging, dllRel)).then(() => true).catch(() => false))) {
         throw new BadRequestException(
           `Extracted the archive but ${PAL_SCHEMA_DLL} is missing — is this actually a PalSchema release zip?`,
         );
       }
-      // Only now that it's confirmed to be PalSchema, merge it into the live Mods dir.
-      await this.extractZip(data, dir);
+      // Promote the staged "PalSchema" folder into Mods/ by rename. Keep the operator's
+      // existing content mods: move their mods/ subfolder into the staged copy first, so
+      // the swap replaces PalSchema itself without wiping what they installed under it.
+      const staged = join(staging, "PalSchema");
+      const live = this.palSchemaDir(id);
+      const liveMods = this.palSchemaContentDir(id);
+      if (await stat(liveMods).then(() => true).catch(() => false)) {
+        await rm(join(staged, "mods"), { recursive: true, force: true });
+        await rename(liveMods, join(staged, "mods"));
+      }
+      await rm(live, { recursive: true, force: true });
+      await rename(staged, live);
     } finally {
       await rm(staging, { recursive: true, force: true }).catch(() => undefined);
     }
@@ -569,31 +589,30 @@ export class PalModsService {
     await mkdir(staging, { recursive: true });
     try {
       await this.extractZip(data, staging);
-      const plans = planPalSchemaMods(await listZipEntries(data), basename(filename, ".zip"));
+      // basename(filename, ".zip") only strips a lowercase suffix, but the gate above
+      // accepts .ZIP too — so strip the extension case-insensitively, or "MyMod.ZIP"
+      // installs as "MyMod.ZIP" and a later "MyMod.zip" makes a duplicate instead of
+      // replacing it.
+      const fallbackName = basename(filename).replace(/\.zip$/i, "");
+      const plans = planPalSchemaMods(await listZipEntries(data), fallbackName);
       if (plans.length === 0) {
         throw new BadRequestException(
           "No PalSchema mod found in that archive — expected a mod folder with .json/.jsonc files " +
             "(optionally nested under Mods/PalSchema/mods). Is this a pak mod? Those go in the Pak mods section above.",
         );
       }
-      // planPalSchemaMods derives both names from untrusted archive contents, so a mod
-      // name like ".." (flat archive named "...zip") or a "PalSchema/mods/../x" entry can
-      // resolve `dest` back onto Mods/PalSchema itself — and the rm below would then take
-      // the whole install with it. Contain both paths the same way removePalSchemaMod does:
-      // resolveSafe() rejects any escape outright, and requiring the parent to BE the mods
-      // dir keeps this to a single mod folder rather than something deeper or the root.
-      const destRoot = await canonicalRoot(dir); // just created it, so realpath resolves
-      const stageRoot = await canonicalRoot(staging);
+      // planPalSchemaMods derives both paths from untrusted archive contents, so contain
+      // them the way removePalSchemaMod does: resolveSafe() refuses any escape, and the
+      // parent check keeps each move to a single mod folder rather than the mods root.
+      const destRoot = await realpath(dir);
+      const stageRoot = await realpath(staging);
       for (const plan of plans) {
-        const dest = await resolveSafe(destRoot ?? dir, plan.name);
+        const dest = await resolveSafe(destRoot, plan.name);
         if (dest === destRoot || dirname(dest) !== destRoot) {
           throw new BadRequestException("That archive names a mod folder that escapes the mods directory");
         }
-        // `join(staging, "..")` is the instance root — guard `from` the same way so a
-        // crafted `from` can't point the move source outside the staging dir.
-        const src = plan.from ? await resolveSafe(stageRoot ?? staging, plan.from) : staging;
-        // Replace wholesale so re-uploading a newer build can't leave stale files from
-        // the old one behind.
+        const src = plan.from ? await resolveSafe(stageRoot, plan.from) : staging;
+        // Replace wholesale so re-uploading a newer build can't leave stale files behind.
         await rm(dest, { recursive: true, force: true });
         await rename(src, dest);
       }
@@ -686,7 +705,7 @@ export class PalModsService {
     }
   }
 
-  private async download(url: string): Promise<Buffer> {
+  private async download(url: string, label = "UE4SS"): Promise<Buffer> {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), UE4SS_DOWNLOAD_TIMEOUT_MS);
     try {
@@ -694,7 +713,7 @@ export class PalModsService {
       if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
       return Buffer.from(await res.arrayBuffer());
     } catch (e) {
-      throw new BadRequestException(`Could not download UE4SS: ${(e as Error).message}`);
+      throw new BadRequestException(`Could not download ${label}: ${(e as Error).message}`);
     } finally {
       clearTimeout(timer);
     }

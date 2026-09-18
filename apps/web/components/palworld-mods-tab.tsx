@@ -62,6 +62,9 @@ export function PalworldModsTab({ serverId }: { serverId: string }) {
   const [cfgText, setCfgText] = useState("");
   const [cfgSaved, setCfgSaved] = useState("");
   const [cfgBusy, setCfgBusy] = useState(false);
+  // Errors while loading or saving a config file show INSIDE the modal — the page-level
+  // `err` banner renders behind it at z-50, so a load failure would otherwise be invisible.
+  const [cfgErr, setCfgErr] = useState<string | null>(null);
 
   const apply = (s: PalModStatus) => {
     setStatus(s);
@@ -93,7 +96,7 @@ export function PalworldModsTab({ serverId }: { serverId: string }) {
 
   const loadCfgFile = async (path: string) => {
     setCfgBusy(true);
-    setErr(null);
+    setCfgErr(null);
     try {
       const r = await apiGet<{ content: string }>(
         `/servers/${serverId}/files/content?path=${encodeURIComponent(path)}`,
@@ -102,7 +105,9 @@ export function PalworldModsTab({ serverId }: { serverId: string }) {
       setCfgText(r.content);
       setCfgSaved(r.content);
     } catch (e) {
-      setErr((e as Error).message);
+      // Leave cfgPath as-is (null on first open) and surface the reason in the modal,
+      // e.g. the file-manager read cap on a large raw/ dump.
+      setCfgErr((e as Error).message);
     } finally {
       setCfgBusy(false);
     }
@@ -110,6 +115,7 @@ export function PalworldModsTab({ serverId }: { serverId: string }) {
 
   const openCfg = async (mod: string) => {
     setCfgBusy(true);
+    setCfgErr(null);
     setErr(null);
     try {
       const { files } = await apiGet<{ files: string[] }>(
@@ -120,7 +126,7 @@ export function PalworldModsTab({ serverId }: { serverId: string }) {
       setCfgPath(null);
       setCfgText("");
       setCfgSaved("");
-      if (files.length === 0) setErr(`${mod} has no editable .json/.jsonc files.`);
+      if (files.length === 0) setCfgErr(`${mod} has no editable .json/.jsonc files.`);
       else await loadCfgFile(files[0]!);
     } catch (e) {
       setErr((e as Error).message);
@@ -132,12 +138,12 @@ export function PalworldModsTab({ serverId }: { serverId: string }) {
   const saveCfg = async () => {
     if (!cfgPath) return;
     setCfgBusy(true);
-    setErr(null);
+    setCfgErr(null);
     try {
       await apiPut(`/servers/${serverId}/files/content`, { path: cfgPath, content: cfgText });
       setCfgSaved(cfgText);
     } catch (e) {
-      setErr((e as Error).message);
+      setCfgErr((e as Error).message);
     } finally {
       setCfgBusy(false);
     }
@@ -152,6 +158,7 @@ export function PalworldModsTab({ serverId }: { serverId: string }) {
     setCfgPath(null);
     setCfgText("");
     setCfgSaved("");
+    setCfgErr(null);
     return true;
   };
 
@@ -605,6 +612,12 @@ export function PalworldModsTab({ serverId }: { serverId: string }) {
               </select>
             )}
 
+            {cfgErr && (
+              <p className="mb-2 rounded border border-rose-500/40 bg-rose-950/30 px-2 py-1.5 text-[11px] leading-snug text-rose-300">
+                {cfgErr}
+              </p>
+            )}
+
             {cfgPath ? (
               <textarea
                 className="h-[60vh] w-full resize-y rounded-lg border border-ark-border bg-ark-bg p-3 font-mono text-xs leading-relaxed outline-none focus:border-ark-accent2"
@@ -613,7 +626,7 @@ export function PalworldModsTab({ serverId }: { serverId: string }) {
                 spellCheck={false}
               />
             ) : (
-              <p className="py-6 text-xs text-slate-500">No editable .json/.jsonc files in this mod.</p>
+              !cfgErr && <p className="py-6 text-xs text-slate-500">No editable .json/.jsonc files in this mod.</p>
             )}
             <p className="mt-2 text-[11px] text-slate-500">
               Saved straight to the mod folder. Restart the server to apply. These are{" "}

@@ -249,4 +249,67 @@ describe("addPalSchemaMod() placement", () => {
       await expect(svc.palSchemaModConfigFiles("srv1", evil), evil).rejects.toThrow();
     }
   });
-});
+
+  it("refuses an upload whose mod name climbs out, leaving the install intact", async () => {
+    await svc.addPalSchemaMod("srv1", "Good.zip", makeZip({ "GoodMod/raw/a.json": "{}" }));
+    // Three ways `..` reaches the destination: a "..zip"/"...zip" filename whose stripped
+    // base is "..", a top-level "../" entry, and a "PalSchema/mods/../" marker entry.
+    const attempts: Array<[string, Record<string, string>]> = [
+      ["..zip", { "junk.json": "{}" }],
+      ["...zip", { "junk.json": "{}" }],
+      ["evil.zip", { "../pwned.json": "{}" }],
+      ["evil.zip", { "PalSchema/mods/../pwned.json": "{}" }],
+    ];
+    for (const [name, files] of attempts) {
+      await expect(svc.addPalSchemaMod("srv1", name, makeZip(files)), name).rejects.toThrow();
+    }
+    // The seeded mod and PalSchema's DLL both survive every attempt.
+    expect((await readdir(modsDir)).sort()).toEqual(["GoodMod"]);
+    await expect(stat(join(instance, PAL_SCHEMA_DLL))).resolves.toBeTruthy();
+  });
+
+  it("strips the .zip extension case-insensitively so re-upload replaces", async () => {
+    // A flat archive is named after the upload; "MyMod.ZIP" must yield "MyMod", not
+    // "MyMod.ZIP", or a later "MyMod.zip" would create a second folder.
+    await svc.addPalSchemaMod("srv1", "MyMod.ZIP", makeZip({ "a.json": "{}" }));
+    expect((await readdir(modsDir)).sort()).toEqual(["MyMod"]);
+    await svc.addPalSchemaMod("srv1", "MyMod.zip", makeZip({ "b.json": "{}" }));
+    expect((await readdir(modsDir)).sort()).toEqual(["MyMod"]);
+    expect(await tree(join(modsDir, "MyMod"))).toEqual(["b.json"]);
+  });
+
+  it("refuses an archive that mixes root JSON with mod folders", async () => {
+    await expect(
+      svc.addPalSchemaMod("srv1", "m.zip", makeZip({ "ModA/raw/a.json": "{}", "settings.jsonc": "{}" })),
+    ).rejects.toThrow(/loose .*files at its root/i);
+    // Nothing partial left on disk.
+    expect(await tree(modsDir)).toEqual([]);
+  });
+
+  it("install preserves the operator's existing content mods", async () => {
+    // A prior content mod the operator installed.
+    await svc.addPalSchemaMod("srv1", "keep.zip", makeZip({ "KeepMe/raw/a.json": "{}" }));
+    // A PalSchema release zip: its root IS the PalSchema folder.
+    const release = makeZip({
+      "PalSchema/dlls/main.dll": "MZ",
+      "PalSchema/enabled.txt": "",
+      "PalSchema/settings.json": "{}",
+    });
+    await svc.installPalSchema("srv1", release);
+    // New DLL is in place AND the operator's mod survived the swap.
+    await expect(stat(join(instance, PAL_SCHEMA_DLL))).resolves.toBeTruthy();
+    expect((await readdir(modsDir)).sort()).toEqual(["KeepMe"]);
+    // No staging dir left behind.
+    expect((await readdir(instance)).filter((e) => e.startsWith(".palschema-install-"))).toEqual([]);
+  });
+
+  it("install rejects a zip that isn't PalSchema without touching the live dir", async () => {
+    await svc.addPalSchemaMod("srv1", "keep.zip", makeZip({ "KeepMe/raw/a.json": "{}" }));
+    await expect(
+      svc.installPalSchema("srv1", makeZip({ "NotPalSchema/readme.txt": "x" })),
+    ).rejects.toThrow(/is this actually a PalSchema release zip/i);
+    // The existing install is untouched and no staging dir remains.
+    expect((await readdir(modsDir)).sort()).toEqual(["KeepMe"]);
+    expect((await readdir(instance)).filter((e) => e.startsWith(".palschema-install-"))).toEqual([]);
+  });
+}); 
