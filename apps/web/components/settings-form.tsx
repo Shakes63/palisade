@@ -210,6 +210,22 @@ const ENSHROUDED_GROUPS: SettingGroup[] = [
   { id: "chat", label: "Chat", Icon: MessageSquare, cats: ["Chat"] },
 ];
 
+// Games without a hand-written tab list above get one tab per catalog category,
+// in catalog order, so nothing ends up buried under ARK's "Advanced" (GH #116).
+const CATEGORY_ICONS: Record<string, LucideIcon> = {
+  World: MapIcon,
+  Players: User,
+  Mods: Package,
+  Network: Network,
+  Version: GitBranch,
+  Gameplay: Swords,
+  Difficulty: Swords,
+};
+const groupsFromCatalog = (catalog: SettingsCatalog | null): SettingGroup[] => {
+  const cats = [...new Set((catalog?.settings ?? []).map((d) => d.category))];
+  return cats.map((c) => ({ id: c, label: c, Icon: CATEGORY_ICONS[c] ?? SlidersHorizontal, cats: [c] }));
+};
+
 /**
  * Map-specific categories → fragments of the server's map name they apply to.
  * A setting in one of these only shows when the managed server's map matches,
@@ -246,8 +262,9 @@ export function SettingsForm({
   map: string;
   initial: ServerConfigValues;
 }) {
+  const [catalog, setCatalog] = useState<SettingsCatalog | null>(null);
   // Tabs + their category membership are game-specific.
-  const GROUPS =
+  const GROUPS = useMemo(() => (
     game === Game.CONAN
       ? CONAN_GROUPS
       : game === Game.PALWORLD || game === Game.PALWORLD_WINE
@@ -270,7 +287,10 @@ export function SettingsForm({
                         ? CS2_GROUPS
                         : game === Game.DST
                           ? DST_GROUPS
-                          : ARK_GROUPS;
+                          : game === Game.ASA || game === Game.ASE
+                            ? ARK_GROUPS
+                            : groupsFromCatalog(catalog)
+  ), [game, catalog]);
   const MAPPED_CATS = new Set(GROUPS.flatMap((g) => g.cats));
 
   // A map-specific category is shown only when the server's map matches it.
@@ -280,7 +300,6 @@ export function SettingsForm({
     const m = (map ?? "").toLowerCase();
     return frags.some((f) => m.includes(f));
   };
-  const [catalog, setCatalog] = useState<SettingsCatalog | null>(null);
   const [values, setValues] = useState<Values>(initial.values ?? {});
   const [raw, setRaw] = useState({
     gus: initial.rawGameUserSettingsIni ?? "",
@@ -299,8 +318,6 @@ export function SettingsForm({
 
   // Persist the active settings sub-tab in the URL (?section=creatures) so a
   // refresh keeps you on the same section. replaceState — no scroll/navigation.
-  // GROUPS is one of the module-level constants picked by `game`, so it's
-  // referentially stable and this still runs once per mounted form.
   useEffect(() => {
     const p = new URLSearchParams(window.location.search).get("section");
     if (p && GROUPS.some((g) => g.id === p)) setActiveGroup(p);
@@ -421,6 +438,7 @@ export function SettingsForm({
   }, [catalog, query, activeGroup, allByCat, map, presetFilter, presetMarks]);
 
   const searching = query.trim().length > 0;
+  const currentGroup = GROUPS.find((g) => g.id === activeGroup)?.id ?? GROUPS[0]?.id;
   // Count of currently-visible (catalog + map-relevant) preset-set settings.
   const presetCount = useMemo(() => {
     if (!catalog) return 0;
@@ -573,7 +591,7 @@ export function SettingsForm({
       {!searching && !presetFilter && (
         <div className="flex flex-wrap gap-1.5 border-b border-ark-border pb-2">
           {GROUPS.map((g) => {
-            const active = g.id === activeGroup;
+            const active = g.id === currentGroup;
             const n = changedByGroup.get(g.id) ?? 0;
             return (
               <button
