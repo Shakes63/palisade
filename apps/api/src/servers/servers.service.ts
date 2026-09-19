@@ -1457,7 +1457,12 @@ export class ServersService implements OnApplicationBootstrap, OnApplicationShut
       // NEXT start goes back to the no-update default (GH #8/#12/#14).
       await this.prisma.server.update({
         where: { id },
-        data: { containerId, configDirty: false, ...(server.updateRequested ? { updateRequested: false } : {}) },
+        data: {
+          containerId,
+          configDirty: false,
+          launchAdminPasswordEnc: server.adminPasswordEnc,
+          ...(server.updateRequested ? { updateRequested: false } : {}),
+        },
       });
       await this.docker.start(containerId);
 

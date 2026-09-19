@@ -52,7 +52,10 @@ export class RconService {
     if (!server.adminPasswordEnc)
       throw new BadRequestException("Server has no admin password set");
 
-    const password = this.crypto.decrypt(server.adminPasswordEnc);
+    // The RUNNING container still authenticates with whatever password it was
+    // created with. Dialling with a newer one that hasn't been applied yet failed
+    // every command and emptied the player list, with no hint why (GH #68).
+    const password = this.crypto.decrypt(server.launchAdminPasswordEnc ?? server.adminPasswordEnc);
     // Derived from the container's real networking — its IP on a network we share,
     // the host gateway when it's on the host or its port is published, and only then
     // the container name. Guessing this from GAME_HOST_NETWORK alone broke every

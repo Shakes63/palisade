@@ -92,6 +92,11 @@ model Server {
   adminPasswordEnc     String?
   serverPasswordEnc    String?
   spectatorPasswordEnc String?
+  // The admin password the RUNNING container was created with. RCON dials with
+  // this, not adminPasswordEnc: a password change only reaches the game server
+  // when the container is recreated, so until then the two disagree and every
+  // RCON call fails to authenticate (GH #68). Null = adopted, or never started.
+  launchAdminPasswordEnc String?
 
   // Config + mods
   configJson String @default("{}") // ServerConfigValues JSON
