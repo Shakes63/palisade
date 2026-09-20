@@ -40,7 +40,14 @@ export interface RouterClient {
   remove(rules: RouterRule[]): Promise<void>;
   /** Push pending changes live. pfSense needs an explicit apply; UniFi provisions on write. */
   commit(): Promise<void>;
+  /** Prove the credentials can write: create a disabled throwaway rule, then delete it. */
+  probeWrite(): Promise<void>;
 }
+
+/** The throwaway rule probeWrite() creates and deletes. Named so an admin who
+ *  finds one left behind (the delete failed) knows it is safe to remove. */
+export const PROBE_RULE_NAME = "Palisade - write test (safe to delete)";
+export const PROBE_PORT = 65535;
 
 /** Every rule Palisade creates is named with this prefix, which is how a later
  *  cleanup tells our rules apart from ones an admin made by hand. */
