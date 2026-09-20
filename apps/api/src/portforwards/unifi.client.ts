@@ -164,7 +164,7 @@ export class UnifiClient implements RouterClient {
   }
 
   async create(f: ForwardPort, description: string): Promise<void> {
-    await this.api("POST", this.sitePath("rest/portforward"), {
+    const created = await this.api<UnifiForward>("POST", this.sitePath("rest/portforward"), {
       name: description.slice(0, 128), // UniFi validates name against .{1,128}
       enabled: true,
       pfwd_interface: "wan",
@@ -175,6 +175,9 @@ export class UnifiClient implements RouterClient {
       proto: f.proto,
       log: false,
     });
+    if (!created[0]?._id) {
+      throw new Error(`UniFi returned no rule for ${f.port}/${f.proto} — the API key may lack write access`);
+    }
   }
 
   async retarget(rule: RouterRule, f: ForwardPort): Promise<void> {

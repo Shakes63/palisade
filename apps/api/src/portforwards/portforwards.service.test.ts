@@ -112,6 +112,17 @@ describe("PortForwardsService", () => {
     expect(view.forwards.map((f) => f.state)).toEqual(["ok", "ok", "disabled"]);
   });
 
+  it("apply rejects when the router accepts a write but the forward still isn't there", async () => {
+    const router = fakeRouter([
+      { id: "b", name: "Palisade - x", proto: "udp", ports: "2457", target: "10.0.0.9", enabled: true },
+    ]);
+    router.client.create = async () => {}; // 200 OK, nothing created — a read-only key
+    router.client.retarget = async () => {};
+    await expect(service(router).apply("srv1")).rejects.toThrow(
+      /UniFi accepted the change but 2456\/udp, 2457\/udp, 2458\/udp still aren't forwarded/,
+    );
+  });
+
   it("apply is a no-op (no commit) when everything is already forwarded", async () => {
     const router = fakeRouter([
       { id: "a", name: "Palisade - x", proto: "udp", ports: "2456", target: "10.0.0.5", enabled: true },

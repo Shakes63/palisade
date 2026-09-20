@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from "@nestjs/common";
+import { BadGatewayException, BadRequestException, Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { Game, DEFAULT_PORTS, GAME_LABELS } from "@ark/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { ManagerSettingsService, SettingKeys } from "../manager-settings/manager-settings.service";
@@ -237,22 +237,37 @@ export class PortForwardsService {
     const s = await this.server(id);
     const before = await this.status(id);
     const label = ROUTER_LABELS[c.kind];
-    let changed = 0;
+    const touched: ForwardStatus[] = [];
     for (const f of before.forwards) {
       if (f.state === "missing") {
         await c.create(f, ruleName(GAME_LABELS[s.game as Game] ?? s.game, s.name, f.label));
-        this.logger.log(`${label} forward created: ${f.port}/${f.proto} → ${c.targetIp} (${s.name})`);
-        changed++;
+        touched.push(f);
       } else if (f.state === "mismatched") {
         const rule = await this.ruleFor(c, f);
         if (!rule) continue;
         await c.retarget(rule, f);
-        this.logger.log(`${label} forward re-targeted: ${f.port}/${f.proto} → ${c.targetIp} (${s.name})`);
-        changed++;
+        touched.push(f);
       }
     }
-    if (changed > 0) await c.commit();
-    return this.status(id);
+    if (touched.length === 0) return before;
+    await c.commit();
+    const after = await this.status(id);
+    // A router can answer 200 without changing anything, so trust the re-read,
+    // not the write (GH #120).
+    const stillBroken = touched.filter(
+      (f) => after.forwards.find((x) => x.port === f.port && x.proto === f.proto)?.state !== "ok",
+    );
+    if (stillBroken.length > 0) {
+      throw new BadGatewayException(
+        `${label} accepted the change but ${stillBroken.map((f) => `${f.port}/${f.proto}`).join(", ")} still ` +
+          `aren't forwarded — check that the API key has write access to port forwards`,
+      );
+    }
+    for (const f of touched) {
+      const verb = f.state === "missing" ? "created" : "re-targeted";
+      this.logger.log(`${label} forward ${verb}: ${f.port}/${f.proto} → ${c.targetIp} (${s.name})`);
+    }
+    return after;
   }
 
   /** Enable or disable one of this server's forwards on the router. */
