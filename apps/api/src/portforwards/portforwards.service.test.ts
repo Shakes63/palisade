@@ -3,12 +3,12 @@ import { PortForwardsService } from "./portforwards.service";
 import type { RouterClient, RouterRule } from "./router";
 
 /** An in-memory router: rules live in an array and every write is recorded. */
-function fakeRouter(initial: RouterRule[], targetIp = "10.0.0.5") {
+function fakeRouter(initial: RouterRule[], targetIp = "10.0.0.5", kind: RouterClient["kind"] = "unifi") {
   const rules = [...initial];
   const calls: string[] = [];
   let seq = 100;
   const client: RouterClient = {
-    kind: "unifi",
+    kind,
     host: "10.0.0.1",
     targetIp,
     list: async () => rules.map((r) => ({ ...r })),
@@ -41,6 +41,9 @@ function fakeRouter(initial: RouterRule[], targetIp = "10.0.0.5") {
     },
     commit: async () => {
       calls.push("commit");
+    },
+    probeWrite: async () => {
+      calls.push("probeWrite");
     },
   };
   return { client, calls, rules };
@@ -131,6 +134,36 @@ describe("PortForwardsService", () => {
     ]);
     await service(router).apply("srv1");
     expect(router.calls).toEqual([]);
+  });
+
+  it("testConnection probes writes on pfSense and reports a probe failure", async () => {
+    const router = fakeRouter([], "10.0.0.5", "pfsense");
+    const ok = await service(router).testConnection();
+    expect(ok.ok).toBe(true);
+    expect(ok.message).toMatch(/Read and write access OK/);
+    expect(router.calls).toEqual(["probeWrite"]);
+    router.client.probeWrite = async () => {
+      throw new Error("403 forbidden");
+    };
+    const bad = await service(router).testConnection();
+    expect(bad.ok).toBe(false);
+    expect(bad.message).toMatch(/Connected to 10.0.0.1.*cannot write rules: 403 forbidden/);
+  });
+
+  it("testConnection on UniFi never writes; testWriteAccess does", async () => {
+    const router = fakeRouter([]);
+    const res = await service(router).testConnection();
+    expect(res.ok).toBe(true);
+    expect(res.message).toMatch(/Read access only/);
+    expect(router.calls).toEqual([]);
+    const write = await service(router).testWriteAccess();
+    expect(write.ok).toBe(true);
+    expect(router.calls).toEqual(["probeWrite"]);
+    router.client.probeWrite = async () => {
+      throw new Error("returned no id");
+    };
+    const bad = await service(router).testWriteAccess();
+    expect(bad).toEqual({ ok: false, message: "UniFi write test failed: returned no id" });
   });
 
   it("setEnabled toggles the matched rule and rejects ports outside the spec", async () => {

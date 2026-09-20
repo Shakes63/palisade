@@ -1,6 +1,6 @@
 import { request as httpsRequest } from "node:https";
 import type { ForwardPort } from "../catalog/ports";
-import type { RouterClient, RouterRule } from "./router";
+import { PROBE_PORT, PROBE_RULE_NAME, type RouterClient, type RouterRule } from "./router";
 
 /** The slice of a pfSense NAT rule we read. */
 interface NatRule {
@@ -137,5 +137,34 @@ export class PfsenseClient implements RouterClient {
     // Apply twice — the reliable pattern against this API.
     await this.api("POST", "/firewall/apply", {});
     await this.api("POST", "/firewall/apply", {});
+  }
+
+  /** The create and delete leave pfSense flagging pending NAT changes even
+   *  though the config is back where it was, so a box that was clean before
+   *  gets re-applied; one with someone else's pending edits is left alone. */
+  async probeWrite(): Promise<void> {
+    const status = await this.api<{ data?: { applied?: boolean } }>("GET", "/firewall/apply");
+    const wasClean = status?.data?.applied !== false;
+    const res = await this.api<{ data?: { id?: number } }>("POST", "/firewall/nat/port_forward", {
+      interface: "wan",
+      ipprotocol: "inet",
+      protocol: "tcp",
+      source: "any",
+      destination: "wan:ip",
+      destination_port: String(PROBE_PORT),
+      target: this.targetIp,
+      local_port: String(PROBE_PORT),
+      descr: PROBE_RULE_NAME,
+      associated_rule_id: "",
+      disabled: true,
+    });
+    const id = res?.data?.id;
+    if (id === undefined) throw new Error("pfSense accepted the test rule but returned no id — check the key's privileges");
+    try {
+      await this.api("DELETE", "/firewall/nat/port_forward", { id: Number(id) });
+    } catch (e) {
+      throw new Error(`pfSense created the test rule but could not delete it: ${(e as Error).message}. Remove "${PROBE_RULE_NAME}" under Firewall → NAT.`);
+    }
+    if (wasClean) await this.commit();
   }
 }

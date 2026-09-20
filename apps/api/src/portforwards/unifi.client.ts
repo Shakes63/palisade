@@ -1,6 +1,6 @@
 import { request as httpsRequest } from "node:https";
 import type { ForwardPort } from "../catalog/ports";
-import { portSpecCovers, type RouterClient, type RouterRule } from "./router";
+import { portSpecCovers, PROBE_PORT, PROBE_RULE_NAME, type RouterClient, type RouterRule } from "./router";
 
 /** The slice of a UniFi port-forward object we read. */
 interface UnifiForward {
@@ -202,5 +202,28 @@ export class UnifiClient implements RouterClient {
 
   async commit(): Promise<void> {
     /* UniFi provisions each write immediately */
+  }
+
+  /** Two config changes on the console, each pushed to the gateway. The rule
+   *  is disabled, so the firewall never carries it even between the two. */
+  async probeWrite(): Promise<void> {
+    const created = await this.api<UnifiForward>("POST", this.sitePath("rest/portforward"), {
+      name: PROBE_RULE_NAME,
+      enabled: false,
+      pfwd_interface: "wan",
+      src: "any",
+      dst_port: String(PROBE_PORT),
+      fwd: this.targetIp,
+      fwd_port: String(PROBE_PORT),
+      proto: "tcp",
+      log: false,
+    });
+    const id = created[0]?._id;
+    if (!id) throw new Error("UniFi accepted the test rule but returned no id — the API key may lack write access");
+    try {
+      await this.api("DELETE", this.sitePath(`rest/portforward/${id}`));
+    } catch (e) {
+      throw new Error(`UniFi created the test rule but could not delete it: ${(e as Error).message}. Remove "${PROBE_RULE_NAME}" under Settings → Firewall & Security → Port Forwarding.`);
+    }
   }
 }
