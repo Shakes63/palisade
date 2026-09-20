@@ -144,7 +144,7 @@ export function ConnectCommand({
   /** Needed by games whose join info comes from the manager (Core Keeper). */
   serverId?: string;
   gamePort: number;
-  /** Steam query port — Conan's Direct Connect uses this, not the game port. */
+  /** Steam query port — Conan's Direct Connect and Enshrouded's Join IP use this, not the game port. */
   queryPort?: number;
   /** Server join password, if set. */
   joinPassword?: string | null;
@@ -320,10 +320,11 @@ export function ConnectCommand({
         <div className="mb-1 flex items-center gap-1.5 text-xs font-medium text-slate-400">
           <Terminal className="h-3.5 w-3.5" /> Join by IP (in-game)
         </div>
-        <CopyRow value={`${hostOr}:${gamePort}`} title="Paste into Enshrouded's Join IP" />
+        <CopyRow value={`${hostOr}:${queryPort ?? gamePort}`} title="Paste into Enshrouded's Join IP" />
         <p className="mt-1 text-[11px] leading-snug text-slate-500">
-          In Enshrouded: <span className="font-mono">Play → Server List → Join IP</span>, paste this. Or search
-          the server list by name. Online, friends use your public IP with the same port.
+          In Enshrouded: <span className="font-mono">Play → Server List → Join IP</span>, paste this.
+          Enshrouded joins on the <em>query</em> port, not the game port. Or search the server list by name.
+          Online, friends use your public IP with the same port.
         </p>
         {joinPassword && (
           <div className="mt-3">
