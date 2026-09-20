@@ -25,6 +25,13 @@ export class RouterController {
   test(@Body() body: RouterTestBody) {
     return this.portforwards.testConnection(body);
   }
+
+  /** Create and delete a disabled rule to prove the key can write. Kept off
+   *  the plain test because UniFi pushes each write to the gateway. */
+  @Post("test-write")
+  testWrite(@Body() body: RouterTestBody) {
+    return this.portforwards.testWriteAccess(body);
+  }
 }
 
 class ToggleForwardBody {

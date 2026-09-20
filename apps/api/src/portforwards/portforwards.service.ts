@@ -154,20 +154,42 @@ export class PortForwardsService {
 
   /** Validate router settings for the Settings page's Test button — the form's
    *  current values, falling back to what's saved — by reaching the API and
-   *  reporting the WAN address and how many rules exist. */
+   *  reporting the WAN address and how many rules exist. pfSense also gets the
+   *  write probe here because nothing is applied there; UniFi pushes every
+   *  change to the gateway, so it stays behind its own button (testWriteAccess). */
   async testConnection(draft: RouterDraft = {}): Promise<{ ok: boolean; message: string }> {
     const kind = draft.router ?? (await this.routerKind());
     const label = ROUTER_LABELS[kind];
     const c = await this.client(draft);
     if (!c) return { ok: false, message: `Fill in the ${label} host, API key, and target IP first.` };
+    let detail: string;
+    let wanIp: string | null;
     try {
-      const [detail, wanIp] = await Promise.all([c.describe(), this.wanIp(c)]);
-      return {
-        ok: true,
-        message: `Connected to ${c.host} — WAN ${wanIp ?? "unknown"}, ${detail}. Forwards will target ${c.targetIp}.`,
-      };
+      [detail, wanIp] = await Promise.all([c.describe(), this.wanIp(c)]);
     } catch (e) {
       return { ok: false, message: `Could not reach the ${label} API: ${(e as Error).message}` };
+    }
+    const connected = `Connected to ${c.host} — WAN ${wanIp ?? "unknown"}, ${detail}. Forwards will target ${c.targetIp}.`;
+    if (c.kind !== "pfsense") return { ok: true, message: `${connected} (Read access only — use Test write access to check the key can change rules.)` };
+    try {
+      await c.probeWrite();
+      return { ok: true, message: `${connected} Read and write access OK.` };
+    } catch (e) {
+      return { ok: false, message: `${connected} But the key cannot write rules: ${(e as Error).message}` };
+    }
+  }
+
+  /** Prove the key can change rules by creating and deleting a disabled one. */
+  async testWriteAccess(draft: RouterDraft = {}): Promise<{ ok: boolean; message: string }> {
+    const kind = draft.router ?? (await this.routerKind());
+    const label = ROUTER_LABELS[kind];
+    const c = await this.client(draft);
+    if (!c) return { ok: false, message: `Fill in the ${label} host, API key, and target IP first.` };
+    try {
+      await c.probeWrite();
+      return { ok: true, message: `${label} created and removed a disabled test rule — the key can write port forwards.` };
+    } catch (e) {
+      return { ok: false, message: `${label} write test failed: ${(e as Error).message}` };
     }
   }
 

@@ -199,6 +199,24 @@ export default function SettingsPage() {
     }
   };
 
+  // UniFi only: creates and deletes a disabled rule, two config pushes to the
+  // gateway, so it is a separate button the admin chooses to press.
+  const testUnifiWrite = async () => {
+    setPfTestMsg("Testing write access…");
+    try {
+      const res = await apiPost<{ ok: boolean; message: string }>("/router/test-write", {
+        router: "unifi",
+        host: unifiHost,
+        apiKey: unifiApiKey,
+        site: unifiSite,
+        targetIp: unifiTargetIp,
+      });
+      setPfTestMsg(`${res.ok ? "✓ " : "✗ "}${res.message}`);
+    } catch (err) {
+      setPfTestMsg((err as Error).message);
+    }
+  };
+
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <h1 className="flex items-center gap-2 text-xl font-semibold">
@@ -467,7 +485,7 @@ export default function SettingsPage() {
                   Works with UniFi OS consoles (Dream Machine, Cloud Gateway, Cloud Key) on Network 9.0 or
                   newer. Create an API key in the Network app under Settings → Control Plane → Integrations;
                   the key inherits the role of the admin who creates it, so use a full admin, not a
-                  view-only one — Test connection only reads. Multi-site setups: use the site&apos;s short name from the URL
+                  view-only one. Multi-site setups: use the site&apos;s short name from the URL
                   (usually <span className="font-mono text-slate-400">default</span>).
                 </p>
                 <div className="grid gap-3 sm:grid-cols-2">
@@ -508,9 +526,24 @@ export default function SettingsPage() {
               </>
             )}
             <div>
-              <button type="button" className="btn-secondary" onClick={testRouter}>
-                <Send className="h-4 w-4" /> Test connection
-              </button>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" className="btn-secondary" onClick={testRouter}>
+                  <Send className="h-4 w-4" /> Test connection
+                </button>
+                {portForwardRouter === "unifi" && (
+                  <button type="button" className="btn-secondary" onClick={testUnifiWrite}>
+                    <Send className="h-4 w-4" /> Test write access
+                  </button>
+                )}
+              </div>
+              {portForwardRouter === "unifi" && (
+                <p className="mt-2 text-xs text-slate-500">
+                  Test connection only reads. Test write access creates a disabled rule named{" "}
+                  <span className="font-mono text-slate-400">Palisade - write test (safe to delete)</span> and deletes
+                  it again. Each of those two steps is a real config change that UniFi pushes to the gateway, so
+                  run it when a brief firewall reload would be acceptable.
+                </p>
+              )}
               {pfTestMsg && <p className="mt-2 text-sm text-slate-400">{pfTestMsg}</p>}
             </div>
             <CardSave card="portforwarding" onClick={savePortForwarding} />

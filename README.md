@@ -385,8 +385,8 @@ next time it starts.
 | CurseForge API key | ASA mod browser, Minecraft modpack browser | Free key from <https://console.curseforge.com/> |
 | Steam Web API key | ASE/Conan Workshop browser | Free key from <https://steamcommunity.com/dev/apikey> |
 | Discord webhook | State changes, crashes, backups, schedule events | A channel webhook URL |
-| pfSense | Per-server WAN port-forward management (create / fix / enable / disable / delete, WAN IP display) | The free [pfSense REST API package](https://pfrest.org/) on your router + an API key (System → REST API). Works with any pfSense — nothing is network-specific. Use the **Test connection** button to validate. |
-| UniFi | Same port-forward management on a UniFi OS console (Dream Machine, Cloud Gateway, Cloud Key) | An API key from the Network app (Settings → Control Plane → Integrations) on Network 9.0+, created by a full admin (a view-only key passes **Test connection** but cannot write rules), plus the site name (`default` unless multi-site). Pick **UniFi** under Settings → Integrations → Port forwarding, then **Test connection**. |
+| pfSense | Per-server WAN port-forward management (create / fix / enable / disable / delete, WAN IP display) | The free [pfSense REST API package](https://pfrest.org/) on your router + an API key (System → REST API). Works with any pfSense — nothing is network-specific. **Test connection** checks read and write access (see [Checking write access](#checking-router-write-access)). |
+| UniFi | Same port-forward management on a UniFi OS console (Dream Machine, Cloud Gateway, Cloud Key) | An API key from the Network app (Settings → Control Plane → Integrations) on Network 9.0+, created by a full admin, plus the site name (`default` unless multi-site). Pick **UniFi** under Settings → Integrations → Port forwarding, then **Test connection** and **Test write access** (see [Checking write access](#checking-router-write-access)). |
 
 **CurseForge terms:** the mod browser uses the CurseForge API read-only to
 search and display mods; it never downloads or redistributes mod files — the
@@ -394,6 +394,39 @@ game servers fetch mods themselves through official integrations. Bring your
 own key; keys are non-transferable under CurseForge's
 [3rd-party API terms](https://support.curseforge.com/en/support/solutions/articles/9000207405-curse-forge-3rd-party-api-terms-and-conditions).
 This repo does not ship one.
+
+### Checking router write access
+
+A router API key can pass a connection test and still be unable to change
+anything: a key inherits the role of the admin who created it, and a view-only
+key reads rules fine. Neither router API has a dry-run mode, and UniFi's
+port-forward endpoint does not validate its input (an empty body creates an empty
+rule), so the only honest write check is to make a real change and undo it.
+
+Palisade does that with a **disabled** rule named
+`Palisade - write test (safe to delete)` on TCP port 65535, pointed at the
+target IP. It is created, then deleted by the id the router returned. Being
+disabled, it never reaches the live firewall. If the delete fails, the message
+says so and names the rule so you can remove it by hand.
+
+- **pfSense** runs the probe as part of **Test connection**. The create and
+  delete are never applied on their own, so the running ruleset is untouched.
+  pfSense still flags the config as having pending NAT changes afterwards, so
+  when the box had nothing pending before the probe Palisade applies once more
+  to clear the flag (a reload of an identical ruleset). If something else was
+  already pending, it is left pending for you to apply.
+- **UniFi** keeps the probe behind a separate **Test write access** button. Each
+  step is a real config change that the console pushes to the gateway (the
+  device's config version changes and changes back). On a UDM running Network
+  10.6 that did not trigger a full re-provision, but UniFi can reload the
+  firewall on a config push, so run it when a brief reload would be acceptable,
+  not mid-session. A green result means the key can create and delete rules; a
+  red one names the step that failed and, if the delete failed, the rule to
+  remove by hand.
+
+When **Fix forwards** later reports that the router accepted a change but the
+ports still are not forwarded, run this check first: it separates a permissions
+problem from a router-side one.
 
 ## Reverse proxy / TLS
 
