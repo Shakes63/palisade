@@ -466,7 +466,8 @@ export default function SettingsPage() {
                 <p className="text-xs text-slate-500">
                   Works with UniFi OS consoles (Dream Machine, Cloud Gateway, Cloud Key) on Network 9.0 or
                   newer. Create an API key in the Network app under Settings → Control Plane → Integrations;
-                  the key needs an admin role. Multi-site setups: use the site&apos;s short name from the URL
+                  the key inherits the role of the admin who creates it, so use a full admin, not a
+                  view-only one — Test connection only reads. Multi-site setups: use the site&apos;s short name from the URL
                   (usually <span className="font-mono text-slate-400">default</span>).
                 </p>
                 <div className="grid gap-3 sm:grid-cols-2">
