@@ -2,7 +2,7 @@
 
 **Image:** `mornedhels/enshrouded-server` (by mornedhels; Windows server under Proton) · **Ports (defaults):** 15636/udp (game), 15637/udp (Steam query / server browser)
 
-**Join:** In Enshrouded: Play → Server List → Join IP, paste the server IP and port 15636, or search the server list by name. Online, friends use your public IP with the same port. Enter the join password to play as Guest; append `-admin` to it for admin rights.
+**Join:** In Enshrouded: Play → Server List → Join IP, paste the server IP and port 15637 — joining uses the query port, not the game port — or search the server list by name. Online, friends use your public IP with the same port. Enter the join password to play as Guest; append `-admin` to it for admin rights.
 
 **Admin:** None — no RCON and no console (the Console tab is hidden). There is no admin password field: the admin role is derived from the join password. Palisade defines three roles from the single join password — Guest (`<pw>`), Friend (`<pw>-friend`), and Admin (`<pw>-admin`, can kick/ban).
 
