@@ -300,13 +300,16 @@ export class GameEndpointService {
       const id = await this.selfId();
       if (!id) return unknown; // not in a container (dev on the host)
       const info = await this.docker.inspect(id);
-      const networks = Object.keys(info.NetworkSettings?.Networks ?? {});
+      const attached = info.NetworkSettings?.Networks ?? {};
+      const networks = Object.keys(attached);
+      const gatewayOf = [sharedNetwork, LEGACY_NETWORK, ...networks].find((n) => attached[n]?.Gateway);
       const facts: ManagerNetworkFacts = {
         inContainer: true,
         hostNetwork: info.HostConfig?.NetworkMode === "host" || networks.includes("host"),
         networks,
         name: info.Name?.replace(/^\//, "") || null,
         sharedNetwork,
+        bridgeGateway: gatewayOf ? attached[gatewayOf]!.Gateway : null,
       };
       this.managerName = facts.name ?? null;
       // Either bridge counts: mid-migration the servers may still be on the old one.

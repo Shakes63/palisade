@@ -173,6 +173,26 @@ describe("hostGatewayAddress", () => {
   it("uses the host gateway from inside a bridged container", () => {
     expect(hostGatewayAddress(managerOnShared)).toBe("host.docker.internal");
   });
+  it("prefers the gateway of a bridge it is attached to", () => {
+    // GH #126: a manager on Unraid's br0 macvlan (+ palisade-net) cannot route to
+    // docker0, so host.docker.internal times out; the palisade-net gateway is a
+    // directly connected interface and reaches the same host.
+    const managerOnBr0: ManagerNetworkFacts = {
+      ...managerOnShared,
+      networks: ["br0", "palisade-net"],
+      bridgeGateway: "172.21.0.1",
+    };
+    expect(hostGatewayAddress(managerOnBr0)).toBe("172.21.0.1");
+    expect(
+      resolveGameEndpoint({
+        facts: { networkMode: "host", networks: { host: null }, ports: {} },
+        manager: managerOnBr0,
+        containerPort: 15637,
+        protocol: "udp",
+        fallbackHost: "enshrouded-x",
+      }),
+    ).toEqual({ host: "172.21.0.1", port: 15637, via: "host-network" });
+  });
   it("uses loopback when the manager is on the host network", () => {
     expect(hostGatewayAddress(managerOnHost)).toBe("127.0.0.1");
   });
@@ -257,12 +277,12 @@ describe("explainEndpointFailure", () => {
     expect(hint).toContain("no route");
     expect(hint).toContain("macvlan");
     expect(hint).toContain("docker network connect palisade-net palisade");
-    expect(hint).toContain("GAME_HOST_NETWORK=false");
+    expect(hint).toContain("restart the manager");
   });
 
   it("explains a no-route failure to a container IP without the host-network advice", () => {
-    // Bridge mode, manager elsewhere: attaching to the shared network is the fix, but telling
-    // them to set GAME_HOST_NETWORK=false would be nonsense — they already have.
+    // Bridge mode, manager elsewhere: attaching to the shared network is the fix; the
+    // macvlan/host-gateway explanation does not apply.
     const err = Object.assign(new Error("connect EHOSTUNREACH 172.19.0.3:27020"), {
       code: "EHOSTUNREACH",
     });
@@ -274,7 +294,7 @@ describe("explainEndpointFailure", () => {
     });
     expect(hint).toContain("no route");
     expect(hint).toContain("docker network connect palisade-net palisade");
-    expect(hint).not.toContain("GAME_HOST_NETWORK=false");
+    expect(hint).not.toContain("macvlan");
   });
 
   it("treats ENETUNREACH the same as EHOSTUNREACH", () => {

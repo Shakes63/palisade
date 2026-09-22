@@ -97,7 +97,7 @@ const CAPTURE_NOTES: Partial<Record<Game, string>> = {
   [Game.ICARUS]: "Captured from join log lines (name only).",
   [Game.BEDROCK]: "Captured from join log lines (gamertag + XUID).",
   [Game.VALHEIM]: "Captured from join log lines (character name + SteamID64).",
-  [Game.ENSHROUDED]: "Captured from join log lines when the server prints them.",
+  [Game.ENSHROUDED]: "Captured from the server's join and leave log lines.",
   [Game.TERRARIA]: "Captured from join log lines (character name).",
   [Game.MINECRAFT]: "Captured from the live player list + join log lines.",
 };
@@ -122,6 +122,8 @@ export class SightingsService implements OnModuleInit {
   private readonly valheimPendingId = new Map<string, string>();
   /** serverId → names seen in the last RCON poll, for leave detection. */
   private readonly lastPollNames = new Map<string, Set<string>>();
+  /** serverId → names currently online per the join/leave log lines (Enshrouded). */
+  private readonly logRoster = new Map<string, Set<string>>();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -150,6 +152,11 @@ export class SightingsService implements OnModuleInit {
       .catch(() => []);
     for (const s of running) {
       const game = s.game as Game;
+      if (game === Game.ENSHROUDED) {
+        // No player list to poll; the log-derived roster is the heartbeat instead.
+        for (const name of this.logRoster.get(s.id) ?? []) await this.upsert(s.id, name, undefined, true);
+        continue;
+      }
       if (!RCON_POLL_GAMES.has(game) || !s.adminPasswordEnc) continue;
       try {
         const players = await this.listDetailed(s.id, game);
@@ -161,14 +168,7 @@ export class SightingsService implements OnModuleInit {
         const previous = this.lastPollNames.get(s.id);
         if (previous) {
           for (const name of previous) {
-            if (!current.has(name)) {
-              await this.events.emit({
-                type: EventType.PlayerLeave,
-                message: `${name} left`,
-                serverId: s.id,
-                data: { name },
-              });
-            }
+            if (!current.has(name)) await this.leave(s.id, name);
           }
         }
         this.lastPollNames.set(s.id, current);
@@ -182,6 +182,15 @@ export class SightingsService implements OnModuleInit {
     for (const id of this.lastPollNames.keys()) {
       if (!runningIds.has(id)) this.lastPollNames.delete(id);
     }
+    for (const id of this.logRoster.keys()) {
+      if (!runningIds.has(id)) this.logRoster.delete(id);
+    }
+  }
+
+  private async leave(serverId: string, name: string): Promise<void> {
+    await this.events
+      .emit({ type: EventType.PlayerLeave, message: `${name} left`, serverId, data: { name } })
+      .catch(() => undefined);
   }
 
   /** Names + platform ids from the game's own player-list command. */
@@ -272,8 +281,18 @@ export class SightingsService implements OnModuleInit {
       return;
     }
     if (game === Game.ENSHROUDED) {
-      const m = line.match(/Player '([^']+)' (?:joined|logged in|connected)/i);
-      if (m) void this.upsert(serverId, m[1]!);
+      // "Machine '1': Player '0(0)' logged in" precedes the real line; only the
+      // real one carries the permissions suffix.
+      const m = line.match(/Player '([^']+)' logged in with Permissions/i);
+      if (m) {
+        let roster = this.logRoster.get(serverId);
+        if (!roster) this.logRoster.set(serverId, (roster = new Set()));
+        roster.add(m[1]!);
+        void this.upsert(serverId, m[1]!);
+        return;
+      }
+      const left = line.match(/Remove Entity for Player '([^']+)'/i);
+      if (left && this.logRoster.get(serverId)?.delete(left[1]!)) void this.leave(serverId, left[1]!);
       return;
     }
     if (game === Game.TERRARIA) {
@@ -347,7 +366,7 @@ export class SightingsService implements OnModuleInit {
         CAPTURE_NOTES[game] ??
         "Captured from the live player list every minute while the server runs.",
       hourCounts,
-      playtimeTracked: RCON_POLL_GAMES.has(game),
+      playtimeTracked: RCON_POLL_GAMES.has(game) || game === Game.ENSHROUDED,
     };
   }
 

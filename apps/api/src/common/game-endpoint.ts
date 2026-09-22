@@ -40,6 +40,9 @@ export interface ManagerNetworkFacts {
   hostNetwork: boolean;
   /** Names of the Docker networks the manager is attached to. */
   networks: string[];
+  /** The host's address on a bridge the manager is attached to, shared network first.
+   *  A manager on an Unraid macvlan (br0) cannot route to docker0 (GH #126). */
+  bridgeGateway?: string | null;
   /** The manager's own container name, so a suggested fix is copy-pasteable rather
    *  than a `<placeholder>` the user has to go look up. */
   name?: string | null;
@@ -59,10 +62,13 @@ export interface ResolvedEndpoint {
 /**
  * The host-side address of a port bound on the Docker host. A manager on the host
  * network (or outside Docker entirely) reaches it on loopback; one inside a bridge
- * needs the host gateway, which requires `--add-host host.docker.internal:host-gateway`.
+ * uses that bridge's gateway, which is always routable from it, and falls back to
+ * host.docker.internal (`--add-host host.docker.internal:host-gateway`) when we
+ * couldn't read our own networks.
  */
 export function hostGatewayAddress(manager: ManagerNetworkFacts): string {
-  return !manager.inContainer || manager.hostNetwork ? "127.0.0.1" : "host.docker.internal";
+  if (!manager.inContainer || manager.hostNetwork) return "127.0.0.1";
+  return manager.bridgeGateway || "host.docker.internal";
 }
 
 /** True when the container runs in the host's network namespace. */
@@ -182,13 +188,12 @@ export function explainEndpointFailure(input: {
   }
 
   // No route at all — distinct from "nothing listening". The classic cause is a
-  // manager on an Unraid custom/macvlan network: such a container is isolated from
-  // both the Docker host and Docker's bridges, so neither the host gateway nor a
-  // container IP is reachable, whichever way GAME_HOST_NETWORK is set (GH #31).
+  // manager on an Unraid custom/macvlan network and nothing else: such a container
+  // is isolated from the Docker host and its bridges until it joins one (GH #31).
   if (code === "EHOSTUNREACH" || code === "ENETUNREACH") {
     const attach = `docker network connect ${net} ${manager.name || "<manager container>"}`;
     return endpoint.via === "host-network" || endpoint.via === "published-port"
-      ? `no route from the manager to ${endpoint.host} — it is on a network with no path to the Docker host. If the manager runs on an Unraid custom/macvlan network, it cannot reach the host gateway: attach it to "${net}" as an additional network (${attach}) and set GAME_HOST_NETWORK=false so game servers share that bridge`
+      ? `no route from the manager to ${endpoint.host} — it is on a network with no path to the Docker host. If the manager runs on an Unraid custom/macvlan network, attach it to "${net}" as an additional network (${attach}) so it can reach the host through that bridge, then restart the manager`
       : `no route from the manager to ${endpoint.host} — the manager and this server are on networks that cannot reach each other. Attach the manager to "${net}" (${attach}), then restart this server`;
   }
 
