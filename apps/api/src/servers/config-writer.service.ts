@@ -82,7 +82,8 @@ export class ServerConfigWriter {
       game === Game.RUST ||
       game === Game.BEAMMP ||
       game === Game.PALWORLD_WINE ||
-      game === Game.CS2 // pure env (joedwards32 renders its own cfgs)
+      game === Game.CS2 || // pure env (joedwards32 renders its own cfgs)
+      game === Game.DRAGONWILDS // the image writes DedicatedServer.ini from env
     )
       return;
 

@@ -44,4 +44,5 @@ export const GAME_VERSION_PINNING: Record<Game, VersionPinKind> = {
   [Game.BEAMMP]: "none",
   [Game.CS2]: "none", // the image runs a SteamCMD update on every start — restart = update
   [Game.DST]: "none", // jamesits updates the server on start
+  [Game.DRAGONWILDS]: "none", // the image runs SteamCMD on every start
 };

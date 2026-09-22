@@ -173,6 +173,13 @@ export const CS2_PORTS: PortSet = { game: 27015, rawSocket: 27020, query: 27015,
 // DST: master shard 10999/udp, caves shard 11000/udp (rawSocket slot), Steam
 // authentication 12346/udp + 12347/udp (query slot + its neighbour). No RCON.
 export const DST_PORTS: PortSet = { game: 10999, rawSocket: 11000, query: 12346, rcon: 0 };
+
+// Dragonwilds: one UDP game port (7777), advertised to EOS as the port it BINDS, so
+// host and container port must match (they do — we publish 1:1). No query port (no
+// A2S; the browser is EOS-backed) and no RCON. The world-settings beacon (8888) and
+// LAN probe (45453) are compiled constants that stay unpublished: joins work
+// without them (verified live) and 8888 would collide between two servers.
+export const DRAGONWILDS_PORTS: PortSet = { game: 7777, rawSocket: 0, query: 0, rcon: 0 };
 /**
  * The port PalServer.exe binds under the ripps818 Wine image, and it is NOT
  * negotiable: that image launches the binary with no `-port=` argument and offers no
@@ -344,6 +351,8 @@ export function forwardSpec(game: Game, ports: PortSet): ForwardPort[] {
         { port: ports.query, proto: "udp", label: "steam auth" },
         { port: ports.query + 1, proto: "udp", label: "steam master" },
       ];
+    case Game.DRAGONWILDS:
+      return [{ port: ports.game, proto: "udp", label: "game" }];
     default:
       // ARK family + Conan: game + raw socket + query, all UDP.
       return [
@@ -378,5 +387,6 @@ export function portsFor(game: Game): PortSet {
   if (game === Game.OPENTTD) return OPENTTD_PORTS;
   if (game === Game.CS2) return CS2_PORTS;
   if (game === Game.DST) return DST_PORTS;
+  if (game === Game.DRAGONWILDS) return DRAGONWILDS_PORTS;
   return FIXED_PORTS;
 }

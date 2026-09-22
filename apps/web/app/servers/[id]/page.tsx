@@ -41,6 +41,7 @@ import { IcarusModsTab } from "@/components/icarus-mods-tab";
 import { BedrockModsTab } from "@/components/bedrock-mods-tab";
 import { SevenDaysModsTab } from "@/components/sevendays-mods-tab";
 import { ValheimModsTab } from "@/components/valheim-mods-tab";
+import { DragonwildsModsTab } from "@/components/dragonwilds-mods-tab";
 import { useStartGuard } from "@/components/start-guard";
 import { useArtwork } from "@/lib/use-artwork";
 import { useRole } from "@/lib/use-role";
@@ -248,7 +249,7 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
   // (.pak files / add-on packs); Valheim's mods are settings toggles (BepInEx/
   // ValheimPlus), so it hides Mods too.
   const hiddenTabs =
-    server.game === Game.ICARUS || server.game === Game.BEDROCK
+    server.game === Game.ICARUS || server.game === Game.BEDROCK || server.game === Game.DRAGONWILDS
       ? new Set<Tab>(["Console"])
       : server.game === Game.SEVEN_DAYS
         ? new Set<Tab>() // telnet console + mod uploader — both tabs shown
@@ -495,6 +496,8 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
           <SevenDaysModsTab serverId={id} />
         ) : server.game === Game.VALHEIM ? (
           <ValheimModsTab serverId={id} />
+        ) : server.game === Game.DRAGONWILDS ? (
+          <DragonwildsModsTab serverId={id} />
         ) : (
           <ModsTab serverId={id} game={server.game} />
         ))}
@@ -667,10 +670,11 @@ function Overview({ server, onChanged }: { server: ServerSummary; onChanged: () 
   const isOpenttd = server.game === Game.OPENTTD;
   const isCs2 = server.game === Game.CS2;
   const isDst = server.game === Game.DST;
+  const isDragonwilds = server.game === Game.DRAGONWILDS;
   const isArk = server.game === Game.ASE || server.game === Game.ASA;
-  const noQuery = isMc || isBedrock || isSdtd || isZomboid || isSatisfactory || isCoreKeeper || isTerraria || isFactorio || isBeammp || isOpenttd || isCs2 || isDst; // Valheim/Enshrouded/V Rising have a real query port; Zomboid/Satisfactory/OpenTTD/CS2 answer queries on the game port; DST queries go through Klei's lobby
-  const noRcon = isIcarus || isBedrock || isValheim || isSdtd || isEnshrouded || isSotf || isSatisfactory || isLif || isAts || isCoreKeeper || isTerraria || isBeammp || isOpenttd || isDst; // 7DTD's console is telnet; OpenTTD's + DST's are in-game only
-  const noMods = isIcarus || isBedrock || isValheim || isSdtd || isEnshrouded || isVRising || isSotf || isSatisfactory || isLif || isAts || isCoreKeeper || isTerraria || isFactorio || isRust || isBeammp || isOpenttd || isCs2 || isDst;
+  const noQuery = isMc || isBedrock || isSdtd || isZomboid || isSatisfactory || isCoreKeeper || isTerraria || isFactorio || isBeammp || isOpenttd || isCs2 || isDst || isDragonwilds; // Valheim/Enshrouded/V Rising have a real query port; Zomboid/Satisfactory/OpenTTD/CS2 answer queries on the game port; DST queries go through Klei's lobby
+  const noRcon = isIcarus || isBedrock || isValheim || isSdtd || isEnshrouded || isSotf || isSatisfactory || isLif || isAts || isCoreKeeper || isTerraria || isBeammp || isOpenttd || isDst || isDragonwilds; // 7DTD's console is telnet; OpenTTD's + DST's are in-game only
+  const noMods = isIcarus || isBedrock || isValheim || isSdtd || isEnshrouded || isVRising || isSotf || isSatisfactory || isLif || isAts || isCoreKeeper || isTerraria || isFactorio || isRust || isBeammp || isOpenttd || isCs2 || isDst || isDragonwilds;
   const row = (k: string, v: string): [string, string] => [k, v];
   const rows: [string, string][] = [
     row("Game", server.game),

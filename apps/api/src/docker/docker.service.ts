@@ -202,13 +202,24 @@ export class DockerService {
 
   /** One-shot (non-follow) log grab, for scanning readiness during reconcile. */
   async tailLogs(id: string, tail = 2000): Promise<string> {
-    const buf = (await this.docker.getContainer(id).logs({
+    const container = this.docker.getContainer(id);
+    const buf = (await container.logs({
       follow: false,
       stdout: true,
       stderr: true,
       tail,
     })) as unknown as Buffer;
+    if (await this.isTty(container)) return stripAnsi(buf.toString("utf8").replace(/\r\n/g, "\n"));
     return stripAnsi(demuxLog(buf));
+  }
+
+  /** A TTY container's log stream is raw (no 8-byte frames, CRLF line ends), so
+   *  demuxing it would read log bytes as frame headers and drop most of the text. */
+  private async isTty(container: Docker.Container): Promise<boolean> {
+    return container
+      .inspect()
+      .then((i) => Boolean(i.Config?.Tty))
+      .catch(() => false);
   }
 
   async createContainer(opts: Docker.ContainerCreateOptions): Promise<string> {
@@ -427,13 +438,14 @@ export class DockerService {
       this.logger.debug(`log stream for ${id} ended: ${e.message}`);
     stream.on("error", onStreamErr);
     out.on("error", onStreamErr);
-    container.modem.demuxStream(stream, out, out);
+    if (await this.isTty(container)) stream.pipe(out);
+    else container.modem.demuxStream(stream, out, out);
     let buffer = "";
     out.on("data", (chunk: Buffer) => {
       buffer += chunk.toString("utf8");
       let idx: number;
       while ((idx = buffer.indexOf("\n")) >= 0) {
-        const line = buffer.slice(0, idx);
+        const line = buffer.slice(0, idx).replace(/\r$/, "");
         buffer = buffer.slice(idx + 1);
         onLine(stripAnsi(line));
       }
