@@ -98,6 +98,11 @@ export const IMAGES: Record<Game, string> = {
   // jamesits/dst-server — installs/updates DST via SteamCMD on start. Volume-driven:
   // the cluster (config + token + saves) lives under /data/DoNotStarveTogether.
   [Game.DST]: "jamesits/dst-server:latest",
+  // ferment9348/dragonwilds (blckassassin/unraid-game-servers) — SteamCMD pulls the
+  // native Linux server on every start; writes only its five managed keys into
+  // DedicatedServer.ini so the server-generated ServerGuid survives. Pinned: the
+  // image has no skip-update switch, so a tag bump is a deliberate change.
+  [Game.DRAGONWILDS]: "ferment9348/dragonwilds:1.1.1",
 };
 
 /** POK keeps all instance data (install + saves + config) under this path. */
@@ -288,6 +293,10 @@ export const OPENTTD_DATA_DIR = "/serverdata";
 export const CS2_DATA_DIR = "/home/steam/cs2-dedicated";
 /** jamesits/dst-server volume; the cluster lives at DoNotStarveTogether/Cluster_1. */
 export const DST_DATA_DIR = "/data";
+/** ferment9348/dragonwilds: the game install (RSDragonwilds/ + saves + config) and a
+ *  reusable SteamCMD dir, both under /serverdata. */
+export const DRAGONWILDS_SERVER_DIR = "/serverdata/serverfiles";
+export const DRAGONWILDS_STEAMCMD_DIR = "/serverdata/steamcmd";
 
 /**
  * The uid/gid each image runs the server as. Neither chowns its mounts fully
@@ -321,6 +330,7 @@ export const SERVER_UID: Record<Game, number> = {
   [Game.OPENTTD]: 99, // ich777 wrapper (UID/GID env = PUID/PGID)
   [Game.CS2]: 1000, // the image's fixed unprivileged "steam" user
   [Game.DST]: 0, // the image manages its own in-container user; bind stays root-writable
+  [Game.DRAGONWILDS]: 99, // image default nobody/users, remapped via UID/GID env (we pass PUID/PGID); it chowns its mounts
 };
 export const SERVER_GID: Record<Game, number> = {
   [Game.ASA]: 7777,
@@ -349,4 +359,5 @@ export const SERVER_GID: Record<Game, number> = {
   [Game.OPENTTD]: 100,
   [Game.CS2]: 1000,
   [Game.DST]: 0,
+  [Game.DRAGONWILDS]: 100,
 };

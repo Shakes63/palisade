@@ -121,6 +121,9 @@ export const LocalPaths = {
       case Game.DST:
         // The whole cluster: cluster.ini + token + both shards' saves/worldgen.
         return ["DoNotStarveTogether/Cluster_1"];
+      case Game.DRAGONWILDS:
+        // Saved/SaveGames with a capital G (the wiki spells it "Savegames"; verified live).
+        return ["gamefiles/RSDragonwilds/Saved/SaveGames"];
       default:
         return ["ShooterGame/Saved"]; // ASA (POK)
     }

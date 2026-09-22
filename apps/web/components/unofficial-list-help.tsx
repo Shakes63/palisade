@@ -52,6 +52,7 @@ export function UnofficialListHelp({
   const openttd = game === Game.OPENTTD;
   const cs2 = game === Game.CS2;
   const dst = game === Game.DST;
+  const dragonwilds = game === Game.DRAGONWILDS;
   const passwordHint = hasJoinPassword
     ? "your server has a join password"
     : "ON only if you set a join password";
@@ -70,7 +71,7 @@ export function UnofficialListHelp({
             ? "Add it to your server list"
             : satisfactory
               ? "Add it to your Server Manager"
-            : conan || palworld || icarus || valheim || sdtd || enshrouded || zomboid || vrising || sotf || lif || ats || factorio || rust || beammp || openttd || cs2 || dst
+            : conan || palworld || icarus || valheim || sdtd || enshrouded || zomboid || vrising || sotf || lif || ats || factorio || rust || beammp || openttd || cs2 || dst || dragonwilds
               ? "Find it in the in-game server browser"
               : "Find it on the in-game Unofficial list"}
         </span>
@@ -78,7 +79,24 @@ export function UnofficialListHelp({
       </button>
 
       {open &&
-        (dst ? (
+        (dragonwilds ? (
+          <div className="space-y-1.5 border-t border-ark-border px-2.5 py-2 text-xs">
+            <p className="text-slate-400">
+              In <span className="text-slate-200">Play → Online → Public</span>:
+            </p>
+            <FilterRow state="on" label="Search by WORLD name (case-sensitive), not the server name" />
+            <FilterRow
+              state={hasJoinPassword ? "on" : "off"}
+              label="Password prompt after picking a character"
+              hint={passwordHint}
+            />
+            <p className="pt-1 leading-snug text-slate-400">
+              The server name shows as <span className="text-slate-300">Created by</span>; the search box
+              matches the world name from Settings. Consoles cannot type an IP, so give console players
+              the world name or the invite code above.
+            </p>
+          </div>
+        ) : dst ? (
           <div className="space-y-1.5 border-t border-ark-border px-2.5 py-2 text-xs">
             <p className="text-slate-400">
               In <span className="text-slate-200">Play → Browse Games</span>:

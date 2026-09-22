@@ -13,6 +13,7 @@ import { SchedulerModule } from "./scheduler/scheduler.module";
 import { ModsModule } from "./mods/mods.module";
 import { PalModsModule } from "./palmods/palmods.module";
 import { IcarusModsModule } from "./icarusmods/icarusmods.module";
+import { DragonwildsModsModule } from "./dragonwildsmods/dragonwildsmods.module";
 import { BedrockModsModule } from "./bedrockmods/bedrockmods.module";
 import { SevenDaysModsModule } from "./sevendaysmods/sevendaysmods.module";
 import { ValheimModsModule } from "./valheimmods/valheimmods.module";
@@ -52,6 +53,7 @@ import { HealthController } from "./health/health.controller";
     ModsModule,
     PalModsModule,
     IcarusModsModule,
+    DragonwildsModsModule,
     BedrockModsModule,
     SevenDaysModsModule,
     ValheimModsModule,

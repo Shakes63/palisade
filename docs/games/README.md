@@ -24,6 +24,7 @@ One page per supported game: the Docker image Palisade uses (with credit), defau
 | Palworld (Wine, DLL mods) | [palworld-wine.md](palworld-wine.md) |
 | Project Zomboid | [zomboid.md](zomboid.md) |
 | Rust | [rust.md](rust.md) |
+| RuneScape: Dragonwilds | [dragonwilds.md](dragonwilds.md) |
 | Satisfactory | [satisfactory.md](satisfactory.md) |
 | 7 Days to Die | [seven-days.md](seven-days.md) |
 | Sons of the Forest | [sotf.md](sotf.md) |

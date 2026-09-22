@@ -34,6 +34,7 @@ import {
   OPENTTD_OFFICIAL_MAPS,
   CS2_OFFICIAL_MAPS,
   DST_OFFICIAL_MAPS,
+  DRAGONWILDS_OFFICIAL_MAPS,
   GAME_LABELS,
   MAX_PLAYERS_BY_GAME,
   DEFAULT_MAX_PLAYERS_BY_GAME,
@@ -356,6 +357,7 @@ const MAPS_FOR: Record<Game, readonly string[]> = {
   [Game.OPENTTD]: OPENTTD_OFFICIAL_MAPS,
   [Game.CS2]: CS2_OFFICIAL_MAPS,
   [Game.DST]: DST_OFFICIAL_MAPS,
+  [Game.DRAGONWILDS]: DRAGONWILDS_OFFICIAL_MAPS,
 };
 
 function CreateServerForm({ onDone }: { onDone: () => void }) {

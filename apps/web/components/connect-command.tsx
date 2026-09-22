@@ -106,6 +106,83 @@ function CoreKeeperJoinCard({ serverId, className = "" }: { serverId: string; cl
   );
 }
 
+/** Dragonwilds' invite code: written into the server's session at every start (and
+ *  regenerated on every restart), read back off the container log by the manager.
+ *  Polled for a while so it appears once the boot reaches ReadyToJoin. */
+function useDragonwildsInviteCode(serverId: string): string | null {
+  const [code, setCode] = useState<string | null>(null);
+  useEffect(() => {
+    let stop = false;
+    let tries = 0;
+    const load = () => {
+      void apiGet<{ inviteCode: string | null }>(`/servers/${serverId}/join-info`)
+        .then((r) => {
+          if (stop) return;
+          if (r.inviteCode) setCode(r.inviteCode);
+          else if (tries++ < 60) setTimeout(load, 10_000); // a first boot generates the world first
+        })
+        .catch(() => undefined);
+    };
+    load();
+    return () => {
+      stop = true;
+    };
+  }, [serverId]);
+  return code;
+}
+
+function DragonwildsJoinCard({
+  serverId,
+  address,
+  joinPassword,
+  className = "",
+}: {
+  serverId: string;
+  address: string;
+  joinPassword?: string | null;
+  className?: string;
+}) {
+  const code = useDragonwildsInviteCode(serverId);
+  return (
+    <div className={className}>
+      <div className="mb-1 flex items-center gap-1.5 text-xs font-medium text-slate-400">
+        <Terminal className="h-3.5 w-3.5" /> Invite code (any platform)
+      </div>
+      {code ? (
+        <CopyRow value={code} title="Copy the invite code" />
+      ) : (
+        <div className="rounded-md border border-ark-border bg-ark-bg px-2.5 py-1.5 font-mono text-sm text-slate-500">
+          appears once the server is running…
+        </div>
+      )}
+      <p className="mt-1 text-[11px] leading-snug text-slate-500">
+        In Dragonwilds: <span className="font-mono">Play → Online</span>, press{" "}
+        <span className="font-mono">I</span> (Invite Code) and enter this. It changes on every server restart.
+        Works on consoles, which cannot type an IP.
+      </p>
+      <div className="mb-1 mt-3 flex items-center gap-1.5 text-xs font-medium text-slate-400">
+        <Terminal className="h-3.5 w-3.5" /> Direct connect (PC)
+      </div>
+      <CopyRow value={address} title="Paste into the Direct tab" />
+      <p className="mt-1 text-[11px] leading-snug text-slate-500">
+        <span className="font-mono">Play → Online → Direct</span>, paste this. Online, friends use your public IP
+        with the same port.
+      </p>
+      {joinPassword && (
+        <div className="mt-3">
+          <div className="mb-1 flex items-center gap-1.5 text-xs font-medium text-slate-400">
+            <Lock className="h-3.5 w-3.5" /> World password
+          </div>
+          <CopyRow value={joinPassword} title="Copy the world password" />
+          <p className="mt-1 text-[11px] leading-snug text-slate-500">
+            Asked for after picking a character, whichever way players join.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /**
  * The address to show players. The browser's own hostname is a last resort, not
  * an answer: the manager and the game servers only share an address when they
@@ -155,6 +232,17 @@ export function ConnectCommand({
 
   if (game === Game.CORE_KEEPER && serverId) {
     return <CoreKeeperJoinCard serverId={serverId} className={className} />;
+  }
+
+  if (game === Game.DRAGONWILDS && serverId) {
+    return (
+      <DragonwildsJoinCard
+        serverId={serverId}
+        address={`${hostOr}:${gamePort}`}
+        joinPassword={joinPassword}
+        className={className}
+      />
+    );
   }
 
   if (game === Game.CONAN) {

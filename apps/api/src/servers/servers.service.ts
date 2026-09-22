@@ -53,7 +53,7 @@ import { ManagerSettingsService, SettingKeys } from "../manager-settings/manager
 import { LogCaptureService, LOG_CAPTURE_MAX } from "../logs/log-capture.service";
 import { BackupsService } from "../backups/backups.service";
 import { PlayersService } from "../players/players.service";
-import { buildContainerSpec, ONE_SHOT_UPDATE_ENV } from "./runtime-spec";
+import { buildContainerSpec, DRAGONWILDS_OWNER_ID_RE, ONE_SHOT_UPDATE_ENV } from "./runtime-spec";
 import { detectPalWineProxyDlls } from "../palmods/palmods.service";
 import { GameEndpointService } from "../docker/game-endpoint.service";
 import { palworldWinePortIssue, portsFor, serverPortSet } from "../catalog/ports";
@@ -184,6 +184,9 @@ export const READY_RE_BY_GAME: Record<Game, RegExp> = {
   [Game.CS2]: /Host activate: Loading|Connection to Steam servers successful/i,
   // DST master shard logs "Sim paused" once worldgen finishes and it idles ready.
   [Game.DST]: /Sim paused|Server registered/i,
+  // Dragonwilds writes ReadyToJoin=1 into its EOS session once the world is loaded
+  // and the session is live — CONFIRMED live (~7 s after launch on an existing world).
+  [Game.DRAGONWILDS]: /\["ReadyToJoin"\] written with key\[x0\] value\[1\]/,
 };
 
 /** The "server is now joinable" log-marker regex for a game. */
@@ -601,15 +604,23 @@ export class ServersService implements OnApplicationBootstrap, OnApplicationShut
     });
   }
 
-  /** Join info beyond IP:port — currently Core Keeper's relay Game ID, read from
-   *  the GameID.txt the server writes next to its executable on (first) boot. */
-  async joinInfo(id: string): Promise<{ gameId: string | null }> {
+  /** Per-game join tokens that only exist once the server is up: Core Keeper's
+   *  relay Game ID (a file the server writes) and Dragonwilds' invite code (printed
+   *  into the log at every session start, regenerated on every restart). */
+  async joinInfo(id: string): Promise<{ gameId: string | null; inviteCode: string | null }> {
     const row = await this.prisma.server.findUnique({ where: { id } });
     if (!row) throw new NotFoundException("Server not found");
-    if ((row.game as Game) !== Game.CORE_KEEPER) return { gameId: null };
-    const file = join(LocalPaths.instanceRoot(id), "files", "GameID.txt");
-    const gameId = await readFile(file, "utf8").then((t) => t.trim() || null).catch(() => null);
-    return { gameId };
+    const none = { gameId: null, inviteCode: null };
+    if ((row.game as Game) === Game.CORE_KEEPER) {
+      const file = join(LocalPaths.instanceRoot(id), "files", "GameID.txt");
+      const gameId = await readFile(file, "utf8").then((t) => t.trim() || null).catch(() => null);
+      return { ...none, gameId };
+    }
+    if ((row.game as Game) === Game.DRAGONWILDS && row.containerId && row.state === ServerState.Running) {
+      const log = await this.docker.tailLogs(row.containerId, LOG_CAPTURE_MAX).catch(() => "");
+      return { ...none, inviteCode: dragonwildsInviteCode(log) };
+    }
+    return none;
   }
 
   async getConfig(id: string): Promise<ServerConfigValues> {
@@ -633,6 +644,7 @@ export class ServersService implements OnApplicationBootstrap, OnApplicationShut
     if (dto.game === Game.ZOMBOID && (dto.adminPassword ?? "").length < 5) {
       throw new BadRequestException("Project Zomboid requires an admin password of at least 5 characters.");
     }
+    if (dto.game === Game.DRAGONWILDS) assertDragonwildsOwnerId(dto.adminPassword);
     // Every server of a given family shares one fixed port block so a single set of
     // port-forwards covers whichever is running — only one runs at a time, so the
     // shared ports never actually collide. Minecraft uses its own TCP block (25565).
@@ -813,6 +825,9 @@ export class ServersService implements OnApplicationBootstrap, OnApplicationShut
         launchChanged = true;
       }
     };
+    if ((existing.game as Game) === Game.DRAGONWILDS && dto.adminPassword) {
+      assertDragonwildsOwnerId(dto.adminPassword);
+    }
     applyPassword(existing.adminPasswordEnc, dto.adminPassword, "adminPasswordEnc");
     applyPassword(existing.spectatorPasswordEnc, dto.spectatorPassword, "spectatorPasswordEnc");
     // Join password is shown in the UI and clearable: an explicit "" REMOVES it
@@ -2231,4 +2246,19 @@ export class ServersService implements OnApplicationBootstrap, OnApplicationShut
     });
     return this.toSummary(updated as ServerRow, await this.docker.imageExists(IMAGES[server.game as Game]).catch(() => false));
   }
+}
+
+function assertDragonwildsOwnerId(ownerId: string | undefined): void {
+  if (!DRAGONWILDS_OWNER_ID_RE.test(ownerId ?? "")) {
+    throw new BadRequestException(
+      "Dragonwilds needs your 32-character Player ID (bottom of the in-game Settings menu) as the owner.",
+    );
+  }
+}
+
+/** The last invite code the server wrote into its EOS session settings. */
+export function dragonwildsInviteCode(log: string): string | null {
+  const codes = log.match(/\["JoinCode"\] written with key\[xz\] value\[([A-Z0-9]{4}-[A-Z0-9]{4})\]/g);
+  const last = codes?.[codes.length - 1]?.match(/value\[([A-Z0-9-]+)\]/);
+  return last?.[1] ?? null;
 }

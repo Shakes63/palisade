@@ -91,6 +91,7 @@ const ACTIONS_BY_GAME: Record<Game, PlayerAction[]> = {
   [Game.OPENTTD]: [], // no programmatic admin (in-game console only)
   [Game.CS2]: ["kick", "ban"], // Source RCON: kickid / banid
   [Game.DST]: [], // no RCON — admin via in-game console/listadminmoderation
+  [Game.DRAGONWILDS]: [], // no console; the owner kicks/bans from the in-game Player List
 };
 
 const CAPTURE_NOTES: Partial<Record<Game, string>> = {
@@ -99,6 +100,7 @@ const CAPTURE_NOTES: Partial<Record<Game, string>> = {
   [Game.VALHEIM]: "Captured from join log lines (character name + SteamID64).",
   [Game.ENSHROUDED]: "Captured from the server's join and leave log lines.",
   [Game.TERRARIA]: "Captured from join log lines (character name).",
+  [Game.DRAGONWILDS]: "Captured from join log lines (character name).",
   [Game.MINECRAFT]: "Captured from the live player list + join log lines.",
 };
 
@@ -300,6 +302,12 @@ export class SightingsService implements OnModuleInit {
       // exact suffix; names are <= 20 chars).
       const m = line.match(/^(.{1,20}) has joined\.\s*$/);
       if (m) void this.upsert(serverId, m[1]!.trim());
+    }
+    if (game === Game.DRAGONWILDS) {
+      // "LogNet: Join succeeded: <name>" — verified live; the earlier "Login request"
+      // line carries the same name plus the base64 world password, so it is skipped.
+      const m = line.match(/LogNet: Join succeeded: (\S+)/);
+      if (m) void this.upsert(serverId, m[1]!);
     }
   }
 

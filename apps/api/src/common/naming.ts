@@ -47,6 +47,7 @@ const CONTAINER_PREFIX: Record<Game, string> = {
   [Game.OPENTTD]: "openttd",
   [Game.CS2]: "cs2",
   [Game.DST]: "dst",
+  [Game.DRAGONWILDS]: "dragonwilds",
 };
 
 function slug(s: string): string {

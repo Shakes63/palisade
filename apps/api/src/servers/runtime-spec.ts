@@ -49,6 +49,8 @@ import {
   OPENTTD_DATA_DIR,
   CS2_DATA_DIR,
   DST_DATA_DIR,
+  DRAGONWILDS_SERVER_DIR,
+  DRAGONWILDS_STEAMCMD_DIR,
 } from "../common/images";
 // (ATS reuses the ich777 wrapper mount points LIF_STEAMCMD_DIR / LIF_SERVERFILES_DIR.)
 import { ZOMBOID_STEAM_PORTS, PALWORLD_WINE_GAME_PORT } from "../catalog/ports";
@@ -56,6 +58,7 @@ import { SOTF_GAME_SETTINGS_KEYS } from "../catalog/sotf.catalog";
 import { LIF_SKILLCAP_GROUPS } from "../catalog/lif.catalog";
 import { TERRARIA_CLI_KEYS } from "../catalog/terraria.catalog";
 import { FACTORIO_ENV_KEYS } from "../catalog/factorio.catalog";
+import { DRAGONWILDS_AUTOSAVE_KEY, DRAGONWILDS_EXTRA_ARGS_KEY } from "../catalog/dragonwilds.catalog";
 import { containerName } from "../common/naming";
 import { targetNetwork } from "../common/shared-network";
 import { loadEnv } from "../config/env";
@@ -269,6 +272,7 @@ function gameSpecFor(input: RuntimeSpecInput): Docker.ContainerCreateOptions {
   if (input.game === Game.OPENTTD) return buildOpenttdSpec(input);
   if (input.game === Game.CS2) return buildCs2Spec(input);
   if (input.game === Game.DST) return buildDstSpec(input);
+  if (input.game === Game.DRAGONWILDS) return buildDragonwildsSpec(input);
   return buildAseSpec(input);
 }
 
@@ -2924,5 +2928,82 @@ export function renderOpenttdConfig(input: {
       `server_password = ${clean(input.serverPassword)}\n` +
       `rcon_password = ${clean(input.adminPassword)}\n` +
       `admin_password = ${clean(input.adminPassword)}\n`,
+  };
+}
+
+/** Dragonwilds owner ids are EOS product user ids: exactly 32 hex characters. A
+ *  longer value makes the EOS session silently fail to create (verified live). */
+export const DRAGONWILDS_OWNER_ID_RE = /^[0-9a-fA-F]{32}$/;
+
+/**
+ * RuneScape: Dragonwilds (ferment9348/dragonwilds): native Linux server pulled by
+ * SteamCMD on every start; the image writes OwnerId/ServerName/DefaultWorldName/
+ * WorldPassword into DedicatedServer.ini from env and leaves the rest of the file
+ * (ServerGuid) alone. Facts that shape this spec, all verified live on the 1.0 build:
+ * - The server advertises the port it binds, so the container port must equal the
+ *   host port (we publish 1:1). One UDP port; no query, no RCON.
+ * - The admin-password slot carries the mandatory OwnerId (1.0 has no admin
+ *   password; admin is owner-only in-game).
+ * - Max players and the autosave timer are engine ini overrides on the command
+ *   line, not DedicatedServer.ini keys; the image forwards GAME_PARAMS_EXTRA verbatim.
+ * - The game's stdout is block-buffered without a TTY: docker logs stop right after
+ *   the session starts while the log file keeps going. Tty: true keeps the ready
+ *   marker, join lines and invite code flowing.
+ * - A stop never saves (only the autosave timer and in-game quit do); the engine
+ *   exits ~2 s after SIGINT, so STOP_TIMEOUT stays inside the manager's 20 s stop.
+ */
+function buildDragonwildsSpec(input: RuntimeSpecInput): Docker.ContainerCreateOptions {
+  const env = loadEnv();
+  const { ports } = input;
+  const name = containerName(input.serverId, input.game, input.sessionName);
+  const values = input.config.values ?? {};
+  const str = (k: string, def: string) => {
+    const v = values[k];
+    return typeof v === "string" && v.trim() ? v.trim() : def;
+  };
+  const slots = Math.min(Math.max(input.maxPlayers, 1), 6);
+  const autosave = Math.min(Math.max(Number(values[DRAGONWILDS_AUTOSAVE_KEY]) || 5, 1), 60);
+  const launchArgs = [
+    `-ini:Game:[/Script/Engine.GameSession]:MaxPlayers=${slots}`,
+    `-ini:Engine:[ConsoleVariables]:dom.StateSaveFrequencyMins=${autosave}`,
+    str(DRAGONWILDS_EXTRA_ARGS_KEY, ""),
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  const dwEnv = [
+    `TZ=${input.timezone || env.TZ}`,
+    `UID=${env.PUID}`,
+    `GID=${env.PGID}`,
+    `OWNER_ID=${input.adminPassword}`,
+    `SERVER_NAME=${input.sessionName}`,
+    `WORLD_NAME=${str("WORLD_NAME", "MyWorld")}`,
+    `SRV_PWD=${serverPassword(input)}`,
+    `GAME_PORT=${ports.game}`,
+    `GAME_PARAMS_EXTRA=${launchArgs}`,
+    `STOP_TIMEOUT=15`,
+  ];
+
+  const root = HostPaths.instanceRoot(input.serverId);
+  const binds = [`${root}/gamefiles:${DRAGONWILDS_SERVER_DIR}`, `${root}/steamcmd:${DRAGONWILDS_STEAMCMD_DIR}`];
+  const hostNet = hostNetworkFor(input);
+  return {
+    name,
+    Image: imageRefFor(input.game, input.imageTag),
+    Hostname: name,
+    Env: dwEnv,
+    Labels: serverLabels(input),
+    Tty: true,
+    ...(hostNet ? {} : { ExposedPorts: { [portKey(ports.game, "udp")]: {} } }),
+    HostConfig: {
+      Binds: binds,
+      ...(hostNet
+        ? { NetworkMode: "host" }
+        : { PortBindings: { [portKey(ports.game, "udp")]: [{ HostPort: String(ports.game) }] } }),
+      RestartPolicy: { Name: "no" }, // manager watchdog owns restarts
+      Memory: input.ramLimitMb ? input.ramLimitMb * 1024 * 1024 : undefined,
+      NanoCpus: input.cpuLimit ? Math.round(input.cpuLimit * 1e9) : undefined,
+    },
+    ...bridgeNetworking(hostNet),
   };
 }

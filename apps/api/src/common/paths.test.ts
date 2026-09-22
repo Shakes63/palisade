@@ -40,4 +40,7 @@ describe("LocalPaths.saveSubpaths", () => {
   it("uses Enshrouded's server/savegame path (image installs under /opt/enshrouded/server)", () => {
     expect(LocalPaths.saveSubpaths(Game.ENSHROUDED)).toEqual(["gamefiles/server/savegame"]);
   });
+  it("uses Dragonwilds' SaveGames dir (capital G) inside the gamefiles bind", () => {
+    expect(LocalPaths.saveSubpaths(Game.DRAGONWILDS)).toEqual(["gamefiles/RSDragonwilds/Saved/SaveGames"]);
+  });
 });
