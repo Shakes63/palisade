@@ -14,5 +14,6 @@ Install only pulls the image; the game files download via SteamCMD on the first 
 - Savegame path: the image installs the game under `/opt/enshrouded/server`, so the save lands at `gamefiles/server/savegame` inside the instance dir. The dir stays empty until the first autosave tick (log `[server] Saved`) or a graceful stop — a backup taken before then captures nothing.
 - Difficulty knobs only take effect when the preset is set to Custom (`SERVER_GS_PRESET=Custom`); otherwise the individual settings are ignored by the game.
 - The three duration settings (hunger-to-starving, day/night length) are edited in minutes in the panel but the game wants nanoseconds — Palisade converts on the way out; don't set raw nanosecond values.
+- The Players tab tracks who is online from the server's join and leave log lines, so anyone connected before a manager restart shows Offline until they rejoin.
 - No mod support at all (the Mods tab is hidden).
 - Same Proton family as Icarus: the host needs `vm.max_map_count=262144`.
