@@ -60,7 +60,10 @@ export async function extractZipSafe(data: Buffer, dest: string): Promise<void> 
     if (bad !== undefined) {
       throw new BadRequestException(`Archive rejected — unsafe path in entry "${bad.trim()}".`);
     }
-    await execFileP("unzip", ["-o", "-qq", tmp, "-d", dest]);
+    // Exit 1 is Info-ZIP's "warnings, but processing completed", e.g. `\` separators.
+    await execFileP("unzip", ["-o", "-qq", tmp, "-d", dest]).catch((e: { code?: unknown }) => {
+      if (e.code !== 1) throw e;
+    });
     await stripSymlinks(dest);
   } catch (e) {
     if (e instanceof BadRequestException) throw e;
