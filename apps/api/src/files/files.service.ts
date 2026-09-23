@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import { join, dirname, basename } from "node:path";
 import {
   mkdir,
@@ -18,6 +18,15 @@ import { resolveSafe } from "../common/safe-path";
 export const EDIT_MAX_BYTES = 2 * 1024 * 1024;
 /** Directory listings are capped so a 100k-file mod dir can't melt the browser. */
 const LIST_MAX_ENTRIES = 2000;
+
+/** Game images run as their own user, so some files are unreadable to the manager. */
+function denied(e: unknown): never {
+  const code = (e as NodeJS.ErrnoException).code;
+  if (code === "EACCES" || code === "EPERM") {
+    throw new ForbiddenException("Permission denied: Palisade isn't allowed to open this file or folder");
+  }
+  throw e;
+}
 
 export interface FileEntry {
   name: string;
@@ -52,7 +61,7 @@ export class FilesService {
     const dir = await resolveSafe(root, rel || ".");
     const st = await stat(dir).catch(() => null);
     if (!st?.isDirectory()) throw new BadRequestException("Not a directory");
-    const names = await readdir(dir, { withFileTypes: true });
+    const names = await readdir(dir, { withFileTypes: true }).catch(denied);
     const entries: FileEntry[] = [];
     for (const d of names.slice(0, LIST_MAX_ENTRIES)) {
       const s = await stat(join(dir, d.name)).catch(() => null);
@@ -77,7 +86,7 @@ export class FilesService {
     if (st.size > EDIT_MAX_BYTES) {
       throw new BadRequestException(`File is too large to edit in the browser (limit ${EDIT_MAX_BYTES / 1024 / 1024} MB) — use Download.`);
     }
-    const buf = await readFile(file);
+    const buf = await readFile(file).catch(denied);
     if (buf.subarray(0, 8000).includes(0)) {
       throw new BadRequestException("Binary file — use Download instead.");
     }
@@ -92,8 +101,8 @@ export class FilesService {
     const file = await resolveSafe(root, rel);
     const st = await stat(file).catch(() => null);
     if (st && !st.isFile()) throw new BadRequestException("Not a file");
-    await mkdir(dirname(file), { recursive: true });
-    await writeFile(file, content, "utf8");
+    await mkdir(dirname(file), { recursive: true }).catch(denied);
+    await writeFile(file, content, "utf8").catch(denied);
     return { ok: true };
   }
 
@@ -114,14 +123,14 @@ export class FilesService {
     const dir = await resolveSafe(root, relDir || ".");
     const st = await stat(dir).catch(() => null);
     if (!st?.isDirectory()) throw new BadRequestException("Destination is not a directory");
-    await writeFile(await resolveSafe(root, join(relDir || ".", name)), data);
+    await writeFile(await resolveSafe(root, join(relDir || ".", name)), data).catch(denied);
     return { ok: true };
   }
 
   async mkdir(serverId: string, rel: string): Promise<{ ok: true }> {
     const root = await this.root(serverId);
     const dir = await resolveSafe(root, rel);
-    await mkdir(dir, { recursive: true });
+    await mkdir(dir, { recursive: true }).catch(denied);
     return { ok: true };
   }
 
@@ -130,7 +139,7 @@ export class FilesService {
     const from = await resolveSafe(root, fromRel);
     const to = await resolveSafe(root, toRel);
     if (from === root || to === root) throw new BadRequestException("Cannot rename the server root");
-    await rename(from, to);
+    await rename(from, to).catch(denied);
     return { ok: true };
   }
 
@@ -138,7 +147,7 @@ export class FilesService {
     const root = await this.root(serverId);
     const target = await resolveSafe(root, rel);
     if (target === root) throw new BadRequestException("Cannot delete the server root");
-    await rm(target, { recursive: true, force: true });
+    await rm(target, { recursive: true, force: true }).catch(denied);
     return { ok: true };
   }
 }

@@ -15,6 +15,7 @@ import {
   X,
 } from "lucide-react";
 import { apiGet, apiPost, apiPut, apiDelete, apiDownload, apiUpload } from "@/lib/api";
+import { fmtLocal } from "@/lib/cron";
 
 type Entry = { name: string; type: "dir" | "file"; size: number; modifiedAt: string };
 type Listing = { path: string; entries: Entry[]; truncated: boolean };
@@ -61,6 +62,7 @@ export function FilesTab({ serverId }: { serverId: string }) {
   }, [refresh]);
 
   const openEditor = async (path: string) => {
+    if (openFile !== null && path !== openFile && content !== savedContent && !confirm("Discard unsaved changes?")) return;
     setErr(null);
     setBusy(true);
     try {
@@ -71,7 +73,8 @@ export function FilesTab({ serverId }: { serverId: string }) {
       setContent(r.content);
       setSavedContent(r.content);
     } catch (e) {
-      setErr((e as Error).message); // binary / too large → surfaced here, download still works
+      setOpenFile(null);
+      setErr(`${path}: ${(e as Error).message}`); // binary / too large → surfaced here, download still works
     } finally {
       setBusy(false);
     }
@@ -110,7 +113,7 @@ export function FilesTab({ serverId }: { serverId: string }) {
   return (
     <div className="space-y-3">
       <p className="text-[11px] leading-snug text-slate-500">
-        The server&apos;s instance directory — game install, saves, and configs. Edits apply on the
+        The server&apos;s folder — game install, saves, and configs. Edits apply on the
         next restart. Careful: this is the raw filesystem; the Settings tab is the safer way to
         change anything it covers.
       </p>
@@ -133,21 +136,21 @@ export function FilesTab({ serverId }: { serverId: string }) {
           </span>
         ))}
         <span className="flex-1" />
-        <button className="btn-secondary text-xs" disabled={busy} onClick={() => void refresh(dir)} title="Refresh">
-          <RefreshCw className="h-3.5 w-3.5" />
+        <button className="btn-secondary whitespace-nowrap" disabled={busy} onClick={() => void refresh(dir)}>
+          <RefreshCw className="h-4 w-4 shrink-0" /> Refresh
         </button>
         <button
-          className="btn-secondary text-xs"
+          className="btn-secondary whitespace-nowrap"
           disabled={busy}
           onClick={() => {
             const name = prompt("New folder name:");
             if (name) void act(() => apiPost(`/servers/${serverId}/files/mkdir`, { path: joinPath(dir, name) }));
           }}
         >
-          <FolderPlus className="h-3.5 w-3.5" /> New folder
+          <FolderPlus className="h-4 w-4 shrink-0" /> New folder
         </button>
-        <button className="btn-secondary text-xs" disabled={busy} onClick={() => uploadInput.current?.click()}>
-          {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />} Upload
+        <button className="btn-secondary whitespace-nowrap" disabled={busy} onClick={() => uploadInput.current?.click()}>
+          {busy ? <Loader2 className="h-4 w-4 shrink-0 animate-spin" /> : <Upload className="h-4 w-4 shrink-0" />} Upload
         </button>
         <input
           ref={uploadInput}
@@ -168,7 +171,13 @@ export function FilesTab({ serverId }: { serverId: string }) {
             Large directory — showing the first 2000 entries.
           </p>
         )}
-        <table className="w-full text-sm">
+        <table className="w-full table-fixed text-sm">
+          <colgroup>
+            <col />
+            <col className="w-20" />
+            <col className="w-0 sm:w-48" />
+            <col className="w-24" />
+          </colgroup>
           <tbody>
             {dir !== "." && (
               <tr className="border-b border-ark-border/40 hover:bg-slate-800/40">
@@ -186,22 +195,22 @@ export function FilesTab({ serverId }: { serverId: string }) {
                     e.type === "dir" ? void refresh(joinPath(dir, e.name)) : void openEditor(joinPath(dir, e.name))
                   }
                 >
-                  <span className="flex items-center gap-2 truncate">
+                  <span className="flex min-w-0 items-center gap-2">
                     {e.type === "dir" ? (
                       <Folder className="h-4 w-4 shrink-0 text-ark-accent2" />
                     ) : (
                       <FileIcon className="h-4 w-4 shrink-0 text-slate-500" />
                     )}
-                    <span className="truncate font-mono text-xs">{e.name}</span>
+                    <span className="truncate font-mono text-xs" title={e.name}>{e.name}</span>
                   </span>
                 </td>
-                <td className="w-24 px-2 py-1.5 text-right font-mono text-[11px] text-slate-500">
+                <td className="whitespace-nowrap px-2 py-1.5 text-right font-mono text-[11px] text-slate-500">
                   {e.type === "file" ? fmtSize(e.size) : ""}
                 </td>
-                <td className="w-36 px-2 py-1.5 text-right font-mono text-[11px] text-slate-500">
-                  {new Date(e.modifiedAt).toLocaleString()}
+                <td className="whitespace-nowrap py-1.5 text-right font-mono text-[11px] text-slate-500 sm:px-2">
+                  <span className="hidden sm:inline">{fmtLocal(e.modifiedAt)}</span>
                 </td>
-                <td className="w-28 px-2 py-1.5">
+                <td className="px-2 py-1.5">
                   <span className="flex items-center justify-end gap-2">
                     {e.type === "file" && (
                       <button
@@ -249,10 +258,10 @@ export function FilesTab({ serverId }: { serverId: string }) {
                 </td>
               </tr>
             ))}
-            {listing && listing.entries.length === 0 && dir === "." && (
+            {listing && listing.entries.length === 0 && (
               <tr>
-                <td className="px-3 py-4 text-center text-xs text-slate-500" colSpan={4}>
-                  Empty — game files appear here after the first install/start.
+                <td className="px-3 py-4 text-center text-sm text-slate-400" colSpan={4}>
+                  {dir === "." ? "Empty — game files appear here after the first install/start." : "This folder is empty."}
                 </td>
               </tr>
             )}
