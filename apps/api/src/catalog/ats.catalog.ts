@@ -38,12 +38,6 @@ const settings: SettingDef[] = [
   aset("welcome_message", "Welcome message", "Session", "string", "", {
     help: "Message players see when they join, up to 127 characters.",
   }),
-  aset("friends_only", "Friends only", "Session", "bool", false, {
-    help: "SCS documents this flag as not used by the dedicated server.",
-  }),
-  aset("show_server", "Visible in session search", "Session", "bool", true, {
-    help: "SCS documents this flag as not used by the dedicated server.",
-  }),
   aset("mods_optioning", "Allow optional mods", "Session", "bool", false, {
     help: "Players may join with mods the session host doesn't run.",
   }),

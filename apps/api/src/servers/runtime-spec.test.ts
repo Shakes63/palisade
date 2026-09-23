@@ -1028,6 +1028,22 @@ server_config : _nameless.1ad.e2c8.f150 {
     expect(out).toContain(" moderator_list: 0"); // unknown key preserved
     expect(out).toContain(" connection_virtual_port: 100"); // virtual ports untouched
   });
+
+  it("ignores stored values for keys the dedicated server doesn't use", async () => {
+    const { patchAtsServerConfig } = await import("./runtime-spec");
+    const { ATS_CATALOG } = await import("../catalog/ats.catalog");
+    const out = patchAtsServerConfig(SAMPLE, {
+      sessionName: "Trucks",
+      serverPassword: "",
+      maxPlayers: 8,
+      gamePort: 27015,
+      queryPort: 27016,
+      catalog: ATS_CATALOG,
+      config: { values: { friends_only: true, show_server: false } },
+    });
+    expect(out).toContain(" friends_only: false");
+    expect(out).toContain(" show_server: true");
+  });
 });
 
 describe("buildContainerSpec (Core Keeper / escaping)", () => {
