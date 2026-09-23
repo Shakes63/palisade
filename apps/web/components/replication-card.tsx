@@ -33,6 +33,7 @@ export function ReplicationCard() {
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [formErr, setFormErr] = useState<string | null>(null);
 
   const load = () => {
     apiGet<ReplicationView>("/replication")
@@ -53,16 +54,34 @@ export function ReplicationCard() {
   };
   useEffect(load, []);
 
+  const edited = () => {
+    setSaved(false);
+    setFormErr(null);
+  };
+
+  const validate = (): string | null => {
+    const n = Number(port);
+    if (kind === "sftp" && !(/^\d+$/.test(port.trim()) && n >= 1 && n <= 65535)) {
+      return "Port must be a number from 1 to 65535.";
+    }
+    if (enabled && kind === "sftp" && !host.trim()) return "Enter the SFTP host, or turn replication off.";
+    if (enabled && !dir.trim()) return "Enter a destination directory, or turn replication off.";
+    return null;
+  };
+
   const save = async () => {
+    const invalid = validate();
+    setFormErr(invalid);
+    if (invalid) return;
     setBusy(true);
     setSaved(false);
     try {
       await apiPut("/replication", {
         enabled,
         kind,
-        dir,
-        host: host || undefined,
-        port: parseInt(port, 10) || 22,
+        dir: dir.trim(),
+        host: host.trim() || undefined,
+        port: kind === "sftp" ? Number(port) : undefined,
         username: username || undefined,
         // Blank secrets keep what's stored server-side.
         password: password || undefined,
@@ -91,9 +110,11 @@ export function ReplicationCard() {
   };
 
   const syncNow = async () => {
-    setMsg("Sync started — large snapshots can take a few minutes…");
+    setMsg("Starting sync…");
     try {
-      await apiPost("/replication/sync");
+      const res = await apiPost<{ started: boolean; message?: string }>("/replication/sync");
+      if (!res.started) return setMsg(`Sync skipped: ${res.message ?? "replication is off."}`);
+      setMsg("Sync started — large snapshots can take a few minutes…");
       // The sync runs in the background; refresh the status line as it lands.
       window.setTimeout(load, 5000);
       window.setTimeout(load, 30000);
@@ -115,12 +136,12 @@ export function ReplicationCard() {
 
       <div className="flex flex-wrap items-center gap-4">
         <label className="flex items-center gap-2 text-sm text-slate-200">
-          <input type="checkbox" className="h-4 w-4" checked={enabled} onChange={(e) => { setEnabled(e.target.checked); setSaved(false); }} />
+          <input type="checkbox" className="h-4 w-4" checked={enabled} onChange={(e) => { setEnabled(e.target.checked); edited(); }} />
           Enabled
         </label>
-        <select className="input w-56" value={kind} onChange={(e) => { setKind(e.target.value as "sftp" | "local"); setSaved(false); }}>
+        <select className="input w-auto max-w-full" value={kind} onChange={(e) => { setKind(e.target.value as "sftp" | "local"); edited(); }}>
           <option value="sftp">SFTP (another machine)</option>
-          <option value="local">Mounted path (NAS share mapped into the container)</option>
+          <option value="local">Mounted path (e.g. a NAS share)</option>
         </select>
       </div>
 
@@ -128,35 +149,38 @@ export function ReplicationCard() {
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
             <label className="label">Host</label>
-            <input className="input" placeholder="nas.local or 192.168.1.20" value={host} onChange={(e) => { setHost(e.target.value); setSaved(false); }} />
+            <input className="input" placeholder="e.g. nas.local or 192.168.1.20" value={host} onChange={(e) => { setHost(e.target.value); edited(); }} />
           </div>
           <div>
             <label className="label">Port</label>
-            <input className="input w-28" value={port} onChange={(e) => { setPort(e.target.value); setSaved(false); }} />
+            <input className="input w-28" value={port} onChange={(e) => { setPort(e.target.value); edited(); }} />
           </div>
           <div>
             <label className="label">Username</label>
-            <input className="input" value={username} onChange={(e) => { setUsername(e.target.value); setSaved(false); }} />
+            <input className="input" value={username} onChange={(e) => { setUsername(e.target.value); edited(); }} />
           </div>
           <div>
             <label className="label">Password {hasPassword && <span className="text-green-400">(set)</span>}</label>
-            <input type="password" className="input" placeholder={hasPassword ? "•••••••• (leave blank to keep)" : "Password"} value={password} onChange={(e) => { setPassword(e.target.value); setSaved(false); }} />
+            <input type="password" className="input" placeholder={hasPassword ? "•••••••• (leave blank to keep)" : "Password"} value={password} onChange={(e) => { setPassword(e.target.value); edited(); }} />
           </div>
           <div className="sm:col-span-2">
             <label className="label">Private key (optional, instead of password) {hasPrivateKey && <span className="text-green-400">(set)</span>}</label>
-            <textarea className="input h-20 font-mono text-xs" placeholder={hasPrivateKey ? "(leave blank to keep the stored key)" : "-----BEGIN OPENSSH PRIVATE KEY-----"} value={privateKey} onChange={(e) => { setPrivateKey(e.target.value); setSaved(false); }} />
+            <textarea className="input h-20 font-mono text-xs" placeholder={hasPrivateKey ? "(leave blank to keep the stored key)" : "-----BEGIN OPENSSH PRIVATE KEY-----"} value={privateKey} onChange={(e) => { setPrivateKey(e.target.value); edited(); }} />
           </div>
         </div>
       )}
 
       <div>
         <label className="label">{kind === "sftp" ? "Remote directory" : "Destination path (inside the container)"}</label>
-        <input className="input" placeholder={kind === "sftp" ? "/backups/palisade" : "/replica (add a container path mapping for it)"} value={dir} onChange={(e) => { setDir(e.target.value); setSaved(false); }} />
+        <input className="input" placeholder={kind === "sftp" ? "e.g. /backups/palisade" : "e.g. /replica"} value={dir} onChange={(e) => { setDir(e.target.value); edited(); }} />
+        {kind === "local" && (
+          <p className="mt-1 text-xs text-slate-500">Add a container path mapping for it in your Docker template.</p>
+        )}
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
         <button type="button" className="btn-primary" onClick={save} disabled={busy}>
-          <Save className="h-4 w-4" /> {busy ? "Saving…" : saved ? "Saved ✓" : "Save replication"}
+          <Save className="h-4 w-4" /> {busy ? "Saving…" : saved ? "Saved ✓" : "Save"}
         </button>
         <button type="button" className="btn-secondary" onClick={test}>
           <Send className="h-4 w-4" /> Test connection
@@ -165,6 +189,7 @@ export function ReplicationCard() {
           <RefreshCw className="h-4 w-4" /> Sync now
         </button>
       </div>
+      {formErr && <p className="text-sm text-amber-400">{formErr}</p>}
       {msg && <p className="text-sm text-slate-400">{msg}</p>}
       {status && (status.lastSyncAt || status.lastError) && (
         <p className="text-xs text-slate-500">
