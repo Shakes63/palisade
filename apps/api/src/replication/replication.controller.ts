@@ -1,9 +1,9 @@
-import { Body, Controller, Get, Post, Put } from "@nestjs/common";
+import { BadRequestException, Body, Controller, Get, Post, Put } from "@nestjs/common";
 import { IsBoolean, IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Min } from "class-validator";
 import { ReplicationService, type ReplicationConfig } from "./replication.service";
 import { MinRole } from "../auth/min-role.decorator";
 
-class ReplicationBody {
+export class ReplicationBody {
   @IsBoolean() enabled!: boolean;
   @IsIn(["sftp", "local"]) kind!: "sftp" | "local";
   @IsString() @MaxLength(1000) dir!: string;
@@ -44,12 +44,20 @@ export class ReplicationController {
 
   @Put()
   async put(@Body() body: ReplicationBody) {
+    const dir = body.dir.trim();
+    const host = body.host?.trim() || undefined;
+    if (body.enabled && !dir) {
+      throw new BadRequestException("Enter a destination directory, or turn replication off.");
+    }
+    if (body.enabled && body.kind === "sftp" && !host) {
+      throw new BadRequestException("Enter the SFTP host, or turn replication off.");
+    }
     const prev = await this.replication.getConfig();
     const next: ReplicationConfig = {
       enabled: body.enabled,
       kind: body.kind,
-      dir: body.dir,
-      host: body.host,
+      dir,
+      host,
       port: body.port,
       username: body.username,
       // Blank secret fields keep whatever is already stored.
@@ -68,7 +76,11 @@ export class ReplicationController {
   /** Kicks a sync off in the background — a full pass can take minutes with
    *  large snapshots, far past proxy timeouts. Poll GET / for status. */
   @Post("sync")
-  sync() {
+  async sync(): Promise<{ started: boolean; message?: string }> {
+    const config = await this.replication.getConfig();
+    if (!config?.enabled || !config.dir) {
+      return { started: false, message: "Replication is off or has no destination. Enable it and save first." };
+    }
     void this.replication.sync().catch(() => undefined);
     return { started: true };
   }
