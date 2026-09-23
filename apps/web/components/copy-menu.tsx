@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { Copy, ChevronDown, ArrowDownToLine, ArrowUpFromLine, ArrowLeft } from "lucide-react";
 import { mapLabel, GAME_LABELS, type ServerSummary } from "@ark/shared";
 import { apiGet, apiPost } from "@/lib/api";
+import { confirmDialog, toast } from "@/components/dialogs";
 
 /**
  * Copy a server's settings and/or mods to/from other servers of the same game.
@@ -57,7 +58,7 @@ export function CopyMenu({
 
   // POST /servers/:source/copy replaces (not merges) the targets' settings/mods.
   const run = async () => {
-    if (!settings && !mods) return alert("Choose settings, mods, or both.");
+    if (!settings && !mods) return toast.error("Choose settings, mods, or both.");
     if (sel.size === 0) return;
     setBusy(true);
     try {
@@ -65,9 +66,12 @@ export function CopyMenu({
         const src = others.find((s) => s.id === [...sel][0]);
         if (!src) return;
         if (
-          !confirm(
-            `Replace THIS server's ${what} with “${src.name}”'s? Any unsaved edits in the settings editor will be lost.`,
-          )
+          !(await confirmDialog({
+            title: `Replace this server's ${what} with “${src.name}”'s?`,
+            body: "Any unsaved edits in the settings editor will be lost.",
+            confirmLabel: "Replace",
+            danger: true,
+          }))
         )
           return;
         await apiPost(`/servers/${src.id}/copy`, { targetIds: [server.id], settings, mods });
@@ -76,9 +80,12 @@ export function CopyMenu({
       } else {
         const targets = [...sel];
         if (
-          !confirm(
-            `Overwrite ${targets.length} server(s) with this server's ${what}? Their current ${what} will be replaced.`,
-          )
+          !(await confirmDialog({
+            title: `Overwrite ${targets.length} server(s) with this server's ${what}?`,
+            body: `Their current ${what} will be replaced.`,
+            confirmLabel: "Overwrite",
+            danger: true,
+          }))
         )
           return;
         const { copied } = await apiPost<{ copied: number }>(`/servers/${server.id}/copy`, {
@@ -86,11 +93,11 @@ export function CopyMenu({
           settings,
           mods,
         });
-        alert(`Copied ${what} to ${copied} server(s).`);
+        toast.success(`Copied ${what} to ${copied} server(s).`);
         reset();
       }
     } catch (e) {
-      alert((e as Error).message);
+      toast.error(e);
     } finally {
       setBusy(false);
     }

@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Upload, Trash2, Package, Loader2, Info } from "lucide-react";
 import { apiGet, apiDelete, apiUpload } from "@/lib/api";
+import { confirmDialog } from "@/components/dialogs";
 
 type BedrockPack = { uuid: string; name: string; type: "behavior" | "resource" };
 type BedrockModStatus = { packs: BedrockPack[] };
@@ -88,8 +89,9 @@ export function BedrockModsTab({ serverId }: { serverId: string }) {
                   title="Remove"
                   aria-label={`Remove ${p.name}`}
                   disabled={busy}
-                  onClick={() => {
-                    if (!confirm(`Remove ${p.name} from this server?`)) return;
+                  onClick={async () => {
+                    if (!(await confirmDialog({ title: `Remove ${p.name} from this server?`, confirmLabel: "Remove", danger: true })))
+                      return;
                     void run(() => apiDelete(`/servers/${serverId}/bedrockmods/packs/${encodeURIComponent(p.uuid)}`));
                   }}
                 >

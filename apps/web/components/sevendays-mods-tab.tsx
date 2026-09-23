@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Upload, Trash2, Package, Loader2, TriangleAlert } from "lucide-react";
 import { apiGet, apiDelete, apiUpload } from "@/lib/api";
+import { confirmDialog } from "@/components/dialogs";
 
 type SdtdModStatus = { mods: string[] };
 
@@ -71,8 +72,9 @@ export function SevenDaysModsTab({ serverId }: { serverId: string }) {
                   title="Remove"
                   aria-label={`Remove ${m}`}
                   disabled={busy}
-                  onClick={() => {
-                    if (!confirm(`Remove ${m} from this server?`)) return;
+                  onClick={async () => {
+                    if (!(await confirmDialog({ title: `Remove ${m} from this server?`, confirmLabel: "Remove", danger: true })))
+                      return;
                     void run(() => apiDelete(`/servers/${serverId}/sevendaysmods/mods/${encodeURIComponent(m)}`));
                   }}
                 >

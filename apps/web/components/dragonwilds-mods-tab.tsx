@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Upload, Trash2, Package, Loader2, TriangleAlert } from "lucide-react";
 import { apiGet, apiDelete, apiUpload } from "@/lib/api";
+import { confirmDialog } from "@/components/dialogs";
 
 type DragonwildsMod = { name: string; parts: string[]; complete: boolean };
 type Status = { mods: DragonwildsMod[] };
@@ -92,8 +93,9 @@ export function DragonwildsModsTab({ serverId }: { serverId: string }) {
                   title="Remove all three files"
                   aria-label={`Remove ${m.name}`}
                   disabled={busy}
-                  onClick={() => {
-                    if (!confirm(`Remove ${m.name} from this server?`)) return;
+                  onClick={async () => {
+                    if (!(await confirmDialog({ title: `Remove ${m.name} from this server?`, confirmLabel: "Remove", danger: true })))
+                      return;
                     void run(() => apiDelete(`/servers/${serverId}/dragonwildsmods/${encodeURIComponent(m.name)}`));
                   }}
                 >

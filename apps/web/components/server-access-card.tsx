@@ -3,6 +3,7 @@ import { useState } from "react";
 import { KeyRound, Save, Check, Eye, EyeOff } from "lucide-react";
 import { ServerState, ADMIN_PASSWORD_META, JOIN_PASSWORD_META, type ServerSummary } from "@ark/shared";
 import { apiPatch } from "@/lib/api";
+import { toast } from "@/components/dialogs";
 
 /** Set / change / remove a server's join + admin passwords. Works for every game
  *  (the API stores them encrypted and delivers them to the container on start). */
@@ -38,7 +39,7 @@ export function ServerAccessCard({
       setSaved(true);
       onSaved();
     } catch (e) {
-      alert((e as Error).message);
+      toast.error(e);
     } finally {
       setBusy(false);
     }

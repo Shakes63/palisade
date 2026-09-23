@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { CloudUpload, RefreshCw, Save, Send } from "lucide-react";
 import { apiGet, apiPost, apiPut } from "@/lib/api";
+import { toast } from "@/components/dialogs";
 
 interface ReplicationView {
   config: {
@@ -92,7 +93,7 @@ export function ReplicationCard() {
       setSaved(true);
       load();
     } catch (err) {
-      alert((err as Error).message);
+      toast.error(err);
     } finally {
       setBusy(false);
     }

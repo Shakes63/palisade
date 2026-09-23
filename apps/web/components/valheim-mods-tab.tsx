@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Search, Download, Trash2, Package, Loader2, TriangleAlert, ExternalLink } from "lucide-react";
 import { apiGet, apiPost, apiDelete } from "@/lib/api";
 import { fmtCount } from "@/lib/mod-format";
+import { confirmDialog } from "@/components/dialogs";
 
 interface TsResult {
   name: string;
@@ -91,7 +92,7 @@ export function ValheimModsTab({ serverId }: { serverId: string }) {
   };
 
   const remove = async (name: string) => {
-    if (!confirm(`Remove ${name} from this server?`)) return;
+    if (!(await confirmDialog({ title: `Remove ${name} from this server?`, confirmLabel: "Remove", danger: true }))) return;
     try {
       setStatus(await apiDelete<Status>(`/servers/${serverId}/valheimmods/mods/${encodeURIComponent(name)}`));
     } catch (e) {

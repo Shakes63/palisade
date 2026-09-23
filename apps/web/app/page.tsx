@@ -32,6 +32,7 @@ import { PasswordFieldHelp, passwordTooShort } from "@/components/password-field
 import { useStartGuard } from "@/components/start-guard";
 import { useArtwork } from "@/lib/use-artwork";
 import { useMe } from "@/lib/use-me";
+import { toast } from "@/components/dialogs";
 
 interface ClusterLite {
   id: string;
@@ -113,7 +114,7 @@ export default function DashboardPage() {
         await apiGet<ServerSummary[]>("/servers").then(setServers); // await so state lands before re-enabling
       }
     } catch (e) {
-      alert((e as Error).message);
+      toast.error(e);
     } finally {
       setPending((p) => {
         const n = { ...p };
@@ -348,7 +349,7 @@ function CreateServerForm({ onDone }: { onDone: () => void }) {
       await apiPost("/servers", { ...form, name: form.name.trim(), game, maxPlayers: clamped });
       onDone();
     } catch (err) {
-      alert((err as Error).message);
+      toast.error(err);
     } finally {
       setBusy(false);
     }

@@ -9,6 +9,7 @@ import {
   type NotificationTarget,
 } from "@ark/shared";
 import { apiGet, apiPost, apiPut } from "@/lib/api";
+import { toast } from "@/components/dialogs";
 
 const KIND_OPTIONS: { value: NotificationKind; label: string; placeholder: string }[] = [
   { value: "discord", label: "Discord", placeholder: "https://discord.com/api/webhooks/…" },
@@ -77,7 +78,7 @@ export function NotificationTargetsCard() {
       setDirty(false);
       setTestMsg({});
     } catch (err) {
-      alert((err as Error).message);
+      toast.error(err);
     } finally {
       setBusy(false);
     }

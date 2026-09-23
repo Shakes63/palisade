@@ -53,6 +53,7 @@ import { ArtworkPicker } from "@/components/artwork-picker";
 import { BackupsTab } from "@/components/backups-tab";
 import { PlayersTab } from "@/components/players-tab";
 import { EnvVarsCard } from "@/components/env-vars-card";
+import { confirmDialog, toast } from "@/components/dialogs";
 
 const TABS = ["Overview", "Settings", "Mods", "Players", "Console", "Logs", "Files", "Schedules", "Backups", "Guide"] as const;
 type Tab = (typeof TABS)[number];
@@ -78,7 +79,6 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
   const [savingName, setSavingName] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [confirmingUpdate, setConfirmingUpdate] = useState(false);
   const [updating, setUpdating] = useState(false);
   // What the last "Update game" actually did — the update happens during the next
   // boot, so without this the click looks like it did nothing.
@@ -155,7 +155,7 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
       await refresh();
       setRenaming(false);
     } catch (e) {
-      alert((e as Error).message);
+      toast.error(e);
     } finally {
       setSavingName(false);
     }
@@ -174,7 +174,7 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
       await apiPost(`/servers/${id}/${action}`);
       await refresh(); // await so the button stays disabled until the new state lands
     } catch (e) {
-      alert((e as Error).message);
+      toast.error(e);
     } finally {
       setPending(null);
     }
@@ -183,7 +183,6 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
   /** Update the game files. The server image does the downloading on its next boot,
    *  so this either restarts a running server or arms the update for the next start. */
   const doUpdateGame = async () => {
-    setConfirmingUpdate(false);
     setUpdating(true);
     setUpdateNote(null);
     try {
@@ -191,7 +190,7 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
       setUpdateNote(res.message);
       await refresh();
     } catch (e) {
-      alert((e as Error).message);
+      toast.error(e);
     } finally {
       setUpdating(false);
     }
@@ -203,7 +202,7 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
       await apiDelete(`/servers/${id}?wipe=${wipeFiles ? "1" : "0"}`);
       router.push("/"); // gone — back to the server list
     } catch (e) {
-      alert((e as Error).message);
+      toast.error(e);
       setDeleting(false);
       setConfirmingDelete(false);
     }
@@ -385,7 +384,18 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
                 updateHint ??
                 "Update the game files — the image downloads the new build on its next boot"
               }
-              onClick={() => (isLive ? setConfirmingUpdate(true) : void doUpdateGame())}
+              onClick={async () => {
+                if (
+                  isLive &&
+                  !(await confirmDialog({
+                    title: `Update ${GAME_LABELS[server.game]}?`,
+                    body: `The server image downloads game files as it boots, so “${server.name}” has to restart to update. Players are disconnected, and this start takes longer than usual while the new build downloads.`,
+                    confirmLabel: "Restart & update",
+                  }))
+                )
+                  return;
+                void doUpdateGame();
+              }}
             >
               {updating ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -435,36 +445,6 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
           <button onClick={() => setUpdateNote(null)} className="text-slate-400 hover:text-slate-200" title="Dismiss">
             <X className="h-4 w-4" />
           </button>
-        </div>
-      )}
-
-      {confirmingUpdate && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
-          onClick={() => setConfirmingUpdate(false)}
-        >
-          <div
-            className="w-full max-w-md rounded-lg border border-ark-border bg-ark-panel p-5 shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="mb-3 flex items-center gap-2 text-sky-300">
-              <ArrowUpCircle className="h-5 w-5" />
-              <h2 className="text-lg font-semibold">Update {GAME_LABELS[server.game]}?</h2>
-            </div>
-            <p className="text-sm leading-snug text-slate-300">
-              The server image downloads game files as it boots, so “{server.name}” has to restart to
-              update. Players are disconnected, and this start takes longer than usual while the new
-              build downloads.
-            </p>
-            <div className="mt-4 flex justify-end gap-2">
-              <button className="btn-secondary" onClick={() => setConfirmingUpdate(false)}>
-                Cancel
-              </button>
-              <button className="btn-primary" onClick={() => void doUpdateGame()}>
-                Restart &amp; update
-              </button>
-            </div>
-          </div>
         </div>
       )}
 

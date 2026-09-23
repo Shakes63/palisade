@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Upload, Trash2, Package, Loader2, TriangleAlert } from "lucide-react";
 import { apiGet, apiDelete, apiUpload } from "@/lib/api";
+import { confirmDialog } from "@/components/dialogs";
 
 type IcarusModStatus = { paks: string[] };
 
@@ -71,8 +72,9 @@ export function IcarusModsTab({ serverId }: { serverId: string }) {
                   title="Remove"
                   aria-label={`Remove ${p}`}
                   disabled={busy}
-                  onClick={() => {
-                    if (!confirm(`Remove ${p} from this server?`)) return;
+                  onClick={async () => {
+                    if (!(await confirmDialog({ title: `Remove ${p} from this server?`, confirmLabel: "Remove", danger: true })))
+                      return;
                     void run(() => apiDelete(`/servers/${serverId}/icarusmods/paks/${encodeURIComponent(p)}`));
                   }}
                 >

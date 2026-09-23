@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Network, Save, Check } from "lucide-react";
 import { ServerState, INDEPENDENT_QUERY_PORT, consolePortSpec, type ServerSummary } from "@ark/shared";
 import { apiPatch } from "@/lib/api";
+import { toast } from "@/components/dialogs";
 
 /** Edit a stopped server's ports (the container bindings + configs re-render on the
  *  next start). Derived siblings follow the game port automatically server-side. */
@@ -34,7 +35,7 @@ export function PortsCard({ server, onSaved }: { server: ServerSummary; onSaved:
       setSaved(true);
       onSaved();
     } catch (e) {
-      alert((e as Error).message);
+      toast.error(e);
     } finally {
       setBusy(false);
     }

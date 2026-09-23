@@ -7,6 +7,7 @@ import { TimezoneSelect, detectZone } from "@/components/timezone-select";
 import { NotificationTargetsCard } from "@/components/notification-targets";
 import { ReplicationCard } from "@/components/replication-card";
 import { UsersCard } from "@/components/users-card";
+import { toast } from "@/components/dialogs";
 
 type SettingsView = Record<string, string | boolean>;
 
@@ -114,7 +115,7 @@ export default function SettingsPage() {
       setSavedCard(card);
       load(card);
     } catch (err) {
-      alert((err as Error).message);
+      toast.error(err);
     } finally {
       setBusyCard(null);
     }
@@ -155,7 +156,7 @@ export default function SettingsPage() {
 
   const saveBackups = () => {
     const keep = parseInt(managerBackupKeep, 10);
-    if (!Number.isFinite(keep) || keep < 1) return alert("Keep count must be a number ≥ 1.");
+    if (!Number.isFinite(keep) || keep < 1) return toast.error("Keep count must be a number ≥ 1.");
     void saveCard("backups", { managerBackupKeep: keep });
   };
 
