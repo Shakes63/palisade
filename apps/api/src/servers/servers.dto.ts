@@ -3,6 +3,7 @@ import {
   IsBoolean,
   IsIn,
   IsInt,
+  IsNotEmpty,
   IsNumber,
   IsObject,
   IsOptional,
@@ -14,7 +15,7 @@ import {
   ValidateNested,
   ArrayMaxSize,
 } from "class-validator";
-import { Type } from "class-transformer";
+import { Transform, Type } from "class-transformer";
 import { Game } from "@ark/shared";
 import { IMAGE_TAG_RE } from "../common/images";
 
@@ -35,8 +36,10 @@ export class EnvVarItem {
 const ImageTagField = () =>
   Matches(IMAGE_TAG_RE, { message: "imageTag must be a valid Docker tag (letters, digits, . _ -)" });
 
+const Trim = () => Transform(({ value }) => (typeof value === "string" ? value.trim() : value));
+
 export class CreateServerBody {
-  @IsString() name!: string;
+  @Trim() @IsString() @IsNotEmpty({ message: "Server name is required" }) name!: string;
   @IsIn(Object.values(Game)) game!: Game; // every supported game (ASA, ASE, CONAN, …)
   @IsString() map!: string;
   @IsOptional() @IsInt() @Min(1) maxPlayers?: number;
@@ -55,7 +58,7 @@ export class CreateServerBody {
 }
 
 export class UpdateServerBody {
-  @IsOptional() @IsString() name?: string;
+  @IsOptional() @Trim() @IsString() @IsNotEmpty({ message: "Server name is required" }) name?: string;
   @IsOptional() @IsString() map?: string;
   @IsOptional() @IsInt() @Min(1) maxPlayers?: number;
   @IsOptional() @IsInt() @Min(1024) gamePort?: number;
