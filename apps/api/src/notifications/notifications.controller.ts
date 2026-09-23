@@ -6,6 +6,7 @@ import {
   IsEnum,
   IsIn,
   IsString,
+  IsUrl,
   MaxLength,
   ValidateNested,
 } from "class-validator";
@@ -17,12 +18,18 @@ class TargetDto {
   @IsString() @MaxLength(64) id!: string;
   @IsString() @MaxLength(80) name!: string;
   @IsIn(["discord", "slack", "ntfy", "webhook"]) kind!: NotificationKind;
-  @IsString() @MaxLength(2000) url!: string;
+  // require_tld off so LAN hosts like http://ntfy:8080 still pass.
+  @IsUrl(
+    { protocols: ["http", "https"], require_protocol: true, require_tld: false },
+    { message: "url must be a full http(s):// URL" },
+  )
+  @MaxLength(2000)
+  url!: string;
   @IsBoolean() enabled!: boolean;
   @IsArray() @IsEnum(EventType, { each: true }) events!: EventType[];
 }
 
-class PutTargetsBody {
+export class PutTargetsBody {
   @IsArray() @ValidateNested({ each: true }) @Type(() => TargetDto) targets!: TargetDto[];
 }
 
