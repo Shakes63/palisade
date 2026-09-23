@@ -1,7 +1,8 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Check, X, Search, ChevronDown } from "lucide-react";
-import { Game } from "@ark/shared";
+import { Game, type ServerConfigValues } from "@ark/shared";
+import { apiGet } from "@/lib/api";
 
 /**
  * In-game server-browser filter guide, tailored per game. Both ARK and Conan
@@ -12,6 +13,7 @@ import { Game } from "@ark/shared";
  */
 export function UnofficialListHelp({
   game,
+  serverId,
   serverName,
   mapName,
   queryPort,
@@ -20,6 +22,8 @@ export function UnofficialListHelp({
   className = "",
 }: {
   game: Game;
+  /** Lets Minecraft/Bedrock read the whitelist setting when the panel opens. */
+  serverId?: string;
   serverName: string;
   mapName: string;
   /** Conan's Direct Connect uses the query port — surfaced as a fallback. */
@@ -56,6 +60,9 @@ export function UnofficialListHelp({
   const passwordHint = hasJoinPassword
     ? "your server has a join password"
     : "ON only if you set a join password";
+  const promptHint = hasJoinPassword ? "your server has a join password" : "only if you set a join password";
+  const listedHint = hasJoinPassword ? "players enter your join password when they join" : undefined;
+  const whitelist = useWhitelist(open && (minecraft || bedrock) ? serverId : undefined, game);
 
   return (
     <div className={`rounded-md border border-ark-border ${className}`}>
@@ -88,7 +95,7 @@ export function UnofficialListHelp({
             <FilterRow
               state={hasJoinPassword ? "on" : "off"}
               label="Password prompt after picking a character"
-              hint={passwordHint}
+              hint={promptHint}
             />
             <p className="pt-1 leading-snug text-slate-400">
               The server name shows as <span className="text-slate-300">Created by</span>; the search box
@@ -105,7 +112,7 @@ export function UnofficialListHelp({
             <FilterRow
               state={hasJoinPassword ? "on" : "off"}
               label="Password prompt on join (lock icon)"
-              hint={passwordHint}
+              hint={promptHint}
             />
             <p className="pt-1 leading-snug text-slate-400">
               Search the name <span className="font-mono text-slate-200">{serverName}</span> — it can take a
@@ -121,7 +128,7 @@ export function UnofficialListHelp({
               In <span className="text-slate-200">Play → Community Server Browser</span>:
             </p>
             <FilterRow state="on" label="Search by name (needs a Game Server Login Token to list)" />
-            <FilterRow state={hasJoinPassword ? "on" : "off"} label="Password prompt on join" hint={passwordHint} />
+            <FilterRow state={hasJoinPassword ? "on" : "off"} label="Password prompt on join" hint={promptHint} />
             <p className="pt-1 leading-snug text-slate-400">
               Most players skip the browser: open the console (
               <span className="font-mono text-slate-200">~</span>) and use the{" "}
@@ -135,7 +142,7 @@ export function UnofficialListHelp({
               In <span className="text-slate-200">Multiplayer</span>:
             </p>
             <FilterRow state="on" label="Public server list — search by name (only if Public is on)" />
-            <FilterRow state={hasJoinPassword ? "on" : "off"} label="Password prompt on join" hint={passwordHint} />
+            <FilterRow state={hasJoinPassword ? "on" : "off"} label="Password prompt on join" hint={promptHint} />
             <p className="pt-1 leading-snug text-slate-400">
               Search the name <span className="font-mono text-slate-200">{serverName}</span>, or use{" "}
               <span className="text-slate-200">Add Server</span> with the address shown above.
@@ -177,7 +184,7 @@ export function UnofficialListHelp({
               label="Browse public games — only if public listing + factorio.com credentials are set"
               hint="off by default; use Connect to address instead"
             />
-            <FilterRow state={hasJoinPassword ? "on" : "off"} label="Password prompt on join" hint={passwordHint} />
+            <FilterRow state={hasJoinPassword ? "on" : "off"} label="Password prompt on join" hint={promptHint} />
             <p className="pt-1 leading-snug text-slate-400">
               Easiest: <span className="text-slate-200">Multiplayer → Connect to address</span> with the
               address above. The save <span className="font-mono text-slate-200">{serverName}</span> generates
@@ -190,7 +197,7 @@ export function UnofficialListHelp({
               Terraria has no public browser — players join by IP:
             </p>
             <FilterRow state="on" label="Multiplayer → Join via IP, enter the address + port above" />
-            <FilterRow state={hasJoinPassword ? "on" : "off"} label="Password prompt on join" hint={passwordHint} />
+            <FilterRow state={hasJoinPassword ? "on" : "off"} label="Password prompt on join" hint={promptHint} />
             <p className="pt-1 leading-snug text-slate-400">
               The world <span className="font-mono text-slate-200">{serverName}</span> is created on the first
               start (size from the create form). Online, friends use your public IP (forward TCP{" "}
@@ -203,11 +210,7 @@ export function UnofficialListHelp({
               In <span className="text-slate-200">Join a Game</span>:
             </p>
             <FilterRow state="on" label="Server browser — search by name, or Connect to Server by IP" />
-            <FilterRow
-              state={hasJoinPassword ? "on" : "off"}
-              label="Password-protected servers still list"
-              hint={passwordHint}
-            />
+            <FilterRow state="on" label="Password-protected servers still list" hint={listedHint} />
             <p className="pt-1 leading-snug text-slate-400">
               Search the name <span className="font-mono text-slate-200">{serverName}</span>, or use{" "}
               <span className="text-slate-200">Connect to Server</span> with the address shown above.
@@ -219,7 +222,7 @@ export function UnofficialListHelp({
               In <span className="text-slate-200">Convoy → search sessions</span>:
             </p>
             <FilterRow state="on" label="Search the session list by name (needs 'Visible in session search' on)" />
-            <FilterRow state={hasJoinPassword ? "on" : "off"} label="Password prompt on join" hint={passwordHint} />
+            <FilterRow state={hasJoinPassword ? "on" : "off"} label="Password prompt on join" hint={promptHint} />
             <p className="pt-1 leading-snug text-slate-400">
               Search the name <span className="font-mono text-slate-200">{serverName}</span>. Players need the
               SAME map DLCs as the server&apos;s world export. Name + password apply from the{" "}
@@ -235,7 +238,7 @@ export function UnofficialListHelp({
               state="on"
               label="Search the server list by name (unless 'Hide from server browser' is on)"
             />
-            <FilterRow state={hasJoinPassword ? "on" : "off"} label="Password prompt on join" hint={passwordHint} />
+            <FilterRow state={hasJoinPassword ? "on" : "off"} label="Password prompt on join" hint={promptHint} />
             <p className="pt-1 leading-snug text-slate-400">
               Search the name <span className="font-mono text-slate-200">{serverName}</span>, or use{" "}
               <span className="text-slate-200">Connect to custom IP</span> with the address above. Heads-up:
@@ -266,6 +269,7 @@ export function UnofficialListHelp({
               state={hasJoinPassword ? "on" : "off"}
               label="Password-protected filter"
               hint={passwordHint}
+              toggle
             />
             <p className="pt-1 leading-snug text-slate-400">
               Search the name <span className="font-mono text-slate-200">{serverName}</span>. Sons of the
@@ -283,7 +287,7 @@ export function UnofficialListHelp({
               label="Server list — search by name (only if 'List on Steam/EOS' is enabled)"
               hint="both listing settings are off by default"
             />
-            <FilterRow state={hasJoinPassword ? "on" : "off"} label="Password prompt on join" hint={passwordHint} />
+            <FilterRow state={hasJoinPassword ? "on" : "off"} label="Password prompt on join" hint={promptHint} />
             <p className="pt-1 leading-snug text-slate-400">
               Most players use <span className="text-slate-200">Direct Connect</span> with the address shown
               above. The name <span className="font-mono text-slate-200">{serverName}</span> appears in the
@@ -301,7 +305,7 @@ export function UnofficialListHelp({
               label="Internet tab — search by name (only if the server is Public)"
               hint="the Public server list setting is off by default"
             />
-            <FilterRow state={hasJoinPassword ? "on" : "off"} label="Server password on the Join screen" hint={passwordHint} />
+            <FilterRow state={hasJoinPassword ? "on" : "off"} label="Server password on the Join screen" hint={promptHint} />
             <p className="pt-1 leading-snug text-slate-400">
               Most players skip the browser: use <span className="text-slate-200">Favorites</span> with the IP +
               port shown above. The name <span className="font-mono text-slate-200">{serverName}</span> appears on
@@ -342,9 +346,9 @@ export function UnofficialListHelp({
             </p>
             <FilterRow state="on" label="Play → Servers → Add Server, set address + port" />
             <FilterRow
-              state={hasJoinPassword ? "on" : "off"}
+              state={whitelist ? "on" : "off"}
               label="Allow-list — add each player's gamertag"
-              hint={hasJoinPassword ? "you enabled the allow-list" : "ON only if you enable the allow-list"}
+              hint={whitelist ? "you enabled the allow-list" : "only if you enable the allow-list"}
             />
             <p className="pt-1 leading-snug text-slate-400">
               The server name <span className="font-mono text-slate-200">{serverName}</span> shows in your
@@ -357,11 +361,7 @@ export function UnofficialListHelp({
               In <span className="text-slate-200">Play → Join Server</span>:
             </p>
             <FilterRow state="on" label="Search the server list by name" />
-            <FilterRow
-              state={hasJoinPassword ? "on" : "off"}
-              label="Password-protected servers are still listed"
-              hint={passwordHint}
-            />
+            <FilterRow state="on" label="Password-protected servers are still listed" hint={listedHint} />
             <p className="pt-1 leading-snug text-slate-400">
               Search the name <span className="font-mono text-slate-200">{serverName}</span>, or use{" "}
               <span className="text-slate-200">Join IP</span> (the address shown above). Admin is via in-game
@@ -375,9 +375,9 @@ export function UnofficialListHelp({
             </p>
             <FilterRow state="on" label="Multiplayer → Add Server, paste the address above" />
             <FilterRow
-              state={hasJoinPassword ? "on" : "off"}
+              state={whitelist ? "on" : "off"}
               label="Whitelist — add each player's username"
-              hint={hasJoinPassword ? "you enabled the whitelist" : "ON only if you enable the whitelist"}
+              hint={whitelist ? "you enabled the whitelist" : "only if you enable the whitelist"}
             />
             <p className="pt-1 leading-snug text-slate-400">
               The server name <span className="font-mono text-slate-200">{serverName}</span> shows as the MOTD
@@ -390,8 +390,13 @@ export function UnofficialListHelp({
               In <span className="text-slate-200">Online → Server List</span>, set these filters:
             </p>
             <FilterRow state="on" label="Server Type — match yours, or “All”" />
-            <FilterRow state="on" label="Region — North America (your server's region)" />
-            <FilterRow state={hasJoinPassword ? "on" : "off"} label="Show Password Protected" hint={passwordHint} />
+            <FilterRow state="on" label="Region — match your server's (Settings → General → Region)" />
+            <FilterRow
+              state={hasJoinPassword ? "on" : "off"}
+              label="Show Password Protected"
+              hint={passwordHint}
+              toggle
+            />
             <p className="pt-1 leading-snug text-slate-400">
               Then search the name <span className="font-mono text-slate-200">{serverName}</span>. Or use{" "}
               <span className="text-slate-200">Direct Connect</span> with your server&apos;s IP
@@ -412,11 +417,7 @@ export function UnofficialListHelp({
               In <span className="text-slate-200">Join Multiplayer Game → Community Servers</span>:
             </p>
             <FilterRow state="on" label="Search by name (community list)" />
-            <FilterRow
-              state={hasJoinPassword ? "on" : "off"}
-              label="Password-protected servers are still listed"
-              hint={passwordHint}
-            />
+            <FilterRow state="on" label="Password-protected servers are still listed" hint={listedHint} />
             <p className="pt-1 leading-snug text-slate-400">
               Search the name <span className="font-mono text-slate-200">{serverName}</span>, or use{" "}
               <span className="text-slate-200">Connect with IP</span> (the address shown above).
@@ -427,9 +428,14 @@ export function UnofficialListHelp({
             <p className="text-slate-400">
               In <span className="text-slate-200">Join ARK → Unofficial</span>, set these filters:
             </p>
-            <FilterRow state="on" label="Show Player Servers" />
-            <FilterRow state="off" label="PC-Only Online Multiplayer" hint="hides crossplay servers" />
-            <FilterRow state={hasJoinPassword ? "on" : "off"} label="Show Password Protected Servers" hint={passwordHint} />
+            <FilterRow state="on" label="Show Player Servers" toggle />
+            <FilterRow state="off" label="PC-Only Online Multiplayer" hint="hides crossplay servers" toggle />
+            <FilterRow
+              state={hasJoinPassword ? "on" : "off"}
+              label="Show Password Protected Servers"
+              hint={passwordHint}
+              toggle
+            />
             <p className="pt-1 leading-snug text-slate-400">
               Then search the name <span className="font-mono text-slate-200">{serverName}</span>
               {mapName ? (
@@ -447,7 +453,36 @@ export function UnofficialListHelp({
   );
 }
 
-function FilterRow({ state, label, hint }: { state: "on" | "off"; label: string; hint?: string }) {
+/** Minecraft's image also turns the whitelist on when WHITELIST lists any names. */
+function useWhitelist(serverId: string | undefined, game: Game): boolean {
+  const [on, setOn] = useState(false);
+  useEffect(() => {
+    if (!serverId) return;
+    apiGet<ServerConfigValues>(`/servers/${serverId}/config`)
+      .then(({ values }) =>
+        setOn(
+          game === Game.BEDROCK
+            ? String(values.ALLOW_LIST) === "true"
+            : String(values.ENABLE_WHITELIST) === "true" || String(values.WHITELIST ?? "").trim() !== "",
+        ),
+      )
+      .catch(() => undefined);
+  }, [serverId, game]);
+  return on;
+}
+
+/** `toggle` marks a real in-game filter switch, which gets an ON/OFF suffix. */
+function FilterRow({
+  state,
+  label,
+  hint,
+  toggle = false,
+}: {
+  state: "on" | "off";
+  label: string;
+  hint?: string;
+  toggle?: boolean;
+}) {
   const on = state === "on";
   return (
     <div className="flex items-start gap-1.5">
@@ -457,10 +492,15 @@ function FilterRow({ state, label, hint }: { state: "on" | "off"; label: string;
         <X className="mt-0.5 h-3.5 w-3.5 shrink-0 text-rose-400" />
       )}
       <span className="text-slate-200">
-        {label}{" "}
-        <span className={on ? "font-semibold text-ark-accent" : "font-semibold text-rose-400"}>
-          {on ? "ON" : "OFF"}
-        </span>
+        {label}
+        {toggle && (
+          <>
+            {" "}
+            <span className={on ? "font-semibold text-ark-accent" : "font-semibold text-rose-400"}>
+              {on ? "ON" : "OFF"}
+            </span>
+          </>
+        )}
         {hint && <span className="text-slate-500"> — {hint}</span>}
       </span>
     </div>
