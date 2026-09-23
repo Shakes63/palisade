@@ -149,7 +149,8 @@ export class ValheimModsService {
         let installedVersion: string | null = null;
         try {
           const manifest = JSON.parse(
-            await readFile(join(this.pluginsDir(id), name, "manifest.json"), "utf8"),
+            // Windows-built mods often ship the manifest with a UTF-8 BOM.
+            (await readFile(join(this.pluginsDir(id), name, "manifest.json"), "utf8")).replace(/^\uFEFF/, ""),
           ) as { version_number?: string };
           installedVersion = manifest.version_number ?? null;
         } catch {
