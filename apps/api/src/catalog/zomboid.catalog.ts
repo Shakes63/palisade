@@ -230,6 +230,7 @@ const settings: SettingDef[] = [
   }),
   zini("MouseOverToSeeDisplayName", "Names on mouse-over only", "Server", "bool", true, {
     advanced: true,
+    help: "Players must mouse over someone to see their display name.",
   }),
   zini("HideAdminsInPlayerList", "Hide admins in player list", "Server", "bool", false, {
     advanced: true,
@@ -257,6 +258,7 @@ const settings: SettingDef[] = [
   }),
   zini("AllowNonAsciiUsername", "Allow non-ASCII usernames", "Server", "bool", false, {
     advanced: true,
+    help: "Allow Cyrillic and other non-ASCII characters in usernames.",
   }),
 
   // ── PvP ───────────────────────────────────────────────────────────────────────
@@ -351,6 +353,7 @@ const settings: SettingDef[] = [
   }),
   zini("PVPLogToolChat", "Log PvP to chat", "PvP", "bool", true, {
     advanced: true,
+    help: "PvP events are logged to admin chat.",
   }),
   zini("PVPLogToolFile", "Log PvP to file", "PvP", "bool", true, {
     advanced: true,
@@ -376,7 +379,9 @@ const settings: SettingDef[] = [
   zini("SafehouseAllowTrepass", "Allow trespassing", "Safehouse", "bool", true, {
     help: "Non-members may enter other players' safehouses.",
   }),
-  zini("SafehouseAllowFire", "Fire affects safehouses", "Safehouse", "bool", true),
+  zini("SafehouseAllowFire", "Fire affects safehouses", "Safehouse", "bool", true, {
+    help: "Fire can damage safehouses.",
+  }),
   zini("SafehouseAllowLoot", "Non-members can loot", "Safehouse", "bool", true),
   zini("SafehouseAllowRespawn", "Respawn in safehouse", "Safehouse", "bool", false, {
     help: "Members respawn in their safehouse after death.",
@@ -385,6 +390,7 @@ const settings: SettingDef[] = [
     min: 0,
     max: 365,
     unit: "days",
+    help: "In-game days a player must have survived before claiming a safehouse.",
   }),
   zini("SafeHouseRemovalTime", "Auto-release after offline", "Safehouse", "int", 144, {
     min: 0,
@@ -402,6 +408,7 @@ const settings: SettingDef[] = [
   }),
   zini("SafehousePreventsLootRespawn", "Block loot respawn inside", "Safehouse", "bool", true, {
     advanced: true,
+    help: "Items don't respawn in buildings claimed as a safehouse.",
   }),
   zini("DisableSafehouseWhenOwnerConnected", "Unprotected while owner online", "Safehouse", "bool", false, {
     advanced: true,
@@ -417,6 +424,7 @@ const settings: SettingDef[] = [
   }),
   zini("SledgehammerOnlyInSafehouse", "Sledgehammer only in own safehouse", "Safehouse", "bool", false, {
     advanced: true,
+    help: "Players can only destroy world objects inside their own safehouse. Needs sledgehammer destruction on.",
   }),
   zini("Faction", "Factions", "Safehouse", "bool", true, {
     help: "Players can create factions (shared chat + map markers).",
@@ -426,11 +434,13 @@ const settings: SettingDef[] = [
     max: 365,
     unit: "days",
     advanced: true,
+    help: "In-game days a player must survive before creating a faction.",
   }),
   zini("FactionPlayersRequiredForTag", "Members needed for faction tag", "Safehouse", "int", 1, {
     min: 1,
     max: 100,
     advanced: true,
+    help: "Faction members needed before the owner can create a group tag.",
   }),
   zini("War", "Faction wars", "Safehouse", "bool", false, {
     advanced: true,
@@ -452,6 +462,7 @@ const settings: SettingDef[] = [
     min: 1,
     max: 10000,
     advanced: true,
+    help: "Hit-point limit of a safehouse during a faction war.",
   }),
 
   // ── Chat & voice ──────────────────────────────────────────────────────────────
@@ -480,18 +491,21 @@ const settings: SettingDef[] = [
   zini("VoiceEnable", "Voice chat", "Chat & voice", "bool", true),
   zini("Voice3D", "3D positional voice", "Chat & voice", "bool", true, {
     advanced: true,
+    help: "Directional audio for voice chat.",
   }),
   zini("VoiceMinDistance", "Voice min distance", "Chat & voice", "float", 10, {
     min: 0,
     max: 100,
     step: 1,
     advanced: true,
+    help: "Minimum distance in tiles over which voice chat can be heard.",
   }),
   zini("VoiceMaxDistance", "Voice max distance", "Chat & voice", "float", 100, {
     min: 10,
     max: 300,
     step: 1,
     advanced: true,
+    help: "Maximum distance in tiles over which voice chat can be heard.",
   }),
   zini("BadWordPolicy", "Bad-word policy", "Chat & voice", "enum", "0", {
     choices: [
@@ -504,16 +518,32 @@ const settings: SettingDef[] = [
   }),
   zini("BadWordReplacement", "Bad-word replacement", "Chat & voice", "string", "****", {
     advanced: true,
+    help: "Symbol or text that replaces a filtered bad word.",
   }),
   zini("DisableRadioStaff", "No radio: staff", "Chat & voice", "bool", false, {
     advanced: true,
     help: "Hide radio transmissions from staff roles (this + the ones below control whose speech goes out over in-game radio).",
   }),
-  zini("DisableRadioAdmin", "No radio: admin", "Chat & voice", "bool", true, { advanced: true }),
-  zini("DisableRadioGM", "No radio: GM", "Chat & voice", "bool", true, { advanced: true }),
-  zini("DisableRadioOverseer", "No radio: overseer", "Chat & voice", "bool", false, { advanced: true }),
-  zini("DisableRadioModerator", "No radio: moderator", "Chat & voice", "bool", false, { advanced: true }),
-  zini("DisableRadioInvisible", "No radio: invisible staff", "Chat & voice", "bool", true, { advanced: true }),
+  zini("DisableRadioAdmin", "No radio: admin", "Chat & voice", "bool", true, {
+    advanced: true,
+    help: "Blocks radio transmissions from players with the admin access level.",
+  }),
+  zini("DisableRadioGM", "No radio: GM", "Chat & voice", "bool", true, {
+    advanced: true,
+    help: "Blocks radio transmissions from players with the GM access level.",
+  }),
+  zini("DisableRadioOverseer", "No radio: overseer", "Chat & voice", "bool", false, {
+    advanced: true,
+    help: "Blocks radio transmissions from players with the overseer access level.",
+  }),
+  zini("DisableRadioModerator", "No radio: moderator", "Chat & voice", "bool", false, {
+    advanced: true,
+    help: "Blocks radio transmissions from players with the moderator access level.",
+  }),
+  zini("DisableRadioInvisible", "No radio: invisible staff", "Chat & voice", "bool", true, {
+    advanced: true,
+    help: "Blocks radio transmissions from invisible players.",
+  }),
 
   // ── Discord ───────────────────────────────────────────────────────────────────
   zini("DiscordEnable", "Discord bridge", "Discord", "bool", false, {
@@ -583,6 +613,7 @@ const settings: SettingDef[] = [
   ),
   zini("ClientActionLogs", "Logged client actions", "Anti-cheat", "string", "ISEnterVehicle;ISExitVehicle;ISTakeEngineParts;", {
     advanced: true,
+    help: "Semicolon-separated list of actions written to the ClientActionLogs.txt server log.",
   }),
   zini("PerkLogs", "Perk logs", "Anti-cheat", "bool", true, {
     advanced: true,
@@ -599,6 +630,7 @@ const settings: SettingDef[] = [
     max: 3600,
     unit: "s",
     advanced: true,
+    help: "How often multiplayer statistics update. 0 = statistics off.",
   }),
   zini("UsernameDisguises", "Username disguises", "Anti-cheat", "bool", false, {
     advanced: true,
@@ -629,6 +661,7 @@ const settings: SettingDef[] = [
       { value: "3", label: "Shamblers" },
       { value: "4", label: "Random" },
     ],
+    help: "How fast zombies move.",
   }),
   zsand("ZombieLore.Strength", "Zombie strength", "Zombies", "enum", "2", {
     emitAs: "ZombieLore.Strength",
@@ -638,6 +671,7 @@ const settings: SettingDef[] = [
       { value: "3", label: "Weak" },
       { value: "4", label: "Random" },
     ],
+    help: "Damage zombies deal per attack.",
   }),
   zsand("ZombieLore.Toughness", "Zombie toughness", "Zombies", "enum", "2", {
     emitAs: "ZombieLore.Toughness",
@@ -647,6 +681,7 @@ const settings: SettingDef[] = [
       { value: "3", label: "Fragile" },
       { value: "4", label: "Random" },
     ],
+    help: "How hard zombies are to kill.",
   }),
   zsand("ZombieLore.Transmission", "Infection transmission", "Zombies", "enum", "1", {
     emitAs: "ZombieLore.Transmission",
@@ -682,6 +717,7 @@ const settings: SettingDef[] = [
       { value: "5", label: "2–3 days" },
       { value: "6", label: "1–2 weeks" },
     ],
+    help: "How quickly infected corpses rise as zombies.",
   }),
   zsand("ZombieLore.Cognition", "Zombie intelligence", "Zombies", "enum", "3", {
     emitAs: "ZombieLore.Cognition",
@@ -701,6 +737,7 @@ const settings: SettingDef[] = [
       { value: "3", label: "Short" },
       { value: "4", label: "None" },
     ],
+    help: "How long zombies remember a player after seeing or hearing them.",
   }),
   zsand("ZombieLore.Sight", "Zombie sight", "Zombies", "enum", "2", {
     emitAs: "ZombieLore.Sight",
@@ -710,6 +747,7 @@ const settings: SettingDef[] = [
       { value: "3", label: "Poor" },
       { value: "4", label: "Random" },
     ],
+    help: "Zombie vision radius.",
   }),
   zsand("ZombieLore.Hearing", "Zombie hearing", "Zombies", "enum", "2", {
     emitAs: "ZombieLore.Hearing",
@@ -719,6 +757,7 @@ const settings: SettingDef[] = [
       { value: "3", label: "Poor" },
       { value: "4", label: "Random" },
     ],
+    help: "Zombie hearing radius.",
   }),
   zsand("ZombieLore.ActiveOnly", "Zombie activity hours", "Zombies", "enum", "1", {
     emitAs: "ZombieLore.ActiveOnly",
@@ -728,22 +767,27 @@ const settings: SettingDef[] = [
       { value: "2", label: "Night only" },
       { value: "3", label: "Day only" },
     ],
+    help: "When zombies are active. Inactive zombies move slower and tend not to give chase.",
   }),
   zsand("ZombieLore.ThumpOnConstruction", "Zombies attack constructions", "Zombies", "bool", true, {
     emitAs: "ZombieLore.ThumpOnConstruction",
     advanced: true,
+    help: "Zombies can destroy player constructions and defences.",
   }),
   zsand("ZombieLore.ZombiesDragDown", "Zombies drag players down", "Zombies", "bool", true, {
     emitAs: "ZombieLore.ZombiesDragDown",
     advanced: true,
+    help: "Several attacking zombies can drag a player down and kill them. Depends on zombie strength.",
   }),
   zsand("ZombieLore.ZombiesFenceLunge", "Zombies lunge over fences", "Zombies", "bool", true, {
     emitAs: "ZombieLore.ZombiesFenceLunge",
     advanced: true,
+    help: "Zombies may lunge at a nearby player after climbing over a fence.",
   }),
   zsand("ZombieLore.TriggerHouseAlarm", "Zombies trigger house alarms", "Zombies", "bool", false, {
     emitAs: "ZombieLore.TriggerHouseAlarm",
     advanced: true,
+    help: "Zombies can set off house alarms when breaking through windows and doors.",
   }),
   zsand("ZombieConfig.PopulationMultiplier", "Population multiplier", "Zombies", "float", 1.0, {
     emitAs: "ZombieConfig.PopulationMultiplier",
@@ -760,6 +804,7 @@ const settings: SettingDef[] = [
     step: 0.05,
     unit: "×",
     advanced: true,
+    help: "Zombie population multiplier at the start of the game.",
   }),
   zsand("ZombieConfig.PopulationPeakMultiplier", "Peak population", "Zombies", "float", 1.5, {
     emitAs: "ZombieConfig.PopulationPeakMultiplier",
@@ -768,6 +813,7 @@ const settings: SettingDef[] = [
     step: 0.05,
     unit: "×",
     advanced: true,
+    help: "Zombie population multiplier on the peak day.",
   }),
   zsand("ZombieConfig.PopulationPeakDay", "Peak population day", "Zombies", "int", 28, {
     emitAs: "ZombieConfig.PopulationPeakDay",
@@ -775,6 +821,7 @@ const settings: SettingDef[] = [
     max: 365,
     unit: "days",
     advanced: true,
+    help: "Day the zombie population reaches its peak.",
   }),
   zsand("ZombieConfig.RespawnHours", "Zombie respawn hours", "Zombies", "float", 72, {
     emitAs: "ZombieConfig.RespawnHours",
@@ -817,14 +864,20 @@ const settings: SettingDef[] = [
   }),
 
   // ── Loot ──────────────────────────────────────────────────────────────────────
-  zsand("FoodLoot", "Food", "Loot", "enum", "4", { choices: LOOT_RARITY }),
+  zsand("FoodLoot", "Food", "Loot", "enum", "4", {
+    choices: LOOT_RARITY,
+    help: "Rarity of non-canned food.",
+  }),
   zsand("CannedFoodLoot", "Canned food", "Loot", "enum", "4", { choices: LOOT_RARITY }),
   zsand("WeaponLoot", "Melee weapons", "Loot", "enum", "4", { choices: LOOT_RARITY }),
   zsand("RangedWeaponLoot", "Firearms", "Loot", "enum", "4", { choices: LOOT_RARITY }),
   zsand("AmmoLoot", "Ammo", "Loot", "enum", "4", { choices: LOOT_RARITY }),
   zsand("MedicalLoot", "Medical", "Loot", "enum", "4", { choices: LOOT_RARITY }),
   zsand("MechanicsLoot", "Mechanics / car parts", "Loot", "enum", "4", { choices: LOOT_RARITY }),
-  zsand("SurvivalGearsLoot", "Survival gear", "Loot", "enum", "4", { choices: LOOT_RARITY }),
+  zsand("SurvivalGearsLoot", "Survival gear", "Loot", "enum", "4", {
+    choices: LOOT_RARITY,
+    help: "Seeds, nails, saws, fishing rods and other tools.",
+  }),
   zsand("LiteratureLoot", "Literature", "Loot", "enum", "4", { choices: LOOT_RARITY }),
   zsand("OtherLoot", "Everything else", "Loot", "enum", "4", { choices: LOOT_RARITY }),
   zsand("LootRespawn", "Loot respawn", "Loot", "enum", "1", {
@@ -904,6 +957,7 @@ const settings: SettingDef[] = [
       { value: "3", label: "Normal" },
       { value: "4", label: "Bright" },
     ],
+    help: "Ambient light level at night.",
   }),
   zsand("Helicopter", "Helicopter event", "World", "enum", "2", {
     choices: [
@@ -921,6 +975,7 @@ const settings: SettingDef[] = [
       { value: "2", label: "Sometimes" },
       { value: "3", label: "Often" },
     ],
+    help: "How often zombie-attracting events like distant gunshots happen.",
   }),
   zsand("GeneratorSpawning", "Generator spawn rate", "World", "enum", "3", {
     advanced: true,
@@ -930,6 +985,7 @@ const settings: SettingDef[] = [
       { value: "3", label: "Sometimes" },
       { value: "4", label: "Often" },
     ],
+    help: "Chance of electrical generators spawning on the map.",
   }),
   zsand("GeneratorFuelConsumption", "Generator fuel use", "World", "float", 1.0, {
     min: 0,
@@ -937,6 +993,7 @@ const settings: SettingDef[] = [
     step: 0.1,
     unit: "×",
     advanced: true,
+    help: "How much fuel generators burn per in-game hour.",
   }),
   zsand("Alarm", "House alarms", "World", "enum", "4", {
     advanced: true,
@@ -948,6 +1005,7 @@ const settings: SettingDef[] = [
       { value: "5", label: "Often" },
       { value: "6", label: "Very often" },
     ],
+    help: "How likely breaking into a house sets off an alarm.",
   }),
   zsand("LockedHouses", "Locked houses", "World", "enum", "6", {
     advanced: true,
@@ -959,6 +1017,7 @@ const settings: SettingDef[] = [
       { value: "5", label: "Often" },
       { value: "6", label: "Very often" },
     ],
+    help: "How often the doors of homes and buildings are locked when discovered.",
   }),
   zsand("FireSpread", "Fire spread", "World", "bool", true, {
     help: "Whether fire spreads between tiles (sandbox side — the server INI 'Disable fire' overrides everything).",
@@ -966,14 +1025,17 @@ const settings: SettingDef[] = [
   zsand("Map.AllowMiniMap", "Mini-map", "World", "bool", false, {
     emitAs: "Map.AllowMiniMap",
     advanced: true,
+    help: "Makes a mini-map window available.",
   }),
   zsand("Map.AllowWorldMap", "World map", "World", "bool", true, {
     emitAs: "Map.AllowWorldMap",
     advanced: true,
+    help: "Players can open the world map.",
   }),
   zsand("Map.MapAllKnown", "Map fully revealed", "World", "bool", false, {
     emitAs: "Map.MapAllKnown",
     advanced: true,
+    help: "The world map starts completely filled in.",
   }),
 
   // ── Survival ──────────────────────────────────────────────────────────────────
@@ -982,6 +1044,7 @@ const settings: SettingDef[] = [
     max: 100,
     step: 0.1,
     unit: "×",
+    help: "Multiplies the base XP gained from actions.",
   }),
   zsand("StatsDecrease", "Hunger/thirst/fatigue rate", "Survival", "enum", "3", {
     choices: [
@@ -990,6 +1053,7 @@ const settings: SettingDef[] = [
       { value: "3", label: "Normal" },
       { value: "4", label: "Slow" },
     ],
+    help: "How fast a character's hunger, thirst and fatigue stats drain.",
   }),
   zsand("Nutrition", "Nutrition system", "Survival", "bool", true, {
     advanced: true,
@@ -1003,6 +1067,7 @@ const settings: SettingDef[] = [
       { value: "4", label: "Slow" },
       { value: "5", label: "Very slow" },
     ],
+    help: "How fast food spoils, inside or outside a fridge.",
   }),
   zsand("FridgeFactor", "Fridge effectiveness", "Survival", "enum", "3", {
     advanced: true,
@@ -1013,6 +1078,7 @@ const settings: SettingDef[] = [
       { value: "4", label: "High" },
       { value: "5", label: "Very high" },
     ],
+    help: "How well fridges keep food fresh.",
   }),
   zsand("Farming", "Farming speed", "Survival", "enum", "3", {
     advanced: true,
@@ -1023,6 +1089,7 @@ const settings: SettingDef[] = [
       { value: "4", label: "Slow" },
       { value: "5", label: "Very slow" },
     ],
+    help: "Speed of plant growth.",
   }),
   zsand("PlantAbundance", "Wild plant abundance", "Survival", "enum", "3", {
     advanced: true,
@@ -1033,6 +1100,7 @@ const settings: SettingDef[] = [
       { value: "4", label: "Abundant" },
       { value: "5", label: "Very abundant" },
     ],
+    help: "Yield of plants when harvested.",
   }),
   zsand("NatureAbundance", "Nature abundance (fish/forage)", "Survival", "enum", "3", {
     advanced: true,
@@ -1043,6 +1111,7 @@ const settings: SettingDef[] = [
       { value: "4", label: "Abundant" },
       { value: "5", label: "Very abundant" },
     ],
+    help: "Abundance of fish and forageable items.",
   }),
   zsand("InjurySeverity", "Injury severity", "Survival", "enum", "2", {
     choices: [
@@ -1050,9 +1119,11 @@ const settings: SettingDef[] = [
       { value: "2", label: "Normal" },
       { value: "3", label: "High" },
     ],
+    help: "Impact injuries have on the body, and how long they take to heal.",
   }),
   zsand("BoneFracture", "Bone fractures", "Survival", "bool", true, {
     advanced: true,
+    help: "Survivors can break limbs from impacts, zombie damage and falls.",
   }),
   zsand("MultiHitZombies", "Multi-hit melee", "Survival", "bool", false, {
     help: "Melee swings can hit multiple zombies (the big difficulty lever).",
@@ -1086,7 +1157,9 @@ const settings: SettingDef[] = [
   }),
 
   // ── Vehicles ──────────────────────────────────────────────────────────────────
-  zsand("EnableVehicles", "Vehicles enabled", "Vehicles", "bool", true),
+  zsand("EnableVehicles", "Vehicles enabled", "Vehicles", "bool", true, {
+    help: "Vehicles spawn on the map.",
+  }),
   zsand("CarSpawnRate", "Car spawn rate", "Vehicles", "enum", "3", {
     choices: [
       { value: "1", label: "None" },
@@ -1095,6 +1168,7 @@ const settings: SettingDef[] = [
       { value: "4", label: "Normal" },
       { value: "5", label: "High" },
     ],
+    help: "How often vehicles are found on the map.",
   }),
   zsand("ChanceHasGas", "Chance cars have gas", "Vehicles", "enum", "1", {
     choices: [
@@ -1102,6 +1176,7 @@ const settings: SettingDef[] = [
       { value: "2", label: "Normal" },
       { value: "3", label: "High" },
     ],
+    help: "Chance a discovered vehicle has gas in its tank.",
   }),
   zsand("InitialGas", "Gas amount in cars", "Vehicles", "enum", "2", {
     advanced: true,
@@ -1112,6 +1187,7 @@ const settings: SettingDef[] = [
       { value: "4", label: "High" },
       { value: "5", label: "Full" },
     ],
+    help: "How full the gas tanks of discovered vehicles are.",
   }),
   zsand("FuelStationGas", "Gas station reserves", "Vehicles", "enum", "5", {
     advanced: true,
@@ -1125,6 +1201,7 @@ const settings: SettingDef[] = [
       { value: "7", label: "Very high" },
       { value: "8", label: "Full" },
     ],
+    help: "How full fuel station tanks start out.",
   }),
   zsand("CarGasConsumption", "Fuel consumption", "Vehicles", "float", 1.0, {
     min: 0,
@@ -1132,6 +1209,7 @@ const settings: SettingDef[] = [
     step: 0.1,
     unit: "×",
     advanced: true,
+    help: "How gas-hungry vehicles are.",
   }),
   zsand("CarGeneralCondition", "Car condition", "Vehicles", "enum", "2", {
     choices: [
@@ -1141,6 +1219,7 @@ const settings: SettingDef[] = [
       { value: "4", label: "High" },
       { value: "5", label: "Very high" },
     ],
+    help: "General condition of vehicles found on the map.",
   }),
   zsand("LockedCar", "Locked cars", "Vehicles", "enum", "3", {
     advanced: true,
@@ -1152,6 +1231,7 @@ const settings: SettingDef[] = [
       { value: "5", label: "Often" },
       { value: "6", label: "Very often" },
     ],
+    help: "How likely cars are to be locked.",
   }),
   zsand("CarAlarm", "Car alarms", "Vehicles", "enum", "2", {
     advanced: true,
@@ -1163,6 +1243,7 @@ const settings: SettingDef[] = [
       { value: "5", label: "Often" },
       { value: "6", label: "Very often" },
     ],
+    help: "How often discovered vehicles have active alarms.",
   }),
   zsand("TrafficJam", "Traffic jams", "Vehicles", "bool", true, {
     advanced: true,
@@ -1170,6 +1251,7 @@ const settings: SettingDef[] = [
   }),
   zsand("PlayerDamageFromCrash", "Crash damage to players", "Vehicles", "bool", true, {
     advanced: true,
+    help: "Players can be injured in car accidents.",
   }),
   zsand("SirenShutoffHours", "Siren shutoff", "Vehicles", "float", 0, {
     min: 0,

@@ -32,10 +32,18 @@ const settings: SettingDef[] = [
     help: "Which Steam branch/version of the dedicated server to install. Public is the current release; specific game versions (e.g. 1.53.x) are also offered. Changing it re-downloads the game on the next start.",
   }),
   // ── Session ───────────────────────────────────────────────────────────────────
-  aset("description", "Server description", "Session", "string", ""),
-  aset("welcome_message", "Welcome message", "Session", "string", ""),
-  aset("friends_only", "Friends only", "Session", "bool", false),
-  aset("show_server", "Visible in session search", "Session", "bool", true),
+  aset("description", "Server description", "Session", "string", "", {
+    help: "Session description shown to players, up to 63 characters.",
+  }),
+  aset("welcome_message", "Welcome message", "Session", "string", "", {
+    help: "Message players see when they join, up to 127 characters.",
+  }),
+  aset("friends_only", "Friends only", "Session", "bool", false, {
+    help: "SCS documents this flag as not used by the dedicated server.",
+  }),
+  aset("show_server", "Visible in session search", "Session", "bool", true, {
+    help: "SCS documents this flag as not used by the dedicated server.",
+  }),
   aset("mods_optioning", "Allow optional mods", "Session", "bool", false, {
     help: "Players may join with mods the session host doesn't run.",
   }),
@@ -44,21 +52,37 @@ const settings: SettingDef[] = [
   }),
 
   // ── Gameplay ──────────────────────────────────────────────────────────────────
-  aset("player_damage", "Player collision damage", "Gameplay", "bool", true),
-  aset("force_speed_limiter", "Force speed limiter", "Gameplay", "bool", false),
+  aset("player_damage", "Player collision damage", "Gameplay", "bool", true, {
+    help: "Players take damage from collisions with other players.",
+  }),
+  aset("force_speed_limiter", "Force speed limiter", "Gameplay", "bool", false, {
+    help: "Forces the truck speed limiter on for every player.",
+  }),
   aset("timezones", "Timezone simulation", "Gameplay", "int", 0, {
     min: 0,
     max: 2,
     help: "0 off, 1 in-game local time, 2 real timezones.",
   }),
-  aset("name_tags", "Show name tags", "Gameplay", "bool", true),
-  aset("hide_in_company", "Ghost players in company areas", "Gameplay", "bool", false),
-  aset("hide_colliding", "Ghost colliding vehicles", "Gameplay", "bool", true),
-  aset("service_no_collision", "No collision at services", "Gameplay", "bool", false),
-  aset("in_menu_ghosting", "Ghost players in menu", "Gameplay", "bool", false),
+  aset("name_tags", "Show name tags", "Gameplay", "bool", true, {
+    help: "Shows player name tags above vehicles.",
+  }),
+  aset("hide_in_company", "Ghost players in company areas", "Gameplay", "bool", false, {
+    help: "Hides remote players while they are inside a company area.",
+  }),
+  aset("hide_colliding", "Ghost colliding vehicles", "Gameplay", "bool", true, {
+    help: "Hides a vehicle that would collide with another right after it teleports.",
+  }),
+  aset("service_no_collision", "No collision at services", "Gameplay", "bool", false, {
+    help: "Turns off collisions in service areas.",
+  }),
+  aset("in_menu_ghosting", "Ghost players in menu", "Gameplay", "bool", false, {
+    help: "Turns off collisions for a player while their game is paused.",
+  }),
 
   // ── Traffic ───────────────────────────────────────────────────────────────────
-  aset("traffic", "AI traffic", "Traffic", "bool", true),
+  aset("traffic", "AI traffic", "Traffic", "bool", true, {
+    help: "Enables AI traffic on the roads.",
+  }),
   aset("max_vehicles_total", "Max vehicles total", "Traffic", "int", 100, { min: 0, max: 512 }),
   aset("max_ai_vehicles_player", "Max AI vehicles per player", "Traffic", "int", 50, {
     min: 0,
