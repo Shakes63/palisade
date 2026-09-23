@@ -295,6 +295,13 @@ const settings: SettingDef[] = [
     unit: "min",
     help: "Time between supply drops.",
   }),
+  pset("AUTO_SAVE_SPAN", "Auto-save interval", "World", "float", 30, {
+    min: 5,
+    max: 120,
+    step: 1,
+    unit: "s",
+    help: "Seconds between world auto-saves.",
+  }),
   pset("SERVER_REPLICATE_PAWN_CULL_DISTANCE", "Pawn replication distance", "World", "float", 15000, {
     min: 0,
     max: 30000,
@@ -410,13 +417,6 @@ const settings: SettingDef[] = [
     max: 100,
     unit: "players",
     help: "Maximum players in a single guild.",
-  }),
-  pset("AUTO_SAVE_SPAN", "Auto-save interval", "Guild", "float", 30, {
-    min: 1,
-    max: 120,
-    step: 1,
-    unit: "min",
-    help: "How often the world auto-saves.",
   }),
   pset("AUTO_RESET_GUILD_NO_ONLINE_PLAYERS", "Auto-reset empty guilds", "Guild", "bool", false, {
     help: "Automatically reset a guild once no members are online.",
