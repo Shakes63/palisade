@@ -17,6 +17,7 @@ const admin: AuthUser = { sub: "u1", role: "admin", ver: 1, restricted: false };
 function makeScheduler(
   sched: { action: string; command: string | null; warnMinutes?: number; runAt?: Date },
   state: ServerState = ServerState.Running,
+  game = "ASA",
 ) {
   const prisma = {
     schedule: {
@@ -33,7 +34,7 @@ function makeScheduler(
       })),
       update: vi.fn(async () => undefined),
     },
-    server: { findUnique: vi.fn(async () => ({ state })) },
+    server: { findUnique: vi.fn(async () => ({ state, game })) },
   };
   const events = { emit: vi.fn(async () => undefined) };
   const rcon = { broadcast: vi.fn(async () => "ok"), exec: vi.fn(async () => "ok") };
@@ -116,6 +117,33 @@ describe("scheduled RCON actions (GH #78)", () => {
     expect(servers.restart).toHaveBeenCalledWith("srv-1");
     expect(backups.create).toHaveBeenCalledWith("srv-1", "pre-restart");
     expect(rcon.exec).not.toHaveBeenCalled();
+  });
+});
+
+describe("restart warning countdown", () => {
+  it("counts down over the console on a game that has one", async () => {
+    vi.useFakeTimers();
+    try {
+      const { fire, rcon, servers } = makeScheduler({ action: "restart", command: null, warnMinutes: 2 });
+      const done = fire("sch-1");
+      await vi.advanceTimersByTimeAsync(120_000);
+      await done;
+      expect(rcon.broadcast).toHaveBeenCalledTimes(2);
+      expect(servers.restart).toHaveBeenCalledWith("srv-1");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("doesn't wait out the countdown on a game with no console to warn through", async () => {
+    const { fire, rcon, servers } = makeScheduler(
+      { action: "restart", command: null, warnMinutes: 10 },
+      ServerState.Running,
+      "VALHEIM",
+    );
+    await fire("sch-1");
+    expect(rcon.broadcast).not.toHaveBeenCalled();
+    expect(servers.restart).toHaveBeenCalledWith("srv-1");
   });
 });
 
