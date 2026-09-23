@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, Logger, NotFoundException, OnModuleInit } from "@nestjs/common";
-import { EventType, Game, ServerState } from "@ark/shared";
+import { EventType, Game, GAME_LABELS, ServerState } from "@ark/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { EventsService } from "../events/events.service";
 import { RconService } from "../rcon/rcon.service";
@@ -42,6 +42,11 @@ export interface PlayersView {
   players: SeenPlayer[];
   /** Actions this game supports (drives the UI's buttons). */
   supportedActions: PlayerAction[];
+  /** The supported actions that go over the console, so need the server running. */
+  liveActions: PlayerAction[];
+  running: boolean;
+  /** Whether this game records players at all. */
+  tracked: boolean;
   /** How sightings are captured for this game (shown as a hint). */
   captureNote: string;
   /** Server-wide hour-of-day activity histogram (24 ints, UTC hours). */
@@ -103,6 +108,11 @@ const CAPTURE_NOTES: Partial<Record<Game, string>> = {
   [Game.DRAGONWILDS]: "Captured from join log lines (character name).",
   [Game.MINECRAFT]: "Captured from the live player list + join log lines.",
 };
+
+/** Whether an action edits the game's access-list files rather than going over RCON. */
+function viaAccessList(game: Game, action: PlayerAction): boolean {
+  return game === Game.VALHEIM || game === Game.BEDROCK || (game === Game.SEVEN_DAYS && action !== "kick");
+}
 
 /**
  * Who has played on each server. Sightings come from two directions:
@@ -360,6 +370,7 @@ export class SightingsService implements OnModuleInit {
     for (const r of rows) {
       parseHourCounts(r.hourCountsJson).forEach((n, h) => (hourCounts[h]! += n));
     }
+    const tracked = RCON_POLL_GAMES.has(game) || CAPTURE_NOTES[game] !== undefined;
     return {
       players: rows.map((r) => ({
         name: r.name,
@@ -370,9 +381,12 @@ export class SightingsService implements OnModuleInit {
         playtimeMinutes: r.minutesPlayed,
       })),
       supportedActions: ACTIONS_BY_GAME[game],
-      captureNote:
-        CAPTURE_NOTES[game] ??
-        "Captured from the live player list every minute while the server runs.",
+      liveActions: ACTIONS_BY_GAME[game].filter((a) => !viaAccessList(game, a)),
+      running,
+      tracked,
+      captureNote: !tracked
+        ? `Player tracking isn't available for ${GAME_LABELS[game]}: Palisade can't read its player list.`
+        : (CAPTURE_NOTES[game] ?? "Captured from the live player list every minute while the server runs."),
       hourCounts,
       playtimeTracked: RCON_POLL_GAMES.has(game) || game === Game.ENSHROUDED,
     };
@@ -392,7 +406,7 @@ export class SightingsService implements OnModuleInit {
     const playerId = sighting?.playerId ?? null;
 
     // File-based access-list games → add to the right list (removal via the card).
-    if (game === Game.VALHEIM || game === Game.BEDROCK || (game === Game.SEVEN_DAYS && action !== "kick")) {
+    if (viaAccessList(game, action)) {
       const key: AccessListKey =
         action === "admin" ? "admins" : action === "whitelist" ? "whitelist" : "banned";
       const entry = this.listEntryFor(game, name, playerId, action);

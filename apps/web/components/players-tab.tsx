@@ -2,6 +2,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { Users, UserX, Gavel, ListChecks, Crown, Loader2, RefreshCw } from "lucide-react";
 import { apiGet, apiPost } from "@/lib/api";
+import { fmtLocal } from "@/lib/cron";
+import { fmtDate } from "@/lib/mod-format";
 
 type PlayerAction = "kick" | "ban" | "whitelist" | "admin";
 interface SeenPlayer {
@@ -15,6 +17,9 @@ interface SeenPlayer {
 interface View {
   players: SeenPlayer[];
   supportedActions: PlayerAction[];
+  liveActions: PlayerAction[];
+  running: boolean;
+  tracked: boolean;
   captureNote: string;
   hourCounts: number[];
   playtimeTracked: boolean;
@@ -110,19 +115,33 @@ export function PlayersTab({ serverId }: { serverId: string }) {
     }
   };
 
-  if (!view) return <div className="text-slate-400">Loading…</div>;
+  if (!view) return <div className="text-sm text-slate-400">Loading…</div>;
+
+  const unavailable = (p: SeenPlayer, a: PlayerAction): string | null => {
+    if (view.liveActions.includes(a) && !view.running) return "The server isn't running";
+    if (a === "kick" && !p.online) return `${p.name} isn't online`;
+    return null;
+  };
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="flex items-center gap-2 text-sm text-slate-400">
-          <Users className="h-4 w-4 text-ark-accent" />
-          {view.players.length} player{view.players.length === 1 ? "" : "s"} seen on this server.{" "}
-          <span className="text-xs text-slate-500">{view.captureNote}</span>
-        </p>
-        <button className="btn-secondary" onClick={refresh}>
-          <RefreshCw className="h-4 w-4" /> Refresh
-        </button>
+        <div className="flex min-w-0 items-start gap-2 text-sm text-slate-400">
+          <Users className="mt-0.5 h-4 w-4 shrink-0 text-ark-accent" />
+          <p>
+            {view.tracked && (
+              <>
+                {view.players.length} player{view.players.length === 1 ? "" : "s"} seen on this server.{" "}
+              </>
+            )}
+            <span className={view.tracked ? "text-xs text-slate-500" : ""}>{view.captureNote}</span>
+          </p>
+        </div>
+        {view.tracked && (
+          <button className="btn-secondary whitespace-nowrap" onClick={refresh}>
+            <RefreshCw className="h-4 w-4 shrink-0" /> Refresh
+          </button>
+        )}
       </div>
 
       {msg && <div className="card border-ark-accent/40 py-2 text-sm text-slate-200">{msg}</div>}
@@ -133,10 +152,12 @@ export function PlayersTab({ serverId }: { serverId: string }) {
       )}
 
       {view.players.length === 0 ? (
-        <div className="card text-slate-400">
-          Nobody yet — players are recorded automatically when they join (name + platform id where the
-          game provides one).
-        </div>
+        view.tracked && (
+          <div className="card text-sm text-slate-400">
+            Nobody yet — players are recorded automatically when they join (name + platform id where the
+            game provides one).
+          </div>
+        )
       ) : (
         <div className="space-y-2">
           {view.players.map((p) => (
@@ -146,11 +167,11 @@ export function PlayersTab({ serverId }: { serverId: string }) {
                 title={p.online ? "Online now" : "Offline"}
               />
               <div className="min-w-0 flex-1">
-                <div className="truncate font-medium text-slate-100">{p.name}</div>
-                <div className="truncate text-xs text-slate-500">
-                  {p.playerId ? <span className="font-mono">{p.playerId}</span> : "no platform id yet"} ·{" "}
-                  {p.online ? "online now" : `last seen ${ago(p.lastSeenAt)}`} · first{" "}
-                  {new Date(p.firstSeenAt).toLocaleDateString()}
+                <div className="truncate font-medium text-slate-100" title={p.name}>{p.name}</div>
+                <div className="break-words text-xs text-slate-500">
+                  {p.playerId ? <span className="break-all font-mono">{p.playerId}</span> : "no platform id yet"} ·{" "}
+                  {p.online ? "online now" : <span title={fmtLocal(p.lastSeenAt)}>last seen {ago(p.lastSeenAt)}</span>} ·
+                  first seen {fmtDate(p.firstSeenAt)}
                   {view.playtimeTracked && p.playtimeMinutes > 0 && <> · {playtime(p.playtimeMinutes)} played</>}
                 </div>
               </div>
@@ -159,6 +180,7 @@ export function PlayersTab({ serverId }: { serverId: string }) {
                   const meta = ACTION_META[a];
                   const Icon = meta.icon;
                   const key = `${p.name}:${a}`;
+                  const why = unavailable(p, a);
                   return (
                     <button
                       key={a}
@@ -167,8 +189,8 @@ export function PlayersTab({ serverId }: { serverId: string }) {
                           ? "border-rose-900/60 text-rose-300 hover:bg-rose-950/40"
                           : "border-ark-border text-slate-300 hover:border-slate-500"
                       }`}
-                      title={meta.title}
-                      disabled={busy !== null}
+                      title={why ?? meta.title}
+                      disabled={busy !== null || why !== null}
                       onClick={() => act(p.name, a)}
                     >
                       {busy === key ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Icon className="h-3.5 w-3.5" />}
@@ -184,10 +206,12 @@ export function PlayersTab({ serverId }: { serverId: string }) {
           ))}
         </div>
       )}
-      <p className="text-[11px] text-slate-500">
-        Whitelist/ban/admin additions land on the game&apos;s own lists — manage or remove entries in the
-        Players &amp; access card on the Overview (file-list games) or via the Console (RCON games).
-      </p>
+      {view.supportedActions.some((a) => a !== "kick") && (
+        <p className="text-[11px] text-slate-500">
+          Whitelist/ban/admin additions land on the game&apos;s own lists — manage or remove entries in the
+          Players &amp; access card on the Overview (file-list games) or via the Console (RCON games).
+        </p>
+      )}
     </div>
   );
 }

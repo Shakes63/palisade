@@ -69,3 +69,32 @@ describe("Enshrouded presence from the log", () => {
     expect(events.emit).not.toHaveBeenCalled();
   });
 });
+
+describe("players view", () => {
+  const view = (game: Game, state = ServerState.Running) => {
+    const prisma = {
+      server: { findUnique: vi.fn(async () => ({ id: "s1", game, state })) },
+      playerSighting: { findMany: vi.fn(async () => []) },
+    };
+    const svc = new SightingsService(prisma as never, {} as never, {} as never, {} as never, {} as never);
+    return svc.view("s1");
+  };
+
+  it("says plainly when a game records no players", async () => {
+    for (const game of [Game.OPENTTD, Game.CS2, Game.VRISING, Game.SATISFACTORY, Game.DST, Game.CORE_KEEPER]) {
+      const v = await view(game);
+      expect(v.tracked).toBe(false);
+      expect(v.captureNote).toMatch(/isn't available/);
+    }
+    for (const game of [Game.ASA, Game.MINECRAFT, Game.VALHEIM, Game.ENSHROUDED, Game.SEVEN_DAYS]) {
+      expect((await view(game)).tracked).toBe(true);
+    }
+  });
+
+  it("marks only the console-driven actions as needing a running server", async () => {
+    expect((await view(Game.MINECRAFT)).liveActions).toEqual(["kick", "ban", "whitelist", "admin"]);
+    expect((await view(Game.VALHEIM)).liveActions).toEqual([]);
+    expect((await view(Game.SEVEN_DAYS)).liveActions).toEqual(["kick"]);
+    expect((await view(Game.ASA, ServerState.Stopped)).running).toBe(false);
+  });
+});
