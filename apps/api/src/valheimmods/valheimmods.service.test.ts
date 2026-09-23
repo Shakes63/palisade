@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, rm, readdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Game } from "@ark/shared";
@@ -141,5 +141,64 @@ describe("ValheimModsService index loading", () => {
   it("fails only when both sources fail", async () => {
     stubIndexes(null, null);
     await expect(svc.search("")).rejects.toThrow();
+  });
+});
+
+// Built with Python's zipfile: manifest + plugins/Mod.dll + patchers/Mod.Patchers.dll, then
+// the next version with the patcher dropped.
+const WITH_PATCHER_B64 =
+  "UEsDBBQAAAAAAEuCN137pH4CGgAAABoAAAANAAAAbWFuaWZlc3QuanNvbnsidmVyc2lvbl9udW1iZXIiOiIxLjAuMCJ9UEsDBBQAAAAAAEuCN12UJ27pBgAAAAYAAAAPAAAAcGx1Z2lucy9Nb2QuZGxscGx1Z2luUEsDBBQAAAAAAEuCN10i2Ch3BwAAAAcAAAAZAAAAcGF0Y2hlcnMvTW9kLlBhdGNoZXJzLmRsbHBhdGNoZXJQSwECFAMUAAAAAABLgjdd+6R+AhoAAAAaAAAADQAAAAAAAAAAAAAAgAEAAAAAbWFuaWZlc3QuanNvblBLAQIUAxQAAAAAAEuCN12UJ27pBgAAAAYAAAAPAAAAAAAAAAAAAACAAUUAAABwbHVnaW5zL01vZC5kbGxQSwECFAMUAAAAAABLgjddItgodwcAAAAHAAAAGQAAAAAAAAAAAAAAgAF4AAAAcGF0Y2hlcnMvTW9kLlBhdGNoZXJzLmRsbFBLBQYAAAAAAwADAL8AAAC2AAAAAAA=";
+const WITHOUT_PATCHER_B64 =
+  "UEsDBBQAAAAAAEuCN11LjR4/GgAAABoAAAANAAAAbWFuaWZlc3QuanNvbnsidmVyc2lvbl9udW1iZXIiOiIxLjEuMCJ9UEsDBBQAAAAAAEuCN12UJ27pBgAAAAYAAAAHAAAATW9kLmRsbHBsdWdpblBLAQIUAxQAAAAAAEuCN11LjR4/GgAAABoAAAANAAAAAAAAAAAAAACAAQAAAABtYW5pZmVzdC5qc29uUEsBAhQDFAAAAAAAS4I3XZQnbukGAAAABgAAAAcAAAAAAAAAAAAAAIABRQAAAE1vZC5kbGxQSwUGAAAAAAIAAgBwAAAAcAAAAAAA";
+
+describe("ValheimModsService install layout", () => {
+  let root: string;
+  let svc: ValheimModsService;
+  let zip: string;
+
+  beforeEach(async () => {
+    process.env.SECRETS_KEY = "a".repeat(64);
+    process.env.JWT_SECRET = "test-jwt-secret-1234";
+    root = await mkdtemp(join(tmpdir(), "palisade-valheimmods-"));
+    process.env.DATA_DIR = root;
+    const { resetEnvCache } = await import("../config/env");
+    resetEnvCache();
+    const prisma = {
+      server: {
+        findUnique: async () => ({ id: "s1", game: Game.VALHEIM, configJson: "{}" }),
+        update: async () => undefined,
+      },
+    };
+    svc = new ValheimModsService(prisma as never);
+    const [pkg] = toPackages([raw("Argus-QoL", ["1.0.0"])], "hexium");
+    (svc as unknown as { index: unknown }).index = { at: Date.now(), byFullName: new Map([[pkg!.fullName, pkg]]), list: [pkg] };
+    zip = WITH_PATCHER_B64;
+    vi.stubGlobal("fetch", async () => new Response(Buffer.from(zip, "base64")));
+  });
+
+  afterEach(async () => {
+    vi.unstubAllGlobals();
+    await rm(root, { recursive: true, force: true });
+  });
+
+  const bepinex = () => join(root, "instances", "s1", "config/bepinex");
+
+  it("moves a top-level patchers/ folder to patchers/<Owner-Mod>", async () => {
+    await svc.install("s1", "Argus-QoL");
+    expect(await readdir(join(bepinex(), "patchers", "Argus-QoL"))).toEqual(["Mod.Patchers.dll"]);
+    expect((await readdir(join(bepinex(), "plugins", "Argus-QoL"))).sort()).toEqual(["manifest.json", "plugins"]);
+  });
+
+  it("drops a stale patcher when an update no longer ships one, and on remove", async () => {
+    await svc.install("s1", "Argus-QoL");
+    zip = WITHOUT_PATCHER_B64;
+    await svc.install("s1", "Argus-QoL");
+    expect(await readdir(join(bepinex(), "patchers"))).toEqual([]);
+
+    zip = WITH_PATCHER_B64;
+    await svc.install("s1", "Argus-QoL");
+    await svc.remove("s1", "Argus-QoL");
+    expect(await readdir(join(bepinex(), "patchers"))).toEqual([]);
+    expect(await readdir(join(bepinex(), "plugins"))).toEqual([]);
   });
 });

@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from "@nestjs/common";
-import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { join, basename } from "node:path";
 import { Game, type ServerConfigValues, type ValheimModSource } from "@ark/shared";
 import { PrismaService } from "../prisma/prisma.service";
@@ -18,6 +18,8 @@ const PAGE_SIZE = 20;
  *  mounts config at /config, so plugins are at config/bepinex/plugins; BepInEx scans
  *  this tree recursively for .dll plugins on start. */
 const VALHEIM_PLUGINS_SUBPATH = "config/bepinex/plugins";
+/** Preloader patchers only load from BepInEx/patchers; the image syncs it from here. */
+const VALHEIM_PATCHERS_SUBPATH = "config/bepinex/patchers";
 
 /** A slimmed Thunderstore package (the fields the UI + installer need). */
 export interface TsPackage {
@@ -64,6 +66,10 @@ export class ValheimModsService {
 
   private pluginsDir(id: string): string {
     return join(LocalPaths.instanceRoot(id), VALHEIM_PLUGINS_SUBPATH);
+  }
+
+  private patchersDir(id: string): string {
+    return join(LocalPaths.instanceRoot(id), VALHEIM_PATCHERS_SUBPATH);
   }
 
   // ── Thunderstore + Hexium index (cached) ─────────────────────────────────────
@@ -160,7 +166,7 @@ export class ValheimModsService {
     const dir = this.pluginsDir(id);
     await mkdir(dir, { recursive: true });
     for (const pkg of toInstall) {
-      await this.installOne(pkg, dir);
+      await this.installOne(pkg, dir, this.patchersDir(id));
     }
     await this.enableBepInEx(id);
     return this.status(id);
@@ -169,6 +175,7 @@ export class ValheimModsService {
   async remove(id: string, name: string) {
     await this.valheimServer(id);
     await rm(join(this.pluginsDir(id), basename(name)), { recursive: true, force: true });
+    await rm(join(this.patchersDir(id), basename(name)), { recursive: true, force: true });
     return this.status(id);
   }
 
@@ -191,7 +198,7 @@ export class ValheimModsService {
     return [...out.values()];
   }
 
-  private async installOne(pkg: TsPackage, pluginsDir: string) {
+  private async installOne(pkg: TsPackage, pluginsDir: string, patchersDir: string) {
     if (!pkg.downloadUrl) throw new BadRequestException(`"${pkg.fullName}" has no downloadable version`);
     const controller = new AbortController();
     const t = setTimeout(() => controller.abort(), 60_000);
@@ -212,6 +219,16 @@ export class ValheimModsService {
     await mkdir(dest, { recursive: true });
     // Mod zips are untrusted internet content → traversal-safe extraction.
     await extractZipSafe(buf, dest);
+    // Like r2modman, a top-level patchers/ folder goes to patchers/<Owner-Mod>.
+    const patcherDest = join(patchersDir, pkg.fullName);
+    await rm(patcherDest, { recursive: true, force: true });
+    const patchers = (await readdir(dest, { withFileTypes: true })).find(
+      (e) => e.isDirectory() && e.name.toLowerCase() === "patchers",
+    );
+    if (patchers) {
+      await mkdir(patchersDir, { recursive: true });
+      await rename(join(dest, patchers.name), patcherDest);
+    }
   }
 
   /** Flip the server's BEPINEX catalog setting on so the framework loads the mods. */
