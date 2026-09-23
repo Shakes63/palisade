@@ -1,4 +1,4 @@
-import { Game, ZOMBOID_STEAM_PORTS, type PortSet } from "@ark/shared";
+import { Game, INDEPENDENT_QUERY_PORT, ZOMBOID_STEAM_PORTS, type PortSet } from "@ark/shared";
 
 export { forwardSpec, ZOMBOID_STEAM_PORTS, type ForwardPort } from "@ark/shared";
 
@@ -260,4 +260,29 @@ export function portsFor(game: Game): PortSet {
   if (game === Game.DST) return DST_PORTS;
   if (game === Game.DRAGONWILDS) return DRAGONWILDS_PORTS;
   return FIXED_PORTS;
+}
+
+// These rawSocket slots (Satisfactory 8888, SotF blob sync, Rust+, CSTV, DST's caves
+// shard) are set on their own, so a game-port edit must not drag them along.
+const INDEPENDENT_RAW_SOCKET: ReadonlySet<Game> = new Set([
+  Game.SATISFACTORY,
+  Game.SOTF,
+  Game.RUST,
+  Game.CS2,
+  Game.DST,
+]);
+
+/** A server's ports after its game port moves to `game`: slots tied to the game
+ *  port keep their default offset from it, independent and unused (0) ones stay. */
+export function moveGamePort(g: Game, current: PortSet, game: number): PortSet {
+  const def = portsFor(g);
+  const follow = (slot: number, defSlot: number) => (defSlot > 0 ? game + defSlot - def.game : slot);
+  return {
+    ...current,
+    game,
+    rawSocket: INDEPENDENT_RAW_SOCKET.has(g) ? current.rawSocket : follow(current.rawSocket, def.rawSocket),
+    // DST's query slot is its Steam authentication port, set on its own like the caves shard.
+    query:
+      INDEPENDENT_QUERY_PORT.has(g) || g === Game.DST ? current.query : follow(current.query, def.query),
+  };
 }

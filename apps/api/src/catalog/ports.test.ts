@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { Game, portRows, consolePortSpec } from "@ark/shared";
 import {
   derivePorts,
+  moveGamePort,
   portsFor,
   nextBasePort,
   serverPortSet,
@@ -90,5 +91,41 @@ describe("consolePortSpec", () => {
     expect(consolePortSpec(Game.ZOMBOID)).toEqual({ label: "RCON port", editable: false });
     expect(consolePortSpec(Game.CS2)?.editable).toBe(true);
     expect(consolePortSpec(Game.OPENTTD)).toBeNull();
+  });
+});
+
+describe("moveGamePort (game-port edit)", () => {
+  const moved = (game: Game, to: number) => moveGamePort(game, portsFor(game), to);
+
+  it.each([
+    [Game.SATISFACTORY, { game: 7800, rawSocket: 8888, query: 7800, rcon: 0 }],
+    [Game.SOTF, { game: 8800, rawSocket: 9700, query: 27016, rcon: 0 }],
+    [Game.RUST, { game: 28100, rawSocket: 28082, query: 28016, rcon: 28016 }],
+    [Game.CS2, { game: 27100, rawSocket: 27020, query: 27100, rcon: 27025 }],
+    [Game.DST, { game: 11100, rawSocket: 11000, query: 12346, rcon: 0 }],
+  ])("leaves %s's independent slots alone", (game, expected) => {
+    expect(moved(game, expected.game)).toEqual(expected);
+  });
+
+  it.each([
+    [Game.VALHEIM, { game: 3000, rawSocket: 3002, query: 3001, rcon: 0 }],
+    [Game.SEVEN_DAYS, { game: 27000, rawSocket: 27001, query: 27002, rcon: 8081 }],
+    [Game.LIF, { game: 29000, rawSocket: 29001, query: 29002, rcon: 0 }],
+    [Game.MINECRAFT, { game: 25600, rawSocket: 25601, query: 25600, rcon: 25575 }],
+    [Game.BEDROCK, { game: 19200, rawSocket: 19201, query: 19200, rcon: 0 }],
+    [Game.ZOMBOID, { game: 16300, rawSocket: 16301, query: 16300, rcon: 27015 }],
+    [Game.ATS, { game: 27100, rawSocket: 27102, query: 27101, rcon: 0 }],
+    [Game.ASE, { game: 7800, rawSocket: 7801, query: 7779, rcon: 7780 }],
+    [Game.CONAN, { game: 7800, rawSocket: 7801, query: 7779, rcon: 7780 }],
+  ])("moves %s's tied slots with the game port", (game, expected) => {
+    expect(moved(game, expected.game)).toEqual(expected);
+  });
+
+  it("keeps unused (0) slots unset", () => {
+    expect(moved(Game.DRAGONWILDS, 7800)).toEqual({ game: 7800, rawSocket: 0, query: 0, rcon: 0 });
+  });
+
+  it("keeps an edited independent query port", () => {
+    expect(moveGamePort(Game.ICARUS, { ...portsFor(Game.ICARUS), query: 27100 }, 18000).query).toBe(27100);
   });
 });

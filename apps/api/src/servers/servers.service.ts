@@ -62,7 +62,7 @@ import { PlayersService } from "../players/players.service";
 import { buildContainerSpec, DRAGONWILDS_OWNER_ID_RE, ONE_SHOT_UPDATE_ENV } from "./runtime-spec";
 import { detectPalWineProxyDlls } from "../palmods/palmods.service";
 import { GameEndpointService } from "../docker/game-endpoint.service";
-import { palworldWinePortIssue, portsFor, serverPortSet } from "../catalog/ports";
+import { moveGamePort, palworldWinePortIssue, portsFor, serverPortSet } from "../catalog/ports";
 import { LocalPaths } from "../common/paths";
 import { gameUpdateMode } from "../updates/game-update-mode";
 import { containerName } from "../common/naming";
@@ -759,27 +759,15 @@ export class ServersService implements OnApplicationBootstrap, OnApplicationShut
       }
     }
     // Ports: editable only while the server is down (they're baked into the container
-    // port bindings + rendered configs). Changing the game port also moves its
-    // derived siblings — the raw-socket slot, and the query port on games where the
-    // engine fixes it relative to the game port (Valheim +1, 7DTD +2).
+    // port bindings + rendered configs). Changing the game port also moves the
+    // siblings the engine ties to it; independently-set ones stay (moveGamePort).
     {
       const ports: Record<string, number> = {};
       if (dto.gamePort !== undefined && dto.gamePort !== existing.gamePort) {
-        const g = dto.gamePort;
-        ports.gamePort = g;
-        const game = existing.game as Game;
-        if (game === Game.VALHEIM) {
-          ports.queryPort = g + 1;
-          ports.rawSocketPort = g + 2; // crossplay backend
-        } else if (game === Game.SEVEN_DAYS) {
-          ports.rawSocketPort = g + 1;
-          ports.queryPort = g + 2;
-        } else if (game === Game.MINECRAFT) {
-          ports.queryPort = g; // Java has no separate query; column mirrors the game port
-          ports.rawSocketPort = g + 1;
-        } else {
-          ports.rawSocketPort = g + 1;
-        }
+        const moved = moveGamePort(existing.game as Game, this.portsOf(existing), dto.gamePort);
+        ports.gamePort = moved.game;
+        if (moved.rawSocket !== existing.rawSocketPort) ports.rawSocketPort = moved.rawSocket;
+        if (moved.query !== existing.queryPort) ports.queryPort = moved.query;
       }
       // Explicit query/rcon edits override any derived value above.
       if (dto.queryPort !== undefined && dto.queryPort !== existing.queryPort) ports.queryPort = dto.queryPort;
