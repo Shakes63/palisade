@@ -17,12 +17,23 @@ const KIND_OPTIONS: { value: NotificationKind; label: string; placeholder: strin
   { value: "webhook", label: "Generic webhook (JSON)", placeholder: "https://example.com/hook" },
 ];
 
+function isHttpUrl(value: string): boolean {
+  try {
+    const u = new URL(value);
+    return (u.protocol === "http:" || u.protocol === "https:") && u.hostname !== "";
+  } catch {
+    return false;
+  }
+}
+
 /** Settings card: multiple notification destinations, each with its own event subscription. */
 export function NotificationTargetsCard() {
   const [targets, setTargets] = useState<NotificationTarget[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const [badUrls, setBadUrls] = useState<string[]>([]);
   const [testMsg, setTestMsg] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -34,11 +45,14 @@ export function NotificationTargetsCard() {
 
   const update = (id: string, patch: Partial<NotificationTarget>) => {
     setSaved(false);
+    setDirty(true);
+    if (patch.url !== undefined) setBadUrls((ids) => ids.filter((x) => x !== id));
     setTargets((ts) => ts.map((t) => (t.id === id ? { ...t, ...patch } : t)));
   };
 
   const add = () => {
     setSaved(false);
+    setDirty(true);
     setTargets((ts) => [
       ...ts,
       {
@@ -53,10 +67,15 @@ export function NotificationTargetsCard() {
   };
 
   const save = async () => {
+    const bad = targets.filter((t) => !isHttpUrl(t.url)).map((t) => t.id);
+    setBadUrls(bad);
+    if (bad.length > 0) return;
     setBusy(true);
     try {
       await apiPut("/notifications", { targets });
       setSaved(true);
+      setDirty(false);
+      setTestMsg({});
     } catch (err) {
       alert((err as Error).message);
     } finally {
@@ -64,14 +83,13 @@ export function NotificationTargetsCard() {
     }
   };
 
-  // Tests the SAVED config — nudge the user if they test with unsaved edits.
   const test = async (id: string) => {
     setTestMsg((m) => ({ ...m, [id]: "Sending…" }));
     try {
       const res = await apiPost<{ sent: boolean; error?: string }>(`/notifications/test/${id}`);
       setTestMsg((m) => ({
         ...m,
-        [id]: res.sent ? "Test sent ✓" : `Failed: ${res.error ?? "unknown"} (saved config is what's tested)`,
+        [id]: res.sent ? "Test sent ✓" : `Failed: ${res.error ?? "unknown"}`,
       }));
     } catch (err) {
       setTestMsg((m) => ({ ...m, [id]: (err as Error).message }));
@@ -107,13 +125,13 @@ export function NotificationTargetsCard() {
           <div key={t.id} className="space-y-3 rounded-lg border border-slate-700/60 p-3">
             <div className="flex flex-wrap items-center gap-2">
               <input
-                className="input w-40"
+                className="input w-auto min-w-0 flex-1 basis-32"
                 value={t.name}
                 onChange={(e) => update(t.id, { name: e.target.value })}
                 placeholder="Name"
               />
               <select
-                className="input w-44"
+                className="input w-auto"
                 value={t.kind}
                 onChange={(e) => update(t.id, { kind: e.target.value as NotificationKind })}
               >
@@ -123,26 +141,29 @@ export function NotificationTargetsCard() {
                   </option>
                 ))}
               </select>
-              <label className="ml-auto flex items-center gap-2 text-xs text-slate-300">
-                <input
-                  type="checkbox"
-                  className="h-4 w-4"
-                  checked={t.enabled}
-                  onChange={(e) => update(t.id, { enabled: e.target.checked })}
-                />
-                Enabled
-              </label>
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={() => {
-                  setSaved(false);
-                  setTargets((ts) => ts.filter((x) => x.id !== t.id));
-                }}
-                title="Remove destination"
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
+              <div className="ml-auto flex items-center gap-2">
+                <label className="flex items-center gap-2 text-xs text-slate-300">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4"
+                    checked={t.enabled}
+                    onChange={(e) => update(t.id, { enabled: e.target.checked })}
+                  />
+                  Enabled
+                </label>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => {
+                    setSaved(false);
+                    setDirty(true);
+                    setTargets((ts) => ts.filter((x) => x.id !== t.id));
+                  }}
+                  title="Remove destination"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
             </div>
             <div className="flex gap-2">
               <input
@@ -151,10 +172,19 @@ export function NotificationTargetsCard() {
                 onChange={(e) => update(t.id, { url: e.target.value })}
                 placeholder={kindMeta.placeholder}
               />
-              <button type="button" className="btn-secondary shrink-0" onClick={() => test(t.id)}>
+              <button
+                type="button"
+                className="btn-secondary shrink-0"
+                onClick={() => test(t.id)}
+                disabled={dirty}
+                title={dirty ? "Save first: Test sends through the saved settings" : "Send a test message"}
+              >
                 <Send className="h-4 w-4" /> Test
               </button>
             </div>
+            {badUrls.includes(t.id) && (
+              <p className="text-xs text-amber-400">Enter a full URL starting with http:// or https://.</p>
+            )}
             {testMsg[t.id] && <p className="text-xs text-slate-400">{testMsg[t.id]}</p>}
             <div className="grid gap-x-6 gap-y-1 sm:grid-cols-2">
               {NOTIFY_EVENT_GROUPS.map((g) => (
@@ -173,13 +203,14 @@ export function NotificationTargetsCard() {
         );
       })}
 
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <button type="button" className="btn-secondary" onClick={add}>
           <Plus className="h-4 w-4" /> Add destination
         </button>
         <button type="button" className="btn-primary" onClick={save} disabled={busy || !loaded}>
-          <Save className="h-4 w-4" /> {busy ? "Saving…" : saved ? "Saved ✓" : "Save notifications"}
+          <Save className="h-4 w-4" /> {busy ? "Saving…" : saved ? "Saved ✓" : "Save"}
         </button>
+        {badUrls.length > 0 && <p className="text-sm text-amber-400">Not saved: fix the URLs marked above.</p>}
       </div>
     </div>
   );
