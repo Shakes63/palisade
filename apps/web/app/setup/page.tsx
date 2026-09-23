@@ -14,6 +14,7 @@ export default function SetupPage() {
     curseForgeApiKey: "",
     steamWebApiKey: "",
   });
+  const [confirm, setConfirm] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
@@ -21,6 +22,8 @@ export default function SetupPage() {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!form.username.trim()) return setError("Enter a username.");
+    if (form.password !== confirm) return setError("The passwords don't match.");
     setBusy(true);
     setError(null);
     try {
@@ -41,14 +44,30 @@ export default function SetupPage() {
         Create your admin account and (optionally) add mod-browser API keys.
       </p>
       <form onSubmit={submit} className="card space-y-4">
-        <div className="grid grid-cols-2 gap-4">
-          <div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="sm:col-span-2">
             <label className="label">Admin username</label>
-            <input className="input" value={form.username} onChange={set("username")} />
+            <input className="input" autoComplete="username" value={form.username} onChange={set("username")} />
           </div>
           <div>
             <label className="label">Password (8+ chars)</label>
-            <input type="password" className="input" value={form.password} onChange={set("password")} />
+            <input
+              type="password"
+              className="input"
+              autoComplete="new-password"
+              value={form.password}
+              onChange={set("password")}
+            />
+          </div>
+          <div>
+            <label className="label">Confirm password</label>
+            <input
+              type="password"
+              className="input"
+              autoComplete="new-password"
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+            />
           </div>
         </div>
         <div>
@@ -59,7 +78,7 @@ export default function SetupPage() {
           />
         </div>
         <div>
-          <label className="label">CurseForge API key (ASA mod browser — optional)</label>
+          <label className="label">CurseForge API key (ASA mods and Minecraft modpacks — optional)</label>
           <input className="input" value={form.curseForgeApiKey} onChange={set("curseForgeApiKey")} />
         </div>
         <div>
