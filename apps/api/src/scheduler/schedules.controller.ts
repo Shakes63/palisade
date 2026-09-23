@@ -16,7 +16,7 @@ import { GAME_LABELS, RCON_SCHEDULE_ACTIONS, SCHEDULE_ACTIONS, type Game } from 
 import { PrismaService } from "../prisma/prisma.service";
 import { SchedulerService, assertValidCron } from "./scheduler.service";
 import { RCON_GAMES } from "../rcon/rcon.service";
-import { ModUpdatesService } from "../modupdates/modupdates.service";
+import { MOD_UPDATE_GAMES } from "../modupdates/modupdates.service";
 import { AccessService } from "../auth/access.service";
 import { CurrentUser } from "../auth/current-user.decorator";
 import type { AuthUser } from "../auth/auth-user";
@@ -79,7 +79,6 @@ export class SchedulesController {
     private readonly prisma: PrismaService,
     private readonly scheduler: SchedulerService,
     private readonly access: AccessService,
-    private readonly modUpdates: ModUpdatesService,
   ) {}
 
   /** The actions this server's game can run, so the form never offers one that
@@ -89,8 +88,7 @@ export class SchedulesController {
     if (!serverId) throw new BadRequestException("serverId is required");
     await this.access.assertServer(user, serverId);
     const game = await this.gameOf(serverId);
-    const mods = (await this.modUpdates.status(serverId)).supported;
-    return SCHEDULE_ACTIONS.filter((a) => this.supports(game, a, mods));
+    return SCHEDULE_ACTIONS.filter((a) => this.supports(game, a));
   }
 
   @Get()
@@ -187,17 +185,16 @@ export class SchedulesController {
     return server.game as Game;
   }
 
-  private supports(game: Game, action: string, modUpdates: boolean): boolean {
+  private supports(game: Game, action: string): boolean {
     if (RCON_SCHEDULE_ACTIONS.has(action)) return RCON_GAMES.has(game);
-    if (action === "update-mods") return modUpdates;
+    if (action === "update-mods") return MOD_UPDATE_GAMES.has(game);
     return true;
   }
 
   private async assertSupported(serverId: string, action: string): Promise<void> {
     if (!RCON_SCHEDULE_ACTIONS.has(action) && action !== "update-mods") return;
     const game = await this.gameOf(serverId);
-    const mods = action === "update-mods" && (await this.modUpdates.status(serverId)).supported;
-    if (this.supports(game, action, mods)) return;
+    if (this.supports(game, action)) return;
     throw new BadRequestException(
       action === "update-mods"
         ? `${GAME_LABELS[game]} has no mod updates to schedule`

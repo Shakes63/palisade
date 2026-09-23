@@ -40,7 +40,7 @@ function make() {
   };
   const scheduler = { registerWithTimezone: vi.fn(async () => undefined), unregister: vi.fn() };
   const access = new AccessService(prisma as never);
-  const ctl = new SchedulesController(prisma as never, scheduler as never, access, {} as never);
+  const ctl = new SchedulesController(prisma as never, scheduler as never, access);
   return { ctl, prisma, scheduler };
 }
 

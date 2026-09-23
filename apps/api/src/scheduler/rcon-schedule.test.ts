@@ -17,6 +17,7 @@ const admin: AuthUser = { sub: "u1", role: "admin", ver: 1, restricted: false };
 function makeScheduler(
   sched: { action: string; command: string | null; warnMinutes?: number; runAt?: Date },
   state: ServerState = ServerState.Running,
+  game = "ASA",
 ) {
   const prisma = {
     schedule: {
@@ -33,7 +34,7 @@ function makeScheduler(
       })),
       update: vi.fn(async () => undefined),
     },
-    server: { findUnique: vi.fn(async () => ({ state })) },
+    server: { findUnique: vi.fn(async () => ({ state, game })) },
   };
   const events = { emit: vi.fn(async () => undefined) };
   const rcon = { broadcast: vi.fn(async () => "ok"), exec: vi.fn(async () => "ok") };
@@ -119,13 +120,39 @@ describe("scheduled RCON actions (GH #78)", () => {
   });
 });
 
+describe("restart warning countdown", () => {
+  it("counts down over the console on a game that has one", async () => {
+    vi.useFakeTimers();
+    try {
+      const { fire, rcon, servers } = makeScheduler({ action: "restart", command: null, warnMinutes: 2 });
+      const done = fire("sch-1");
+      await vi.advanceTimersByTimeAsync(120_000);
+      await done;
+      expect(rcon.broadcast).toHaveBeenCalledTimes(2);
+      expect(servers.restart).toHaveBeenCalledWith("srv-1");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("doesn't wait out the countdown on a game with no console to warn through", async () => {
+    const { fire, rcon, servers } = makeScheduler(
+      { action: "restart", command: null, warnMinutes: 10 },
+      ServerState.Running,
+      "VALHEIM",
+    );
+    await fire("sch-1");
+    expect(rcon.broadcast).not.toHaveBeenCalled();
+    expect(servers.restart).toHaveBeenCalledWith("srv-1");
+  });
+});
+
 function makeController(
   row: { action: string; command: string | null } = {
     action: "announce",
     command: "old message",
   },
   game = "ASA",
-  modUpdates = false,
 ) {
   const prisma = {
     userServerAccess: { findMany: vi.fn(async () => []) },
@@ -138,12 +165,10 @@ function makeController(
     },
   };
   const scheduler = { registerWithTimezone: vi.fn(async () => undefined), unregister: vi.fn() };
-  const mods = { status: vi.fn(async () => ({ supported: modUpdates, count: 0, items: [] })) };
   const ctl = new SchedulesController(
     prisma as never,
     scheduler as never,
     new AccessService(prisma as never),
-    mods as never,
   );
   return { ctl, prisma };
 }
@@ -200,7 +225,8 @@ describe("schedule actions the game can't run", () => {
   it("offers announce and command only to console games, update-mods only to mod-updater games", async () => {
     const { ctl: ark } = makeController(undefined, "ASA");
     const ottd = makeController(undefined, "OPENTTD").ctl;
-    const valheim = makeController(undefined, "VALHEIM", true).ctl;
+    const valheim = makeController(undefined, "VALHEIM").ctl;
+    const minecraft = makeController(undefined, "MINECRAFT").ctl;
     expect(await ark.actions(admin, "srv-1")).toEqual(
       expect.arrayContaining(["restart", "announce", "command"]),
     );
@@ -209,6 +235,7 @@ describe("schedule actions the game can't run", () => {
     expect(await ottd.actions(admin, "srv-1")).not.toContain("command");
     expect(await ottd.actions(admin, "srv-1")).toContain("restart");
     expect(await valheim.actions(admin, "srv-1")).toContain("update-mods");
+    expect(await minecraft.actions(admin, "srv-1")).toContain("update-mods");
   });
 
   it("rejects them on create, before anything is written", async () => {

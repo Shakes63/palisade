@@ -4,12 +4,13 @@ import {
   describePlayerCondition,
   EventType,
   RCON_SCHEDULE_ACTIONS,
+  type Game,
   ServerState,
 } from "@ark/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { EventsService } from "../events/events.service";
 import { ServersService } from "../servers/servers.service";
-import { RconService } from "../rcon/rcon.service";
+import { RCON_GAMES, RconService } from "../rcon/rcon.service";
 import { BackupsService } from "../backups/backups.service";
 import { ManagerSettingsService } from "../manager-settings/manager-settings.service";
 import { PlayersService } from "../players/players.service";
@@ -307,8 +308,12 @@ export class SchedulerService implements OnModuleInit {
     }
   }
 
-  /** Broadcast a shrinking countdown to players before a disruptive action. */
+  /** Broadcast a shrinking countdown to players before a disruptive action. A game
+   *  without a console can't be warned, so the action runs without waiting. */
   private async warnCountdown(serverId: string, minutes: number): Promise<void> {
+    if (minutes <= 0) return;
+    const server = await this.prisma.server.findUnique({ where: { id: serverId }, select: { game: true } });
+    if (!server || !RCON_GAMES.has(server.game as Game)) return;
     for (let m = minutes; m > 0; m--) {
       await this.rcon
         .broadcast(serverId, `Server action in ${m} minute${m === 1 ? "" : "s"}...`)
