@@ -132,6 +132,10 @@ export function ScheduleList({ serverId }: { serverId: string }) {
   const isSupported = (a: string) => supported === null || supported.includes(a);
   // Countdown warnings go out as in-game chat, which needs the same console as Announce.
   const canWarn = isSupported("announce");
+  const hintFor = (a: string) => {
+    const hint = ACTIONS.find((x) => x.value === a)?.hint ?? "";
+    return canWarn ? hint : hint.replace(/^Warn players, t/, "T").replace("warn players, ", "");
+  };
   const actionOptions = ACTIONS.filter((a) => isSupported(a.value) || a.value === editing?.action);
 
   const isOnce = frequency === "once";
@@ -265,7 +269,7 @@ export function ScheduleList({ serverId }: { serverId: string }) {
                 </option>
               ))}
             </select>
-            <p className="mt-1 text-xs text-slate-500">{ACTIONS.find((a) => a.value === action)?.hint}</p>
+            <p className="mt-1 text-xs text-slate-500">{hintFor(action)}</p>
           </div>
           <div>
             <label htmlFor={`${uid}-freq`} className="label">How often</label>
@@ -488,7 +492,7 @@ export function ScheduleList({ serverId }: { serverId: string }) {
 
       {schedules.length === 0 ? (
         <div className="card text-sm text-slate-400">
-          No schedules yet. Disruptive actions warn players and take a backup first.
+          No schedules yet. Disruptive actions {canWarn ? "warn players and take" : "take"} a backup first.
         </div>
       ) : (
         <div className="space-y-2">
