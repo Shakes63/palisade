@@ -163,7 +163,8 @@ const ZOMBOID_GROUPS: SettingGroup[] = [
   { id: "server", label: "Server", Icon: SlidersHorizontal, cats: ["Server", "Network", "Performance"] },
   { id: "pvp", label: "PvP", Icon: Shield, cats: ["PvP", "Safehouse"] },
   { id: "chat", label: "Chat & Voice", Icon: MessageSquare, cats: ["Chat & Voice", "Discord"] },
-  { id: "backups", label: "Backups", Icon: Clock, cats: ["Game backups", "Anti-cheat"] },
+  { id: "backups", label: "Backups", Icon: Clock, cats: ["Game backups"] },
+  { id: "anticheat", label: "Anti-cheat", Icon: Wrench, cats: ["Anti-cheat"] },
 ];
 
 // Counter-Strike 2 (env-driven joedwards32 image).
