@@ -840,6 +840,8 @@ export class ServersService implements OnApplicationBootstrap, OnApplicationShut
     if ((existing.game as Game) === Game.DRAGONWILDS && dto.adminPassword) {
       assertDragonwildsOwnerId(dto.adminPassword);
     }
+    const game = existing.game as Game;
+    if (dto.adminPassword) assertRequiredField(game, ADMIN_PASSWORD_META[game], dto.adminPassword);
     applyPassword(existing.adminPasswordEnc, dto.adminPassword, "adminPasswordEnc");
     applyPassword(existing.spectatorPasswordEnc, dto.spectatorPassword, "spectatorPasswordEnc");
     // Join password is shown in the UI and clearable: an explicit "" REMOVES it
@@ -850,6 +852,7 @@ export class ServersService implements OnApplicationBootstrap, OnApplicationShut
     const settingPw = dto.config?.values?.["ServerPassword"];
     const joinPw = dto.serverPassword ?? (typeof settingPw === "string" ? settingPw : undefined);
     if (joinPw !== undefined) {
+      assertRequiredField(game, JOIN_PASSWORD_META[game], joinPw);
       let current: string;
       try {
         current = existing.serverPasswordEnc ? this.crypto.decrypt(existing.serverPasswordEnc) : "";
