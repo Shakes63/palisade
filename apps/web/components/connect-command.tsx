@@ -161,7 +161,7 @@ function DragonwildsJoinCard({
         Works on consoles, which cannot type an IP.
       </p>
       <div className="mb-1 mt-3 flex items-center gap-1.5 text-xs font-medium text-slate-400">
-        <Terminal className="h-3.5 w-3.5" /> Direct connect (PC)
+        <Terminal className="h-3.5 w-3.5" /> Join by IP (PC)
       </div>
       <CopyRow value={address} title="Paste into the Direct tab" />
       <p className="mt-1 text-[11px] leading-snug text-slate-500">
@@ -282,7 +282,7 @@ export function ConnectCommand({
     return (
       <div className={className}>
         <div className="mb-1 flex items-center gap-1.5 text-xs font-medium text-slate-400">
-          <Terminal className="h-3.5 w-3.5" /> Connect by IP (in-game)
+          <Terminal className="h-3.5 w-3.5" /> Join by IP (in-game)
         </div>
         <CopyRow value={`${hostOr}:${gamePort}`} title="Paste into Palworld's Join with IP" />
         <p className="mt-1 text-[11px] leading-snug text-slate-500">
@@ -360,7 +360,7 @@ export function ConnectCommand({
     return (
       <div className={className}>
         <div className="mb-1 flex items-center gap-1.5 text-xs font-medium text-slate-400">
-          <Terminal className="h-3.5 w-3.5" /> Connect (in-game)
+          <Terminal className="h-3.5 w-3.5" /> Join by IP (in-game)
         </div>
         <CopyRow value={`${hostOr}:${gamePort}`} title="7 Days to Die connect address" />
         <p className="mt-1 text-[11px] leading-snug text-slate-500">
@@ -590,7 +590,7 @@ export function ConnectCommand({
     return (
       <div className={className}>
         <div className="mb-1 flex items-center gap-1.5 text-xs font-medium text-slate-400">
-          <Terminal className="h-3.5 w-3.5" /> Add server (in-game)
+          <Terminal className="h-3.5 w-3.5" /> Add Server (in-game)
         </div>
         <CopyRow value={`${hostOr}:${gamePort}`} title="Server address for Satisfactory's Server Manager" />
         <p className="mt-1 text-[11px] leading-snug text-slate-500">
@@ -640,7 +640,7 @@ export function ConnectCommand({
     return (
       <div className={className}>
         <div className="mb-1 flex items-center gap-1.5 text-xs font-medium text-slate-400">
-          <Terminal className="h-3.5 w-3.5" /> Direct connect (in-game)
+          <Terminal className="h-3.5 w-3.5" /> Direct Connect (in-game)
         </div>
         <CopyRow value={`${hostOr}:${gamePort}`} title="Server IP + port for V Rising's Direct Connect" />
         <p className="mt-1 text-[11px] leading-snug text-slate-500">
@@ -692,7 +692,7 @@ export function ConnectCommand({
     return (
       <div className={className}>
         <div className="mb-1 flex items-center gap-1.5 text-xs font-medium text-slate-400">
-          <Terminal className="h-3.5 w-3.5" /> Add server (in-game)
+          <Terminal className="h-3.5 w-3.5" /> Add Server (in-game)
         </div>
         <CopyRow value={hostOr} title="Server address for Bedrock's Add Server" />
         <p className="mt-1 text-[11px] leading-snug text-slate-500">
@@ -709,7 +709,7 @@ export function ConnectCommand({
     return (
       <div className={className}>
         <div className="mb-1 flex items-center gap-1.5 text-xs font-medium text-slate-400">
-          <Terminal className="h-3.5 w-3.5" /> Add server (in-game)
+          <Terminal className="h-3.5 w-3.5" /> Add Server (in-game)
         </div>
         <CopyRow value={hostOr} title="Paste into Minecraft's Add Server / Direct Connect" />
         <p className="mt-1 text-[11px] leading-snug text-slate-500">
