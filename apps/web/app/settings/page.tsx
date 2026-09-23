@@ -314,7 +314,7 @@ export default function SettingsPage() {
                 value={gameHostNetwork}
                 onChange={(e) => setGameHostNetwork(e.target.value)}
               >
-                <option value="">Use environment (GAME_HOST_NETWORK)</option>
+                <option value="">Use environment</option>
                 <option value="true">Host network</option>
                 <option value="false">Shared bridge</option>
               </select>
@@ -331,9 +331,9 @@ export default function SettingsPage() {
                 value={autoCreateNetwork}
                 onChange={(e) => setAutoCreateNetwork(e.target.value)}
               >
-                <option value="">Use environment (AUTO_CREATE_NETWORK)</option>
+                <option value="">Use environment</option>
                 <option value="true">Yes — create and join it for me</option>
-                <option value="false">No — I manage Docker networks myself</option>
+                <option value="false">No — I manage Docker networks</option>
               </select>
             </div>
             <div>
