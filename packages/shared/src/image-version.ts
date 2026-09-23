@@ -16,24 +16,28 @@ import type { ImageTag } from "./dto";
 /** Tags that move (they name a channel, not a build) and so can never be the answer. */
 const FLOATING = /^(latest|stable|release|nightly|unstable|beta|dev|main|master|edge)(-.*)?$/i;
 
-/** Looks like a version: contains a digit, and isn't purely a date-less word. */
-const VERSION_LIKE = /\d/;
+/** Looks like a version: dotted numbers (`1.7.2-proton`), a bare major (`v2`) or a
+ *  build date. Rules out commit tags (`sha-e36cbfb0ddc8`) and variants (`java25`). */
+const VERSION_LIKE = /\d+\.\d+|^v?\d+$|^\d{4}-\d{2}-\d{2}/i;
+
+const isVersion = (name: string) => VERSION_LIKE.test(name) && !FLOATING.test(name);
 
 /**
  * The most specific version-looking tag sharing `tag`'s digest, or null when the
- * registry gave us no digests (GHCR's tag list omits them) or nothing else points
- * at the same build.
+ * registry gave us no digests (GHCR's tag list omits them), nothing else points
+ * at the same build, or `tag` already names a version.
  *
  * Prefers the longest candidate so `42.20.3-release` wins over a bare `42`, which
  * some images also publish as a moving major-version alias.
  */
 export function resolveVersionTag(tags: readonly ImageTag[], tag: string): string | null {
+  if (isVersion(tag)) return null;
   const digest = tags.find((t) => t.name === tag)?.digest;
   if (!digest) return null;
   const siblings = tags
     .filter((t) => t.name !== tag && t.digest === digest)
     .map((t) => t.name)
-    .filter((name) => VERSION_LIKE.test(name) && !FLOATING.test(name));
+    .filter(isVersion);
   if (!siblings.length) return null;
   return siblings.sort((a, b) => b.length - a.length || a.localeCompare(b))[0] ?? null;
 }

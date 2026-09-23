@@ -78,14 +78,16 @@ export function ImageVersionCard({ server, onSaved }: { server: ServerSummary; o
         className="flex w-full items-center justify-between gap-2 text-left"
         onClick={() => setOpen((v) => !v)}
       >
-        <span className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-ark-accent2">
-          <Boxes className="h-4 w-4" /> Version &amp; updates
-          <span className="ml-1 rounded bg-slate-700/60 px-1.5 py-0.5 font-mono text-[11px] font-normal normal-case text-slate-300">
+        <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm font-semibold uppercase tracking-wide text-ark-accent2">
+          <span className="flex shrink-0 items-center gap-2 whitespace-nowrap">
+            <Boxes className="h-4 w-4" /> Version &amp; updates
+          </span>
+          <span className="ml-1 max-w-full truncate rounded bg-slate-700/60 px-1.5 py-0.5 font-mono text-[11px] font-normal normal-case text-slate-300">
             {current}
           </span>
           {currentVersion && (
             <span
-              className="rounded bg-slate-800/80 px-1.5 py-0.5 font-mono text-[11px] font-normal normal-case text-slate-400"
+              className="max-w-full truncate rounded bg-slate-800/80 px-1.5 py-0.5 font-mono text-[11px] font-normal normal-case text-slate-400"
               title={`"${current}" currently points at ${currentVersion}`}
             >
               {currentVersion}
@@ -97,7 +99,7 @@ export function ImageVersionCard({ server, onSaved }: { server: ServerSummary; o
             </span>
           )}
         </span>
-        <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${open ? "rotate-180" : ""}`} />
+        <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
 
       {open && (
@@ -141,12 +143,12 @@ export function ImageVersionCard({ server, onSaved }: { server: ServerSummary; o
 
             <div className="flex flex-wrap items-center gap-2">
               <select
-                className="input max-w-xs"
+                className="input sm:w-auto sm:max-w-md"
                 value={choice}
                 disabled={!stopped || busy}
                 onChange={(e) => setChoice(e.target.value)}
               >
-                <option value="">Default ({data?.defaultTag ?? "latest"}) — track the shipped tag</option>
+                <option value="">Default ({data?.defaultTag ?? "latest"}) — shipped tag</option>
                 {loading && <option disabled>Loading versions…</option>}
                 {[...extra].map((name) => (
                   <option key={name} value={name}>
@@ -260,16 +262,24 @@ function GameBuildBlock({ server, onChanged }: { server: ServerSummary; onChange
         </button>
       </div>
 
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-400">
-        <span>
-          Installed:{" "}
-          <span className="font-mono text-slate-200">{status?.installed ?? "unknown"}</span>
-        </span>
-        <span>
-          Latest: <span className="font-mono text-slate-200">{status?.latest ?? "unknown"}</span>
-        </span>
-        <span className={verdict.cls}>{verdict.text}</span>
-      </div>
+      {status && status.installed === null && status.latest === null ? (
+        <p className="text-xs text-slate-400">
+          {status.appId === null
+            ? `Build tracking isn't available for ${label}.`
+            : "Installed and latest build are both unknown for now."}
+        </p>
+      ) : (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-400">
+          <span>
+            Installed:{" "}
+            <span className="font-mono text-slate-200">{status?.installed ?? "unknown"}</span>
+          </span>
+          <span>
+            Latest: <span className="font-mono text-slate-200">{status?.latest ?? "unknown"}</span>
+          </span>
+          <span className={verdict.cls}>{verdict.text}</span>
+        </div>
+      )}
 
       {status && status.installed === null && status.appId !== null && (
         <p className="text-[11px] leading-snug text-slate-500">
