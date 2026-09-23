@@ -723,6 +723,7 @@ function Overview({ server, onChanged }: { server: ServerSummary; onChanged: () 
         {!isCoreKeeper && (
           <UnofficialListHelp
             game={server.game}
+            serverId={server.id}
             serverName={server.name}
             mapName={mapLabel(server.map)}
             queryPort={server.ports.query}
