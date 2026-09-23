@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CalendarClock, Pencil, Plus, Save, Trash2 } from "lucide-react";
 import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/api";
 import { describePlayerCondition, RCON_SCHEDULE_ACTIONS } from "@ark/shared";
@@ -101,11 +101,18 @@ export function ScheduleList({ serverId }: { serverId: string }) {
   const [editing, setEditing] = useState<Schedule | null>(null);
   // Recurring schedules fire in the scheduler zone from Settings, not the browser's (GH #87).
   const [timezone, setTimezone] = useState<string | null>(null);
+  const [supported, setSupported] = useState<string[] | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
 
   const refresh = useCallback(() => {
     apiGet<Schedule[]>(`/schedules?serverId=${serverId}`).then(setSchedules).catch(() => undefined);
   }, [serverId]);
   useEffect(() => refresh(), [refresh]);
+  useEffect(() => {
+    apiGet<string[]>(`/schedules/actions?serverId=${serverId}`)
+      .then(setSupported)
+      .catch(() => undefined);
+  }, [serverId]);
   useEffect(() => {
     apiGet<{ timezone: string }>("/settings/timezone")
       .then((r) => setTimezone(r.timezone))
@@ -118,6 +125,12 @@ export function ScheduleList({ serverId }: { serverId: string }) {
     return /\d [AP]M$/.test(text) ? text + abbr : text;
   };
   const browserZone = timezone ? Intl.DateTimeFormat().resolvedOptions().timeZone : "";
+  // Saved instants read in the same zone as the recurring times beside them.
+  const fmtInZone = (iso: string) => fmtLocal(iso, timezone ?? undefined) + abbr;
+  const isSupported = (a: string) => supported === null || supported.includes(a);
+  // Countdown warnings go out as in-game chat, which needs the same console as Announce.
+  const canWarn = isSupported("announce");
+  const actionOptions = ACTIONS.filter((a) => isSupported(a.value) || a.value === editing?.action);
 
   const isOnce = frequency === "once";
   const cron = useMemo(
@@ -168,6 +181,7 @@ export function ScheduleList({ serverId }: { serverId: string }) {
     setCondition(s.minPlayersOnline !== null ? "atLeast" : s.maxPlayersOnline !== null ? "atMost" : "any");
     setThreshold(s.minPlayersOnline ?? s.maxPlayersOnline ?? 0);
     setName(s.name);
+    formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     if (s.runAt) {
       setFrequency("once");
       setOnceAt(localInput(new Date(s.runAt)));
@@ -203,7 +217,7 @@ export function ScheduleList({ serverId }: { serverId: string }) {
       cron: cronStr,
       action,
       ...(needsText ? { command: command.trim() } : {}),
-      warnMinutes: disruptive ? Number(warnMinutes) : 0,
+      warnMinutes: disruptive && canWarn ? Number(warnMinutes) : 0,
       minPlayersOnline,
       maxPlayersOnline,
       // Null so an edit from one-time to recurring clears the stored instant.
@@ -223,21 +237,29 @@ export function ScheduleList({ serverId }: { serverId: string }) {
     await apiPatch(`/schedules/${s.id}`, { enabled: !s.enabled }).catch(() => undefined);
     refresh();
   };
-  const remove = async (id: string) => {
-    await apiDelete(`/schedules/${id}`).catch(() => undefined);
+  const remove = async (s: Schedule) => {
+    if (!confirm(`Delete the schedule "${s.name}"?`)) return;
+    await apiDelete(`/schedules/${s.id}`).catch((e) => alert((e as Error).message));
+    if (editing?.id === s.id) resetForm();
     refresh();
   };
 
   return (
     <div className="space-y-4">
-      <form onSubmit={submit} className="card space-y-4">
+      <form ref={formRef} onSubmit={submit} className={`card scroll-mt-4 space-y-4 ${editing ? "border-ark-accent/60" : ""}`}>
+        {editing && (
+          <p className="flex items-center gap-2 text-sm font-medium text-ark-accent">
+            <Pencil className="h-4 w-4 shrink-0" /> Editing &ldquo;{editing.name}&rdquo;
+          </p>
+        )}
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
             <label className="label">Do this</label>
             <select className="input" value={action} onChange={(e) => setAction(e.target.value)}>
-              {ACTIONS.map((a) => (
+              {actionOptions.map((a) => (
                 <option key={a.value} value={a.value}>
                   {a.label}
+                  {isSupported(a.value) ? "" : " (not available for this game)"}
                 </option>
               ))}
             </select>
@@ -365,7 +387,7 @@ export function ScheduleList({ serverId }: { serverId: string }) {
           </p>
         )}
 
-        {disruptive && (
+        {disruptive && canWarn && (
           <div className="max-w-xs">
             <label className="label">Warn players (minutes)</label>
             <input
@@ -387,7 +409,7 @@ export function ScheduleList({ serverId }: { serverId: string }) {
           <label className="label">Player count</label>
           <div className="flex flex-wrap items-center gap-2">
             <select
-              className="input w-auto"
+              className="input sm:w-auto"
               value={condition}
               onChange={(e) => setCondition(e.target.value)}
             >
@@ -451,30 +473,40 @@ export function ScheduleList({ serverId }: { serverId: string }) {
       </form>
 
       {schedules.length === 0 ? (
-        <div className="card text-slate-400">
+        <div className="card text-sm text-slate-400">
           No schedules yet. Disruptive actions warn players and take a backup first.
         </div>
       ) : (
         <div className="space-y-2">
           {schedules.map((s) => (
-            <div key={s.id} className="card flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
+            <div
+              key={s.id}
+              className={`card flex flex-wrap items-center justify-between gap-3 ${editing?.id === s.id ? "border-ark-accent/60" : ""}`}
+            >
+              <div className="flex min-w-0 items-center gap-3">
                 <CalendarClock className="h-5 w-5 shrink-0 text-ark-accent2" />
-                <div>
-                  <div className="font-medium">{s.name}</div>
+                <div className="min-w-0">
+                  <div className="break-words font-medium">{s.name}</div>
                   <div className="text-xs text-slate-400">
                     {actionLabel(s.action)}
                     {s.command ? ` "${s.command}"` : ""} ·{" "}
-                    {s.runAt ? `Once · ${fmtLocal(s.runAt)}` : describeInZone(s.cron)}
+                    {s.runAt ? `Once on ${fmtInZone(s.runAt)}` : describeInZone(s.cron)}
                     {s.warnMinutes ? ` · warn ${s.warnMinutes}m` : ""}
                     {conditionSuffix(s)}
-                    {s.lastRunAt ? ` · last ${new Date(s.lastRunAt).toLocaleString()}` : ""}
+                    {s.lastRunAt ? ` · last ran ${fmtInZone(s.lastRunAt)}` : ""}
                   </div>
+                  {!isSupported(s.action) && (
+                    <div className="text-xs text-amber-400">
+                      This game can&apos;t run this action, so the schedule fails every time.
+                    </div>
+                  )}
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex shrink-0 items-center gap-2">
                 <button
                   onClick={() => toggleEnabled(s)}
+                  title={s.enabled ? "On: click to pause this schedule" : "Off: click to turn this schedule on"}
+                  aria-pressed={s.enabled}
                   className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
                     s.enabled
                       ? "bg-green-500/15 text-green-400"
@@ -483,10 +515,10 @@ export function ScheduleList({ serverId }: { serverId: string }) {
                 >
                   {s.enabled ? "On" : "Off"}
                 </button>
-                <button className="btn-secondary" title="Edit" onClick={() => startEdit(s)}>
+                <button className="btn-secondary" title="Edit" aria-label="Edit schedule" onClick={() => startEdit(s)}>
                   <Pencil className="h-4 w-4" />
                 </button>
-                <button className="btn-danger" onClick={() => remove(s.id)}>
+                <button className="btn-danger" title="Delete" aria-label="Delete schedule" onClick={() => remove(s)}>
                   <Trash2 className="h-4 w-4" />
                 </button>
               </div>

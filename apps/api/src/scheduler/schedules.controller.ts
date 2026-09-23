@@ -12,9 +12,11 @@ import {
 } from "@nestjs/common";
 import { PartialType } from "@nestjs/mapped-types";
 import { IsBoolean, IsDateString, IsIn, IsInt, IsOptional, IsString, Min } from "class-validator";
-import { RCON_SCHEDULE_ACTIONS, SCHEDULE_ACTIONS } from "@ark/shared";
+import { GAME_LABELS, RCON_SCHEDULE_ACTIONS, SCHEDULE_ACTIONS, type Game } from "@ark/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { SchedulerService, assertValidCron } from "./scheduler.service";
+import { RCON_GAMES } from "../rcon/rcon.service";
+import { ModUpdatesService } from "../modupdates/modupdates.service";
 import { AccessService } from "../auth/access.service";
 import { CurrentUser } from "../auth/current-user.decorator";
 import type { AuthUser } from "../auth/auth-user";
@@ -77,7 +79,19 @@ export class SchedulesController {
     private readonly prisma: PrismaService,
     private readonly scheduler: SchedulerService,
     private readonly access: AccessService,
+    private readonly modUpdates: ModUpdatesService,
   ) {}
+
+  /** The actions this server's game can run, so the form never offers one that
+   *  fails on every firing. */
+  @Get("actions")
+  async actions(@CurrentUser() user: AuthUser, @Query("serverId") serverId?: string) {
+    if (!serverId) throw new BadRequestException("serverId is required");
+    await this.access.assertServer(user, serverId);
+    const game = await this.gameOf(serverId);
+    const mods = (await this.modUpdates.status(serverId)).supported;
+    return SCHEDULE_ACTIONS.filter((a) => this.supports(game, a, mods));
+  }
 
   @Get()
   async list(@CurrentUser() user: AuthUser, @Query("serverId") serverId?: string) {
@@ -94,6 +108,7 @@ export class SchedulesController {
   async create(@Body() body: ScheduleBody, @CurrentUser() user: AuthUser) {
     await this.access.assertServer(user, body.serverId);
     assertPayload(body.action, body.command);
+    await this.assertSupported(body.serverId, body.action);
     // Create had the same write-then-validate ordering as update: the row landed
     // and registerWithTimezone raised the 400 afterwards.
     assertValidCron(body.cron);
@@ -135,6 +150,8 @@ export class SchedulesController {
     const action = body.action ?? currentAction;
     const command = body.command !== undefined ? body.command : currentCommand ?? undefined;
     assertPayload(action, command);
+    const serverId = body.serverId ?? current;
+    if (action !== currentAction || serverId !== current) await this.assertSupported(serverId, action);
     // Everything that can fail is checked before the write, so a rejected edit
     // leaves the row exactly as it was (GH #99).
     if (body.cron !== undefined) assertValidCron(body.cron);
@@ -162,6 +179,30 @@ export class SchedulesController {
     this.scheduler.unregister(id);
     await this.prisma.schedule.delete({ where: { id } });
     return { ok: true };
+  }
+
+  private async gameOf(serverId: string): Promise<Game> {
+    const server = await this.prisma.server.findUnique({ where: { id: serverId }, select: { game: true } });
+    if (!server) throw new NotFoundException("Server not found");
+    return server.game as Game;
+  }
+
+  private supports(game: Game, action: string, modUpdates: boolean): boolean {
+    if (RCON_SCHEDULE_ACTIONS.has(action)) return RCON_GAMES.has(game);
+    if (action === "update-mods") return modUpdates;
+    return true;
+  }
+
+  private async assertSupported(serverId: string, action: string): Promise<void> {
+    if (!RCON_SCHEDULE_ACTIONS.has(action) && action !== "update-mods") return;
+    const game = await this.gameOf(serverId);
+    const mods = action === "update-mods" && (await this.modUpdates.status(serverId)).supported;
+    if (this.supports(game, action, mods)) return;
+    throw new BadRequestException(
+      action === "update-mods"
+        ? `${GAME_LABELS[game]} has no mod updates to schedule`
+        : `${GAME_LABELS[game]} has no remote console, so it can't run "${action}" schedules`,
+    );
   }
 
   /** The schedule's server id, action and RCON payload, after checking the caller

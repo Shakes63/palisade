@@ -76,7 +76,7 @@ export function LogsTab({ serverId }: { serverId: string }) {
         <button
           className={`btn-secondary ${hideNoise ? "border-ark-accent text-ark-accent" : ""}`}
           onClick={toggleNoise}
-          title="Hide known-benign Conan/Unreal engine log spam"
+          title="Hide known harmless engine and startup log lines"
         >
           <Filter className="h-4 w-4" />
           {hideNoise ? `Engine noise hidden${hidden ? ` (${hidden})` : ""}` : "Hide engine noise"}

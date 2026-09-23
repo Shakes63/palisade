@@ -10,9 +10,9 @@ export function onceCron(local: string): string {
   return `${d.getMinutes()} ${d.getHours()} ${d.getDate()} ${d.getMonth() + 1} *`;
 }
 
-/** Compact local date+time for display, e.g. "Jun 25, 2:00 AM". */
-export function fmtLocal(iso: string): string {
-  return new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+/** Compact date+time for display, e.g. "Jun 25, 2026, 2:00 AM", in `timeZone` or the browser's. */
+export function fmtLocal(iso: string, timeZone?: string): string {
+  return new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short", timeZone });
 }
 
 export interface CronParts {

@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, beforeAll } from "vitest";
-import { mkdtemp, mkdir, rm, writeFile, symlink, readFile } from "node:fs/promises";
+import { chmod, mkdtemp, mkdir, rm, writeFile, symlink, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { BadRequestException } from "@nestjs/common";
+import { BadRequestException, ForbiddenException } from "@nestjs/common";
 import { FilesService } from "./files.service";
 
 /** Real-filesystem tests: the sandbox is the security boundary, so it's exercised
@@ -104,5 +104,17 @@ describe("FilesService", () => {
     await svc.remove("srv1", "cfg");
     await expect(svc.list("srv1", "cfg")).rejects.toThrow(/not a directory/i);
     await expect(svc.rename("srv1", "mods/a.txt", "../../outside/a.txt")).rejects.toThrow(BadRequestException);
+  });
+
+  // Root reads everything, so the case can only be reproduced as another user.
+  it.skipIf(process.getuid?.() === 0)("turns an unreadable folder into a 403, not a bare 500", async () => {
+    await chmod(join(root, "server.cfg"), 0o000);
+    await chmod(join(root, "mods"), 0o000);
+    try {
+      await expect(svc.list("srv1", "mods")).rejects.toThrow(ForbiddenException);
+      await expect(svc.readText("srv1", "server.cfg")).rejects.toThrow(/permission denied/i);
+    } finally {
+      await chmod(join(root, "mods"), 0o755);
+    }
   });
 });

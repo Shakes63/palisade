@@ -97,6 +97,17 @@ export class BackupsService {
     // Verify the snapshot actually captured something — an empty backup would
     // otherwise sit in the rotation looking like a valid restore point.
     const sizeBytes = await this.dirSize(dest);
+    if (sizeBytes === 0) {
+      await rm(dest, { recursive: true, force: true });
+      await this.events.emit({
+        type: EventType.Warning,
+        message: `Backup (${reason}) skipped — the save directory is empty or the game hasn't saved yet`,
+        serverId,
+      });
+      throw new BadRequestException(
+        "Nothing to back up yet: this server has no save files. Start it once so the game creates its world.",
+      );
+    }
     const snapshot = await this.prisma.snapshot.create({
       data: { serverId, path: dest, reason, sizeBytes },
     });
@@ -105,22 +116,12 @@ export class BackupsService {
     // oldest snapshot out from under that tar ("tar exited 2", GH #65) and the new
     // backup then waited for the hourly reconcile to make it off the box.
     await this.applyRetention(serverId);
-    if (sizeBytes === 0) {
-      this.logger.warn(`Backup (${reason}) for ${serverId} captured 0 bytes: ${dest}`);
-      await this.events.emit({
-        type: EventType.Warning,
-        message: `Backup (${reason}) captured no files — the save directory may be empty or the game hasn't saved yet`,
-        serverId,
-        data: { path: dest },
-      });
-    } else {
-      await this.events.emit({
-        type: EventType.BackupCreated,
-        message: `Backup (${reason}) created`,
-        serverId,
-        data: { path: dest, sizeBytes },
-      });
-    }
+    await this.events.emit({
+      type: EventType.BackupCreated,
+      message: `Backup (${reason}) created`,
+      serverId,
+      data: { path: dest, sizeBytes },
+    });
     return snapshot;
   }
 
