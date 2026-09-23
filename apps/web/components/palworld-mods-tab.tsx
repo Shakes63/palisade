@@ -181,62 +181,65 @@ export function PalworldModsTab({ serverId }: { serverId: string }) {
     <div className="space-y-4">
       {err && <div className="card border-rose-500/40 text-sm text-rose-300">{err}</div>}
 
-      {/* ── Popular server mods (curated links) ─────────────────────────── */}
-      <div className="card space-y-3">
-        <h3 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-ark-accent2">
-          <Store className="h-4 w-4" /> Popular server mods
-        </h3>
-        <p className="text-[11px] leading-snug text-slate-500">
-          Palworld has no in-app mod store (it isn&apos;t on Steam Workshop, and Nexus gates automated
-          downloads), so here are the established dedicated-server mods. These are{" "}
-          <span className="font-semibold text-slate-300">UE4SS DLL mods</span> — install the UE4SS
-          framework below, download the mod from its page, then follow the mod&apos;s install steps.
+      {status && !wine && (
+        <p className="rounded-md border border-amber-900/40 bg-amber-950/20 px-3 py-2 text-xs leading-snug text-amber-200/90">
+          This server is the native-Linux variant: it loads pak mods and Lua/Blueprint mods through the
+          experimental UE4SS Linux fork. DLL server mods such as PalDefender and PalGuard need the{" "}
+          <span className="font-semibold">Palworld (Wine)</span> variant.
         </p>
-        {!wine && (
-          <p className="rounded-md border border-amber-900/40 bg-amber-950/20 px-2.5 py-1.5 text-[11px] leading-snug text-amber-200/90">
-            These DLL mods need the <span className="font-semibold">Palworld (Wine)</span> variant. This
-            server is the native-Linux variant, which only runs Lua/Blueprint mods via the experimental
-            UE4SS Linux fork.
+      )}
+
+      {/* ── Server mods (curated links) ─────────────────────────────────── */}
+      {wine && (
+        <div className="card space-y-3">
+          <h3 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-ark-accent2">
+            <Store className="h-4 w-4" /> Server mods
+          </h3>
+          <p className="text-[11px] leading-snug text-slate-500">
+            Palworld has no in-app mod store (it isn&apos;t on Steam Workshop, and Nexus gates automated
+            downloads), so here are the established dedicated-server mods. These are{" "}
+            <span className="font-semibold text-slate-300">UE4SS DLL mods</span> — install the UE4SS
+            framework below, download the mod from its page, then follow the mod&apos;s install steps.
           </p>
-        )}
-        <ul className="divide-y divide-ark-border/50">
-          {CURATED_SERVER_MODS.map((m) => (
-            <li key={m.name} className="flex items-start justify-between gap-3 py-2">
-              <div className="min-w-0">
-                <span className="text-sm font-medium text-slate-100">{m.name}</span>
-                <span className="ml-2 rounded bg-slate-700/60 px-1.5 py-0.5 text-[10px] text-slate-300">
-                  {m.host}
-                </span>
-                <p className="mt-0.5 text-[11px] leading-snug text-slate-500">{m.desc}</p>
-              </div>
-              <a
-                href={m.url}
-                target="_blank"
-                rel="noreferrer"
-                className="btn-secondary shrink-0"
-                title={`Open ${m.name} on ${m.host}`}
-              >
-                Open <ExternalLink className="h-3.5 w-3.5" />
-              </a>
-            </li>
-          ))}
-        </ul>
-        <p className="text-[11px] leading-snug text-slate-500">
-          <span className="font-medium text-slate-400">PalGuard</span> (another popular anti-cheat) is
-          intentionally not linked here: it has no public Nexus/GitHub download page and is distributed
-          only through its community Discord, so there&apos;s no stable link to point at. Search
-          &ldquo;PalGuard Palworld&rdquo; to find its current Discord if you want it.
-        </p>
-      </div>
+          <ul className="divide-y divide-ark-border/50">
+            {CURATED_SERVER_MODS.map((m) => (
+              <li key={m.name} className="flex items-start justify-between gap-3 py-2">
+                <div className="min-w-0">
+                  <span className="text-sm font-medium text-slate-100">{m.name}</span>
+                  <span className="ml-2 rounded bg-slate-700/60 px-1.5 py-0.5 text-[10px] text-slate-300">
+                    {m.host}
+                  </span>
+                  <p className="mt-0.5 text-[11px] leading-snug text-slate-500">{m.desc}</p>
+                </div>
+                <a
+                  href={m.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="btn-secondary shrink-0"
+                  title={`Open ${m.name} on ${m.host}`}
+                >
+                  Open <ExternalLink className="h-3.5 w-3.5" />
+                </a>
+              </li>
+            ))}
+          </ul>
+          <p className="text-[11px] leading-snug text-slate-500">
+            <span className="font-medium text-slate-400">PalGuard</span> (another popular anti-cheat) is
+            intentionally not linked here: it has no public Nexus/GitHub download page and is distributed
+            only through its community Discord, so there&apos;s no stable link to point at. Search
+            &ldquo;PalGuard Palworld&rdquo; to find its current Discord if you want it.
+          </p>
+        </div>
+      )}
 
       {/* ── Pak content mods ────────────────────────────────────────────── */}
       <div className="card space-y-3">
-        <div className="flex items-center justify-between gap-2">
-          <h3 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-ark-accent2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="flex items-center gap-2 whitespace-nowrap text-sm font-semibold uppercase tracking-wide text-ark-accent2">
             <Package className="h-4 w-4" /> Pak mods
           </h3>
           <button
-            className="btn-secondary"
+            className="btn-secondary shrink-0 whitespace-nowrap"
             disabled={busy}
             onClick={() => pakInput.current?.click()}
           >
@@ -262,10 +265,12 @@ export function PalworldModsTab({ serverId }: { serverId: string }) {
                 <button
                   className="shrink-0 text-slate-500 hover:text-rose-400"
                   title="Remove"
+                  aria-label={`Remove ${p}`}
                   disabled={busy}
-                  onClick={() =>
-                    run(() => apiDelete(`/servers/${serverId}/palmods/paks?path=${encodeURIComponent(p)}`))
-                  }
+                  onClick={() => {
+                    if (!confirm(`Remove ${p} from this server?`)) return;
+                    void run(() => apiDelete(`/servers/${serverId}/palmods/paks?path=${encodeURIComponent(p)}`));
+                  }}
                 >
                   <Trash2 className="h-4 w-4" />
                 </button>
@@ -351,12 +356,12 @@ export function PalworldModsTab({ serverId }: { serverId: string }) {
           </label>
         )}
 
-        <div className="flex items-center gap-2 text-xs">
+        <div className="flex flex-wrap items-center gap-2 text-xs">
           <span className={fw?.present ? "text-ark-accent" : "text-amber-400"}>
             {fw?.present ? "● framework installed" : "○ framework not installed"}
           </span>
           <button
-            className="btn-secondary"
+            className="btn-secondary whitespace-nowrap"
             disabled={busy}
             onClick={() => fwInput.current?.click()}
           >
@@ -536,11 +541,13 @@ export function PalworldModsTab({ serverId }: { serverId: string }) {
                     <button
                       className="text-slate-500 hover:text-rose-400"
                       title="Remove"
+                      aria-label={`Remove ${m}`}
                       disabled={busy}
                       onClick={() => {
                         // If this mod's editor is open, closeCfg() may prompt about unsaved
                         // edits — respect a cancel and DON'T delete out from under it.
                         if (cfgMod === m && !closeCfg()) return;
+                        if (!confirm(`Remove ${m} from this server?`)) return;
                         void run(() => apiDelete(`/servers/${serverId}/palmods/palschema/mods/${encodeURIComponent(m)}`));
                       }}
                     >

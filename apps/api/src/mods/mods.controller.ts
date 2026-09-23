@@ -67,6 +67,14 @@ export class ModsController {
     return cf ? this.curseforge.categories(cf.gameId) : [];
   }
 
+  /** Whether the browser for this game has its API key set. Settings itself is
+   *  admin-only, so the Mods tab asks here instead. */
+  @Get("mods/key-status")
+  async keyStatus(@Query("game") game: Game = Game.ASA): Promise<{ configured: boolean }> {
+    const configured = workshopAppId(game) ? await this.steam.hasKey() : await this.curseforge.hasKey();
+    return { configured };
+  }
+
   // ── Favorites (global per game) ────────────────────────────────────────────
   @Get("mods/favorites")
   listFavorites(@Query("game") game: Game = Game.ASA) {

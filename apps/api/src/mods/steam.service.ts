@@ -29,6 +29,10 @@ const STEAM_QUERY_TYPE: Record<ModSort, string> = {
 export class SteamService {
   constructor(private readonly settings: ManagerSettingsService) {}
 
+  async hasKey(): Promise<boolean> {
+    return Boolean(await this.settings.get(SettingKeys.SteamWebApiKey));
+  }
+
   private async key(): Promise<string> {
     const key = await this.settings.get(SettingKeys.SteamWebApiKey);
     if (!key) {

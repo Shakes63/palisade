@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import {
   Search,
   Plus,
@@ -12,6 +13,7 @@ import {
   Star,
   Loader2,
   Check,
+  Info,
 } from "lucide-react";
 import {
   Game,
@@ -23,7 +25,7 @@ import {
 } from "@ark/shared";
 import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/api";
 import { ModDetailModal } from "./mod-detail-modal";
-import { fmtBytes, fmtDate } from "@/lib/mod-format";
+import { fmtBytes, fmtCount, fmtDate } from "@/lib/mod-format";
 
 interface ModInstall {
   id: string;
@@ -40,6 +42,8 @@ export function ModsTab({ serverId, game }: { serverId: string; game: Game }) {
   const [installed, setInstalled] = useState<ModInstall[]>([]);
   const [view, setView] = useState<"installed" | "browse" | "favorites">("installed");
   const [manualId, setManualId] = useState("");
+  const [manualIdError, setManualIdError] = useState<string | null>(null);
+  const [keyConfigured, setKeyConfigured] = useState<boolean | null>(null);
 
   // Browse state
   const [query, setQuery] = useState("");
@@ -76,11 +80,17 @@ export function ModsTab({ serverId, game }: { serverId: string; game: Game }) {
     window.history.replaceState(null, "", u);
   };
 
+  useEffect(() => {
+    apiGet<{ configured: boolean }>(`/mods/key-status?game=${game}`)
+      .then((r) => setKeyConfigured(r.configured))
+      .catch(() => undefined);
+  }, [game]);
+
   // Category list for the filter (CurseForge only).
   useEffect(() => {
-    if (!isASA) return;
+    if (!isASA || !keyConfigured) return;
     apiGet<ModCategory[]>(`/mods/categories?game=${game}`).then(setCategories).catch(() => undefined);
-  }, [game, isASA]);
+  }, [game, isASA, keyConfigured]);
 
   // Favorites (global per game) — stored server-side, work without an API key.
   useEffect(() => {
@@ -142,11 +152,11 @@ export function ModsTab({ serverId, game }: { serverId: string; game: Game }) {
   // First time the browser tab is opened, show the top mods (empty query +
   // default "most downloads" sort) so it isn't an empty page.
   useEffect(() => {
-    if (view === "browse" && !autoLoaded.current) {
+    if (view === "browse" && keyConfigured && !autoLoaded.current) {
       autoLoaded.current = true;
       fetchMods(0, false);
     }
-  }, [view, fetchMods]);
+  }, [view, keyConfigured, fetchMods]);
 
   // Featured-only is a client filter (CF flag); "name" falls back to a client
   // sort since Steam has no server-side name ordering.
@@ -180,6 +190,7 @@ export function ModsTab({ serverId, game }: { serverId: string; game: Game }) {
     refresh();
   };
   const remove = async (m: ModInstall) => {
+    if (!confirm(`Remove ${m.mod.name} from this server?`)) return;
     await apiDelete(`/servers/${serverId}/mods/${m.id}`);
     refresh();
   };
@@ -190,17 +201,17 @@ export function ModsTab({ serverId, game }: { serverId: string; game: Game }) {
   return (
     <div className="space-y-4">
       {/* Sub-tabs */}
-      <div className="flex gap-1 border-b border-ark-border">
+      <div className="flex gap-1 overflow-x-auto border-b border-ark-border">
         <button
           type="button"
           onClick={() => changeView("installed")}
-          className={`flex items-center gap-1.5 px-4 py-2 text-sm ${
+          className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap px-3 py-2 text-sm sm:px-4 ${
             view === "installed"
               ? "border-b-2 border-ark-accent text-slate-100"
               : "text-slate-400 hover:text-slate-200"
           }`}
         >
-          <Package className="h-4 w-4" /> Installed
+          <Package className="h-4 w-4 shrink-0" /> Installed
           <span className="rounded-full bg-ark-border px-1.5 text-[10px] text-slate-300">
             {installed.length}
           </span>
@@ -208,24 +219,25 @@ export function ModsTab({ serverId, game }: { serverId: string; game: Game }) {
         <button
           type="button"
           onClick={() => changeView("browse")}
-          className={`flex items-center gap-1.5 px-4 py-2 text-sm ${
+          className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap px-3 py-2 text-sm sm:px-4 ${
             view === "browse"
               ? "border-b-2 border-ark-accent text-slate-100"
               : "text-slate-400 hover:text-slate-200"
           }`}
         >
-          <Search className="h-4 w-4" /> {browserName} browser
+          <Search className="h-4 w-4 shrink-0" /> {browserName}
+          <span className="hidden sm:inline">browser</span>
         </button>
         <button
           type="button"
           onClick={() => changeView("favorites")}
-          className={`flex items-center gap-1.5 px-4 py-2 text-sm ${
+          className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap px-3 py-2 text-sm sm:px-4 ${
             view === "favorites"
               ? "border-b-2 border-ark-accent text-slate-100"
               : "text-slate-400 hover:text-slate-200"
           }`}
         >
-          <Star className="h-4 w-4" /> Favorites
+          <Star className="h-4 w-4 shrink-0" /> Favorites
           {favorites.length > 0 && (
             <span className="rounded-full bg-ark-border px-1.5 text-[10px] text-slate-300">
               {favorites.length}
@@ -241,7 +253,7 @@ export function ModsTab({ serverId, game }: { serverId: string; game: Game }) {
             image downloads/updates every listed mod to its latest release on each server start.
           </p>
           {installed.length === 0 && (
-            <div className="card text-slate-400">
+            <div className="card text-xs text-slate-500">
               No mods installed yet — add some from the {browserName} browser, or by ID below.
             </div>
           )}
@@ -268,7 +280,12 @@ export function ModsTab({ serverId, game }: { serverId: string; game: Game }) {
                 <button className="btn-secondary px-2" onClick={() => toggle(m)}>
                   {m.enabled ? "On" : "Off"}
                 </button>
-                <button className="btn-danger px-2" onClick={() => remove(m)}>
+                <button
+                  className="px-1.5 text-slate-500 hover:text-rose-400"
+                  title="Remove"
+                  aria-label={`Remove ${m.mod.name}`}
+                  onClick={() => remove(m)}
+                >
                   <Trash2 className="h-4 w-4" />
                 </button>
               </div>
@@ -278,20 +295,33 @@ export function ModsTab({ serverId, game }: { serverId: string; game: Game }) {
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              if (manualId) install(Number(manualId));
+              const id = manualId.trim();
+              if (!id) return;
+              if (!/^\d+$/.test(id)) {
+                setManualIdError("A mod ID is a number, e.g. 928793.");
+                return;
+              }
+              install(Number(id));
               setManualId("");
             }}
-            className="card flex gap-2"
+            className="card space-y-2"
           >
-            <input
-              className="input"
-              placeholder="Add by mod ID (works without an API key)"
-              value={manualId}
-              onChange={(e) => setManualId(e.target.value)}
-            />
-            <button className="btn-primary">
-              <Plus className="h-4 w-4" /> Add
-            </button>
+            <div className="flex gap-2">
+              <input
+                className="input"
+                inputMode="numeric"
+                placeholder="Add by mod ID (works without an API key)"
+                value={manualId}
+                onChange={(e) => {
+                  setManualId(e.target.value);
+                  setManualIdError(null);
+                }}
+              />
+              <button className="btn-primary shrink-0">
+                <Plus className="h-4 w-4" /> Add
+              </button>
+            </div>
+            {manualIdError && <p className="text-xs text-amber-400">{manualIdError}</p>}
           </form>
         </div>
       )}
@@ -299,13 +329,13 @@ export function ModsTab({ serverId, game }: { serverId: string; game: Game }) {
       {view === "favorites" && (
         <div className="space-y-3">
           {favorites.length === 0 ? (
-            <div className="card text-slate-400">
+            <div className="card text-xs text-slate-500">
               No favorites yet — tap the ★ on a mod in the {browserName} browser to save it here.
             </div>
           ) : (
             <div className="grid gap-2 lg:grid-cols-2">
               {favorites.map((f) => (
-                <div key={f.remoteId} className="card flex items-center justify-between gap-3 py-2.5">
+                <div key={f.remoteId} className="card flex min-w-0 items-center justify-between gap-3 py-2.5">
                   <button
                     type="button"
                     className="flex min-w-0 items-center gap-3 text-left"
@@ -347,7 +377,11 @@ export function ModsTab({ serverId, game }: { serverId: string; game: Game }) {
         </div>
       )}
 
-      {view === "browse" && (
+      {view === "browse" && keyConfigured === false && (
+        <ApiKeyNotice service={isASA ? "CurseForge" : "Steam Web"} what="browse mods" />
+      )}
+
+      {view === "browse" && keyConfigured && (
         <div className="space-y-3">
           <form
             onSubmit={(e) => {
@@ -440,7 +474,7 @@ export function ModsTab({ serverId, game }: { serverId: string; game: Game }) {
                 tabIndex={0}
                 onClick={() => setDetailId(r.remoteId)}
                 onKeyDown={(e) => e.key === "Enter" && setDetailId(r.remoteId)}
-                className="card flex cursor-pointer items-start justify-between gap-3 text-left transition-colors hover:border-ark-accent/40"
+                className="card flex min-w-0 cursor-pointer items-start justify-between gap-3 text-left transition-colors hover:border-ark-accent/40"
               >
                 <div className="flex min-w-0 gap-3">
                   {r.thumbnailUrl && (
@@ -456,7 +490,7 @@ export function ModsTab({ serverId, game }: { serverId: string; game: Game }) {
                     <div className="line-clamp-2 text-xs text-slate-400">{r.summary}</div>
                     <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-slate-500">
                       {r.authors[0] && <span className="max-w-[8rem] truncate">by {r.authors[0]}</span>}
-                      <span>{r.downloadCount.toLocaleString()} downloads</span>
+                      <span>{fmtCount(r.downloadCount)} downloads</span>
                       {r.lastUpdated && <span>upd {fmtDate(r.lastUpdated)}</span>}
                       {r.fileSize ? <span>{fmtBytes(r.fileSize)}</span> : null}
                     </div>
@@ -503,10 +537,10 @@ export function ModsTab({ serverId, game }: { serverId: string; game: Game }) {
           )}
 
           {hasSearched && displayed.length === 0 && !searching && !browseError && (
-            <p className="text-sm text-slate-500">No mods match.</p>
+            <p className="text-xs text-slate-500">No mods match.</p>
           )}
           {!hasSearched && !browseError && (
-            <p className="text-sm text-slate-500">Search above to browse {browserName} mods.</p>
+            <p className="text-xs text-slate-500">Search above to browse {browserName} mods.</p>
           )}
         </div>
       )}
@@ -524,6 +558,22 @@ export function ModsTab({ serverId, game }: { serverId: string; game: Game }) {
           }
         />
       )}
+    </div>
+  );
+}
+
+/** Shown in place of a mod browser whose API key isn't set in Settings. */
+export function ApiKeyNotice({ service, what }: { service: string; what: string }) {
+  return (
+    <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+      <Info className="mt-0.5 h-4 w-4 shrink-0" />
+      <span>
+        No {service} API key is set. Add one in{" "}
+        <Link href="/settings?tab=integrations" className="font-medium underline hover:text-amber-100">
+          Settings → Integrations
+        </Link>{" "}
+        to {what}.
+      </span>
     </div>
   );
 }

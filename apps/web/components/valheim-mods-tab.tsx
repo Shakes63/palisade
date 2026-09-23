@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Search, Download, Trash2, Package, Loader2, TriangleAlert, ExternalLink } from "lucide-react";
 import { apiGet, apiPost, apiDelete } from "@/lib/api";
+import { fmtCount } from "@/lib/mod-format";
 
 interface TsResult {
   name: string;
@@ -23,8 +24,6 @@ interface InstalledMod {
   updateAvailable: boolean;
 }
 type Status = { mods: InstalledMod[] };
-
-const fmt = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k` : String(n));
 
 /**
  * Valheim mod browser backed by Thunderstore (the Valheim mod DB). Search installs
@@ -92,6 +91,7 @@ export function ValheimModsTab({ serverId }: { serverId: string }) {
   };
 
   const remove = async (name: string) => {
+    if (!confirm(`Remove ${name} from this server?`)) return;
     try {
       setStatus(await apiDelete<Status>(`/servers/${serverId}/valheimmods/mods/${encodeURIComponent(name)}`));
     } catch (e) {
@@ -164,6 +164,7 @@ export function ValheimModsTab({ serverId }: { serverId: string }) {
                   <button
                     className="text-slate-500 hover:text-rose-400"
                     title="Remove"
+                    aria-label={`Remove ${m.name}`}
                     onClick={() => remove(m.name)}
                   >
                     <Trash2 className="h-4 w-4" />
@@ -185,7 +186,7 @@ export function ValheimModsTab({ serverId }: { serverId: string }) {
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
         <input
           className="input pl-9"
-          placeholder="Search Thunderstore mods (e.g. Jotunn, ValheimPlus, Craft From Containers)…"
+          placeholder="Search Thunderstore mods (e.g. Jotunn, Craft From Containers)…"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
@@ -200,7 +201,7 @@ export function ValheimModsTab({ serverId }: { serverId: string }) {
           {resp?.results.map((m) => {
             const isInstalled = installed.has(m.fullName);
             return (
-              <div key={m.fullName} className="card flex gap-3">
+              <div key={m.fullName} className="card flex min-w-0 gap-3">
                 {m.icon ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={m.icon} alt="" className="h-14 w-14 shrink-0 rounded-md bg-black/30" />
@@ -223,7 +224,7 @@ export function ValheimModsTab({ serverId }: { serverId: string }) {
                     </a>
                   </div>
                   <p className="text-xs text-slate-500">
-                    by {m.owner} · {fmt(m.downloads)} downloads
+                    by {m.owner} · {fmtCount(m.downloads)} downloads
                   </p>
                   <p className="mt-1 line-clamp-2 text-xs leading-snug text-slate-400">{m.description}</p>
                   <div className="mt-2">
@@ -245,7 +246,7 @@ export function ValheimModsTab({ serverId }: { serverId: string }) {
             );
           })}
           {resp && resp.results.length === 0 && (
-            <p className="text-sm text-slate-500">No mods match “{query}”.</p>
+            <p className="text-xs text-slate-500">No mods match “{query}”.</p>
           )}
         </div>
       )}
