@@ -7,9 +7,7 @@
 **Admin:** RCON. The admin password field is the ARK server admin password and enables RCON (`RCON_ENABLED=TRUE`); the panel's Console tab authenticates with it. Player counts also come over RCON.
 
 ## First boot
-- Big: ~13 GB depot (15 GB disk preflight), and plan on ~16 GB RAM for a populated server — by far the heaviest game in the panel. The image installs/updates the game files itself on every start (`UPDATE_SERVER=TRUE`).
-- Ready is detected on the log line "Server has completed startup and is now advertising for join" — the earlier "has successfully started!" and "Full Startup: N seconds" lines fire ~30 s before the server actually takes joins.
-- 11 official maps are selectable (The Island through Lost Colony and Genesis: Part 1, plus Club ARK); mod maps are added dynamically.
+Big: ~13 GB depot (15 GB disk preflight), and plan on ~16 GB RAM for a populated server — by far the heaviest game in the panel. The image installs/updates the game files itself on every start (`UPDATE_SERVER=TRUE`). Ready is detected on the log line "Server has completed startup and is now advertising for join" — the earlier "has successfully started!" and "Full Startup: N seconds" lines fire ~30 s before the server actually takes joins. 11 official maps are selectable (The Island through Lost Colony and Genesis: Part 1, plus Club ARK); mod maps are added dynamically.
 
 ## Gotchas
 - On a 32 GB box, run ONE ARK server at a time — two at once (ASA + ASE) has OOM'd the host into a swap thrash. Keep the per-server RAM cap set (~14 GB for ASA).

@@ -7,7 +7,7 @@
 **Admin:** None — ETS2 has no RCON, console, or admin concept; the session host moderates in-game. The admin password field is hidden for this game.
 
 ## First boot
-ETS2 is ATS's twin: the same ich777 SteamCMD wrapper installs the **native Linux** dedicated server (`eurotrucks2_server`, app 1948160, ~12 GB budget — the ETS2 base + map DLC is large) into the save dir `serverfiles/.local/share/Euro Truck Simulator 2`. The image bundles a default `server_packages` world export (base map plus free DLC), so no export from a game client is needed. `server_config.sii` is seeded on the first boot, so **your name, password, and the shifted ports apply from the second start** — restart once; the shared ATS patcher (`patchAtsServerConfig`) patches the file before every start thereafter.
+ETS2 is ATS's twin: the same ich777 SteamCMD wrapper installs the **native Linux** dedicated server (`eurotrucks2_server`, app 1948160, ~12 GB budget — the ETS2 base + map DLC is large) into the save dir `serverfiles/.local/share/Euro Truck Simulator 2`. The image bundles a default `server_packages` world export (base map plus free DLC), so no export from a game client is needed. `server_config.sii` is seeded on the first boot, so **your name, password, and the shifted ports apply from the second start** — restart once; Palisade patches the file before every start thereafter, the same way it does for ATS.
 
 ## Gotchas
 - **Second-start rule:** lobby name and session password only take effect after one restart — the config file is seeded by the game on the first boot.

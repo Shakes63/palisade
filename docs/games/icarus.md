@@ -7,10 +7,7 @@
 **Admin:** No network RCON — admin is in-game chat only. The admin password field gates the in-game `/AdminLogin` command (then `/AdminSay`, `/KickPlayer`, ...). The Console tab, live player list, broadcast, and save-on-stop are hidden/disabled for Icarus.
 
 ## First boot
-- ~11 GB of game files via SteamCMD under Wine (15 GB disk preflight) — expect a long first install. Icarus is heavy at runtime too: RocketWerkz recommend 16 GB RAM; the panel budgets 12 GB.
-- There is no map or world to configure: the world is a "prospect" (map + mode + difficulty) that players create/select in-game from the lobby. `SERVER_ALLOW_NON_ADMINS_LAUNCH` and `SERVER_RESUME_PROSPECT` control lobby behavior. To boot straight into a saved prospect, set **Load prospect on start** (Settings → Session) to its name.
-- Ready is detected when the Unreal server binds its port and the GameMode reaches the lobby ("Match State Changed from EnteringMap to WaitingToStart").
-- Config + saves (prospects) and the big game install are bound to separate dirs, so backups target the small config/saves dir.
+~11 GB of game files via SteamCMD under Wine (15 GB disk preflight) — expect a long first install. Icarus is heavy at runtime too: RocketWerkz recommend 16 GB RAM; the panel budgets 12 GB. There is no map or world to configure: the world is a "prospect" (map + mode + difficulty) that players create/select in-game from the lobby. `SERVER_ALLOW_NON_ADMINS_LAUNCH` and `SERVER_RESUME_PROSPECT` control lobby behavior. To boot straight into a saved prospect, set **Load prospect on start** (Settings → Session) to its name. Ready is detected when the Unreal server binds its port and the GameMode reaches the lobby ("Match State Changed from EnteringMap to WaitingToStart"). Config + saves (prospects) and the big game install are bound to separate dirs, so backups target the small config/saves dir.
 
 ## Gotchas
 - Host requirement: the Docker host needs `vm.max_map_count=262144` (Linux default is 65530) or Icarus OOMs on boot. On Unraid, persist it via a `sysctl -w` line in `/boot/config/go`.

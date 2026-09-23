@@ -7,9 +7,7 @@
 **Admin:** None — no RCON, so the Console tab is hidden and save-on-stop is a no-op. There is no admin password field; Valheim admins are a Steam-ID allowlist (the admin list file in `/config`, editable via the panel's access lists).
 
 ## First boot
-- Light and quick: the image SteamCMD-downloads the server and generates the world in ~100 s on first boot (~3 GB disk, ~2–4 GB RAM populated). Ready is detected on the log line `Game server connected`.
-- One procedurally generated world from a seed — no map choice. Player cap is a hard 10 (Iron Gate's P2P design).
-- Unity shader/IMGUI errors in the boot log are benign (headless server, no GPU).
+Light and quick: the image SteamCMD-downloads the server and generates the world in ~100 s on first boot (~3 GB disk, ~2–4 GB RAM populated). Ready is detected on the log line `Game server connected`. One procedurally generated world from a seed — no map choice. Player cap is a hard 10 (Iron Gate's P2P design). Unity shader/IMGUI errors in the boot log are benign (headless server, no GPU).
 
 ## Gotchas
 - A join password of at least 5 characters is REQUIRED or the server won't boot — the create form enforces it.
