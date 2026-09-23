@@ -115,10 +115,10 @@ const ARK_GROUPS: SettingGroup[] = [
 // stats / engrams). Every Conan category is covered here, so there's no Advanced
 // catch-all (and no ARK-style raw-ini passthrough, which Conan doesn't use).
 const CONAN_GROUPS: SettingGroup[] = [
-  { id: "general", label: "General", Icon: SlidersHorizontal, cats: ["General", "PvP & Rules"] },
+  { id: "general", label: "General", Icon: SlidersHorizontal, cats: ["General", "PvP & rules"] },
   { id: "combat", label: "Combat", Icon: Swords, cats: ["Combat"] },
   { id: "survival", label: "Survival", Icon: User, cats: ["Survival", "Death"] },
-  { id: "progression", label: "Rates & XP", Icon: Gauge, cats: ["Progression", "Harvest & Crafting"] },
+  { id: "progression", label: "Rates & XP", Icon: Gauge, cats: ["Progression", "Harvest & crafting"] },
   { id: "world", label: "World", Icon: PawPrint, cats: ["World", "Thralls", "Avatars"] },
   { id: "building", label: "Building", Icon: Building2, cats: ["Building", "Clans"] },
   { id: "schedules", label: "Schedules", Icon: Clock, cats: ["Schedules"] },
@@ -127,7 +127,7 @@ const CONAN_GROUPS: SettingGroup[] = [
 // Palworld's catalog categories → their own tabs.
 const PALWORLD_GROUPS: SettingGroup[] = [
   { id: "version", label: "Version", Icon: GitBranch, cats: ["Version"] },
-  { id: "general", label: "General", Icon: SlidersHorizontal, cats: ["General", "PvP & Rules"] },
+  { id: "general", label: "General", Icon: SlidersHorizontal, cats: ["General", "PvP & rules"] },
   { id: "rates", label: "Rates & World", Icon: Gauge, cats: ["Progression", "World"] },
   { id: "combat", label: "Combat & Survival", Icon: Swords, cats: ["Combat", "Survival"] },
   { id: "building", label: "Building & Items", Icon: Building2, cats: ["Building", "Items", "Guild"] },

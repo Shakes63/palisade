@@ -180,9 +180,9 @@ function statGrid(key: string, label: string): SettingDef {
 /** The big shared catalog used by both ASA and ASE. */
 export const COMMON_SETTINGS: SettingDef[] = [
   // ── Server ───────────────────────────────────────────────────────────────────
-  // Join password. Delivered to the game container via the SERVER_PASSWORD env var
+  // Join password. Stored encrypted on the server record, not in the config; this
+  // entry only puts it on the Settings tab. Delivered via the SERVER_PASSWORD env var
   // (noEmit), not the INI — so POK/hermsi own it and there's no duplicate INI key.
-  // Stored and shown in plain text on purpose (single-user manager; easy to read).
   {
     key: "ServerPassword",
     label: "Server join password",
@@ -192,7 +192,7 @@ export const COMMON_SETTINGS: SettingDef[] = [
     type: "string",
     default: "",
     noEmit: true,
-    help: "Players must enter this to join. Leave blank for an open server. Stored and shown in plain text — change it any time and restart the server to apply.",
+    help: "Players must enter this to join. Leave blank for an open server. Stored encrypted, and the same value as the Access card on the Overview. Restart the server to apply a change.",
   },
 
   // ── Rules ──────────────────────────────────────────────────────────────────

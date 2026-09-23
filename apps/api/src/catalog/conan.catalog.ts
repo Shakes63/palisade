@@ -121,29 +121,29 @@ const settings: SettingDef[] = [
   }),
 
   // ── PvP & rules ────────────────────────────────────────────────────────────
-  cset("PVP_ENABLED", "PvP enabled", "PvP & Rules", "bool", true, {
+  cset("PVP_ENABLED", "PvP enabled", "PvP & rules", "bool", true, {
     help: "Allow players to damage each other. Off = PvE.",
   }),
-  cset("CAN_DAMAGE_PLAYER_OWNED_STRUCTURES", "Players can damage structures", "PvP & Rules", "bool", false, {
+  cset("CAN_DAMAGE_PLAYER_OWNED_STRUCTURES", "Players can damage structures", "PvP & rules", "bool", false, {
     help: "Allow raiding — players can damage others' buildings. Forced on while a raid schedule is set.",
   }),
-  rset("FriendlyFireDamageMultiplier", "Friendly fire damage", "PvP & Rules", "float", 1.0, x("Damage dealt to your own clanmates and allies.")),
-  rset("DynamicBuildingDamage", "Dynamic building damage", "PvP & Rules", "bool", false, {
+  rset("FriendlyFireDamageMultiplier", "Friendly fire damage", "PvP & rules", "float", 1.0, x("Damage dealt to your own clanmates and allies.")),
+  rset("DynamicBuildingDamage", "Dynamic building damage", "PvP & rules", "bool", false, {
     help: "Buildings only take damage during set time windows.",
   }),
-  rset("DisableBuildingDuringTimeRestrictedPVP", "Block building during PvP hours", "PvP & Rules", "bool", false, {
+  rset("DisableBuildingDuringTimeRestrictedPVP", "Block building during PvP hours", "PvP & rules", "bool", false, {
     help: "Stop players placing new structures while scheduled PvP is active.",
   }),
-  rset("bUndermeshDetectionEnabled", "Detect under-mesh exploits", "PvP & Rules", "bool", true, {
+  rset("bUndermeshDetectionEnabled", "Detect under-mesh exploits", "PvP & rules", "bool", true, {
     help: "Detect and act on players exploiting the terrain mesh to hide bases.",
   }),
-  cset("ENABLE_BATTLEYE", "BattlEye anti-cheat", "PvP & Rules", "bool", true, {
+  cset("ENABLE_BATTLEYE", "BattlEye anti-cheat", "PvP & rules", "bool", true, {
     help: "BattlEye anti-cheat. Players must have it enabled to join.",
   }),
-  cset("AVATAR_ENABLED", "Avatars (god summons) enabled", "PvP & Rules", "bool", true, {
+  cset("AVATAR_ENABLED", "Avatars (god summons) enabled", "PvP & rules", "bool", true, {
     help: "Allow players to summon the gods' giant avatars.",
   }),
-  cset("MAX_NUDITY", "Max nudity", "PvP & Rules", "enum", "0", {
+  cset("MAX_NUDITY", "Max nudity", "PvP & rules", "enum", "0", {
     choices: [
       { value: "0", label: "None" },
       { value: "1", label: "Partial" },
@@ -192,13 +192,13 @@ const settings: SettingDef[] = [
   cset("PLAYER_XP_TIME_MULTIPLIER", "Time (idle) XP", "Progression", "float", 1.0, xWide("Passive XP earned just by being online.")),
 
   // ── Harvest & crafting ─────────────────────────────────────────────────────
-  cset("HARVEST_AMOUNT_MULTIPLIER", "Harvest amount", "Harvest & Crafting", "float", 1.0, xWide("Resources gained from each harvest.")),
-  cset("ITEM_SPOIL_RATE_SCALE", "Item spoil rate", "Harvest & Crafting", "float", 1.0, x("How fast perishables spoil — lower = slower.")),
-  cset("FUEL_BURN_TIME_MULTIPLIER", "Fuel burn time", "Harvest & Crafting", "float", 1.0, x("How long fuel lasts in furnaces and torches — higher = longer.")),
-  cset("CRAFTING_COST_MULTIPLIER", "Crafting cost", "Harvest & Crafting", "float", 1.0, x("Materials needed to craft — lower = cheaper.")),
-  rset("ItemConvertionMultiplier", "Crafting/cooking speed", "Harvest & Crafting", "float", 1.0, x("Speed of crafting, cooking and smelting.")),
-  rset("AnimalPenCraftingTimeMultiplier", "Animal pen time", "Harvest & Crafting", "float", 1.0, x("Time to raise pets in an animal pen.")),
-  rset("FeedBoxRangeMultiplier", "Feed box range", "Harvest & Crafting", "float", 1.0, x("Range a feed box reaches to feed thralls and pets.")),
+  cset("HARVEST_AMOUNT_MULTIPLIER", "Harvest amount", "Harvest & crafting", "float", 1.0, xWide("Resources gained from each harvest.")),
+  cset("ITEM_SPOIL_RATE_SCALE", "Item spoil rate", "Harvest & crafting", "float", 1.0, x("How fast perishables spoil — lower = slower.")),
+  cset("FUEL_BURN_TIME_MULTIPLIER", "Fuel burn time", "Harvest & crafting", "float", 1.0, x("How long fuel lasts in furnaces and torches — higher = longer.")),
+  cset("CRAFTING_COST_MULTIPLIER", "Crafting cost", "Harvest & crafting", "float", 1.0, x("Materials needed to craft — lower = cheaper.")),
+  rset("ItemConvertionMultiplier", "Crafting/cooking speed", "Harvest & crafting", "float", 1.0, x("Speed of crafting, cooking and smelting.")),
+  rset("AnimalPenCraftingTimeMultiplier", "Animal pen time", "Harvest & crafting", "float", 1.0, x("Time to raise pets in an animal pen.")),
+  rset("FeedBoxRangeMultiplier", "Feed box range", "Harvest & crafting", "float", 1.0, x("Range a feed box reaches to feed thralls and pets.")),
 
   // ── World (time / spawns) ──────────────────────────────────────────────────
   cset("DAY_CYCLE_SPEED_SCALE", "Day cycle speed", "World", "float", 1.0, x("Overall speed of the day/night cycle.")),

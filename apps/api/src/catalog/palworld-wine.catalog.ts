@@ -62,19 +62,19 @@ const settings: SettingDef[] = [
   }),
 
   // ── PvP / combat ─────────────────────────────────────────────────────────────
-  pset("IS_PVP", "PvP enabled", "PvP & Rules", "bool", false, {
+  pset("IS_PVP", "PvP enabled", "PvP & rules", "bool", false, {
     help: "Enable player-vs-player combat.",
   }),
-  pset("ENABLE_PLAYER_TO_PLAYER_DAMAGE", "Player-to-player damage", "PvP & Rules", "bool", false, {
+  pset("ENABLE_PLAYER_TO_PLAYER_DAMAGE", "Player-to-player damage", "PvP & rules", "bool", false, {
     help: "Players can deal damage to each other.",
   }),
-  pset("ENABLE_FRIENDLY_FIRE", "Friendly fire", "PvP & Rules", "bool", false, {
+  pset("ENABLE_FRIENDLY_FIRE", "Friendly fire", "PvP & rules", "bool", false, {
     help: "Allow damage between members of the same guild.",
   }),
-  pset("ENABLE_INVADER_ENEMY", "Base raids (invaders)", "PvP & Rules", "bool", true, {
+  pset("ENABLE_INVADER_ENEMY", "Base raids (invaders)", "PvP & rules", "bool", true, {
     help: "Hostile NPCs periodically raid your base.",
   }),
-  pset("DEATH_PENALTY", "Death penalty", "PvP & Rules", "enum", "Item", {
+  pset("DEATH_PENALTY", "Death penalty", "PvP & rules", "enum", "Item", {
     choices: [
       { value: "None", label: "Drop nothing" },
       { value: "Item", label: "Drop items (not equipment)" },
@@ -83,7 +83,7 @@ const settings: SettingDef[] = [
     ],
     help: "What a player drops when they die.",
   }),
-  pset("HARDCORE", "Hardcore (permadeath)", "PvP & Rules", "bool", false, {
+  pset("HARDCORE", "Hardcore (permadeath)", "PvP & rules", "bool", false, {
     help: "Characters are permanently lost on death.",
   }),
   pset("ENABLE_PREDATOR_BOSS_PAL", "Predator/boss Pals", "World", "bool", true, {
@@ -217,49 +217,49 @@ const settings: SettingDef[] = [
     advanced: true,
   }),
 
-  // ── PvP & Rules ───────────────────────────────────────────────────────────────
-  pset("ADDITIONAL_DROP_ITEM_NUM_WHEN_PLAYER_KILLING_IN_PVP_MODE", "PvP kill bonus item count", "PvP & Rules", "int", 1, {
+  // ── PvP & rules ───────────────────────────────────────────────────────────────
+  pset("ADDITIONAL_DROP_ITEM_NUM_WHEN_PLAYER_KILLING_IN_PVP_MODE", "PvP kill bonus item count", "PvP & rules", "int", 1, {
     min: 0,
     max: 100,
     help: "How many of the bonus item drop.",
   }),
-  pset("ADDITIONAL_DROP_ITEM_WHEN_PLAYER_KILLING_IN_PVP_MODE", "PvP kill bonus item", "PvP & Rules", "string", "PlayerDropItem", {
+  pset("ADDITIONAL_DROP_ITEM_WHEN_PLAYER_KILLING_IN_PVP_MODE", "PvP kill bonus item", "PvP & rules", "string", "PlayerDropItem", {
     help: "Item class dropped as a bonus when killing a player in PvP.",
     advanced: true,
   }),
-  pset("BLOCK_RESPAWN_TIME", "Respawn block time", "PvP & Rules", "float", 5, {
+  pset("BLOCK_RESPAWN_TIME", "Respawn block time", "PvP & rules", "float", 5, {
     min: 0,
     max: 300,
     step: 1,
     unit: "s",
     help: "Minimum time before a player can respawn.",
   }),
-  pset("CAN_PICKUP_OTHER_GUILD_DEATH_PENALTY_DROP", "Loot other guilds' death drops", "PvP & Rules", "bool", false, {
+  pset("CAN_PICKUP_OTHER_GUILD_DEATH_PENALTY_DROP", "Loot other guilds' death drops", "PvP & rules", "bool", false, {
     help: "Allow players to pick up death-penalty drops from other guilds.",
   }),
-  pset("DISPLAY_PVP_ITEM_NUM_ON_WORLD_MAP_BASE_CAMP", "Show PvP item counts on base camps", "PvP & Rules", "bool", false, {
+  pset("DISPLAY_PVP_ITEM_NUM_ON_WORLD_MAP_BASE_CAMP", "Show PvP item counts on base camps", "PvP & rules", "bool", false, {
     help: "Show item counts for base camps on the world map.",
   }),
-  pset("DISPLAY_PVP_ITEM_NUM_ON_WORLD_MAP_PLAYER", "Show PvP item counts on players", "PvP & Rules", "bool", false, {
+  pset("DISPLAY_PVP_ITEM_NUM_ON_WORLD_MAP_PLAYER", "Show PvP item counts on players", "PvP & rules", "bool", false, {
     help: "Show item counts for players on the world map.",
   }),
-  pset("ENABLE_ADDITIONAL_DROP_ITEM_WHEN_PLAYER_KILLING_IN_PVP_MODE", "Enable PvP kill bonus item", "PvP & Rules", "bool", false, {
+  pset("ENABLE_ADDITIONAL_DROP_ITEM_WHEN_PLAYER_KILLING_IN_PVP_MODE", "Enable PvP kill bonus item", "PvP & rules", "bool", false, {
     help: "Drop a bonus item when a player kills another player in PvP.",
   }),
-  pset("ENABLE_DEFENSE_OTHER_GUILD_PLAYER", "Defend against other guilds", "PvP & Rules", "bool", false, {
+  pset("ENABLE_DEFENSE_OTHER_GUILD_PLAYER", "Defend against other guilds", "PvP & rules", "bool", false, {
     help: "Allow base defenses to target players from other guilds.",
   }),
-  pset("ENABLE_NON_LOGIN_PENALTY", "Inactivity penalty", "PvP & Rules", "bool", true, {
+  pset("ENABLE_NON_LOGIN_PENALTY", "Inactivity penalty", "PvP & rules", "bool", true, {
     help: "Apply a penalty to players who stay logged out for a long time.",
   }),
-  pset("INVISBIBLE_OTHER_GUILD_BASE_CAMP_AREA_FX", "Hide other guilds' base areas", "PvP & Rules", "bool", false, {
+  pset("INVISBIBLE_OTHER_GUILD_BASE_CAMP_AREA_FX", "Hide other guilds' base areas", "PvP & rules", "bool", false, {
     help: "Hide the base-camp area effect for other guilds' bases.",
     advanced: true,
   }),
-  pset("PAL_LOST", "Lose Pals on death", "PvP & Rules", "bool", false, {
+  pset("PAL_LOST", "Lose Pals on death", "PvP & rules", "bool", false, {
     help: "Pals are lost (not just downed) when they die.",
   }),
-  pset("RESPAWN_PENALTY_DURATION_THRESHOLD", "Respawn penalty threshold", "PvP & Rules", "float", 0, {
+  pset("RESPAWN_PENALTY_DURATION_THRESHOLD", "Respawn penalty threshold", "PvP & rules", "float", 0, {
     min: 0,
     max: 300,
     step: 1,
@@ -267,7 +267,7 @@ const settings: SettingDef[] = [
     help: "Time since death before the respawn penalty starts scaling.",
     advanced: true,
   }),
-  pset("RESPAWN_PENALTY_TIME_SCALE", "Respawn penalty scale", "PvP & Rules", "float", 2, {
+  pset("RESPAWN_PENALTY_TIME_SCALE", "Respawn penalty scale", "PvP & rules", "float", 2, {
     min: 0,
     max: 10,
     step: 0.1,

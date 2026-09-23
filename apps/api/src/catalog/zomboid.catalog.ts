@@ -446,16 +446,17 @@ const settings: SettingDef[] = [
     advanced: true,
     help: "Enable declared faction wars, making enemy safehouses raidable (B42).",
   }),
-  zini("WarStartDelay", "War start delay", "Safehouse", "int", 24, {
-    min: 0,
-    max: 720,
-    unit: "hours",
+  zini("WarStartDelay", "War start delay", "Safehouse", "int", 600, {
+    min: 60,
+    max: 2147483647,
+    unit: "s",
     advanced: true,
+    help: "Time between declaring a faction war and the war starting.",
   }),
-  zini("WarDuration", "War duration", "Safehouse", "int", 48, {
-    min: 1,
-    max: 720,
-    unit: "hours",
+  zini("WarDuration", "War duration", "Safehouse", "int", 3600, {
+    min: 60,
+    max: 2147483647,
+    unit: "s",
     advanced: true,
   }),
   zini("WarSafehouseHitPoints", "War safehouse hit points", "Safehouse", "int", 100, {
