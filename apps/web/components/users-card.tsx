@@ -326,7 +326,7 @@ export function UsersCard() {
                 </button>
                 <button
                   type="button"
-                  className="btn-secondary shrink-0"
+                  className="btn-remove"
                   onClick={() => remove(u)}
                   disabled={users.length <= 1 || lastAdmin}
                   title={

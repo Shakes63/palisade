@@ -637,7 +637,7 @@ function DeleteConfirm({
             Cancel
           </button>
           <button
-            className="inline-flex items-center gap-1.5 rounded-md bg-rose-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-rose-500 disabled:opacity-40"
+            className="btn-danger"
             disabled={!armed || deleting}
             onClick={() => onConfirm(wipeFiles)}
           >

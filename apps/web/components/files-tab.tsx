@@ -245,7 +245,7 @@ export function FilesTab({ serverId }: { serverId: string }) {
                       <Pencil className="h-4 w-4" />
                     </button>
                     <button
-                      className="text-slate-500 hover:text-rose-400"
+                      className="btn-remove"
                       title="Delete"
                       onClick={async () => {
                         if (

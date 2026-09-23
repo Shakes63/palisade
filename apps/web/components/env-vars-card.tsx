@@ -203,7 +203,7 @@ export function EnvVarsCard({ server, onSaved }: { server: ServerSummary; onSave
                       />
                     </div>
                     <button
-                      className="mt-1 text-slate-500 hover:text-rose-400 transition-colors"
+                      className="btn-remove mt-1"
                       onClick={() => removeRow(i)}
                       title="Remove"
                       type="button"

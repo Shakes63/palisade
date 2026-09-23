@@ -116,7 +116,7 @@ export default function ClustersPage() {
               </button>
               {canEdit && (
                 <button
-                  className="btn-danger"
+                  className="btn-remove"
                   title="Delete cluster"
                   aria-label={`Delete cluster ${c.name}`}
                   onClick={() => removeCluster(c)}
@@ -145,7 +145,7 @@ export default function ClustersPage() {
                   </div>
                   {canEdit && (
                     <button
-                      className="btn-secondary shrink-0 px-2"
+                      className="btn-remove"
                       title="Remove from cluster (restarts the server if it's running)"
                       aria-label={`Remove ${m.name} from the cluster`}
                       onClick={() => void mutate(apiDelete(`/clusters/${c.id}/members/${m.id}`))}

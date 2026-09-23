@@ -89,7 +89,7 @@ export function DragonwildsModsTab({ serverId }: { serverId: string }) {
                   </span>
                 </span>
                 <button
-                  className="shrink-0 text-slate-500 hover:text-rose-400"
+                  className="btn-remove"
                   title="Remove all three files"
                   aria-label={`Remove ${m.name}`}
                   disabled={busy}

@@ -903,7 +903,7 @@ function PresetsMenu({
                   <button
                     type="button"
                     title="Delete preset"
-                    className="mr-1 mt-2 rounded p-1 text-slate-500 hover:bg-ark-bg hover:text-red-400"
+                    className="btn-remove mr-1 mt-2"
                     onClick={async () => {
                       if (await confirmDialog({ title: `Delete preset “${p.name}”?`, confirmLabel: "Delete", danger: true }))
                         onDelete(p.id);
@@ -1360,7 +1360,7 @@ function ItemMaxField({ def, value, onChange }: WidgetProps) {
             exact
             <Hint text="Use this exact stack size, ignoring the global item stack-size multiplier. Off = your number is multiplied by it." />
           </label>
-          <button type="button" className="btn-danger px-2" onClick={() => set(arr.filter((_, j) => j !== i))}>
+          <button type="button" className="btn-remove" onClick={() => set(arr.filter((_, j) => j !== i))}>
             <Trash2 className="h-4 w-4" />
           </button>
         </div>
@@ -1618,7 +1618,7 @@ function SpawnWeightField({ def, value, onChange }: WidgetProps) {
               <span className="text-xs text-slate-400">%</span>
             </div>
           )}
-          <button type="button" className="btn-danger px-2" onClick={() => set(arr.filter((_, j) => j !== i))}>
+          <button type="button" className="btn-remove" onClick={() => set(arr.filter((_, j) => j !== i))}>
             <Trash2 className="h-4 w-4" />
           </button>
         </div>
@@ -1664,7 +1664,7 @@ function NpcReplaceField({ def, value, onChange }: WidgetProps) {
           />
           <Hint text="Pick a creature to replace it with, or leave empty to stop this creature from spawning at all." />
           {!e.to && <span className="text-xs italic text-amber-400">disables spawn</span>}
-          <button type="button" className="btn-danger px-2" onClick={() => set(arr.filter((_, j) => j !== i))}>
+          <button type="button" className="btn-remove" onClick={() => set(arr.filter((_, j) => j !== i))}>
             <Trash2 className="h-4 w-4" />
           </button>
         </div>
@@ -1870,7 +1870,7 @@ function EngramsField({ def, value, onChange }: WidgetProps) {
             <Hint text="Automatically grant this engram for free when a player reaches this level. Leave blank for no auto-unlock." />
             <input type="number" min={0} max={999} placeholder="lvl" className={numBox} value={e.autoUnlockLevel ?? ""} onChange={(ev) => patch(i, { autoUnlockLevel: numOrUndef(ev.target.value) })} />
           </div>
-          <button type="button" className="btn-danger px-2" onClick={() => set(arr.filter((_, j) => j !== i))}>
+          <button type="button" className="btn-remove" onClick={() => set(arr.filter((_, j) => j !== i))}>
             <Trash2 className="h-4 w-4" />
           </button>
         </div>
@@ -1905,7 +1905,7 @@ function LootCrateField({ def, value, onChange }: WidgetProps) {
               <span className="text-xs text-slate-500">to</span>
               <RangeNum value={numd(c.maxItems, 3)} onChange={(n) => patch(i, { maxItems: n })} min={1} max={20} />
             </div>
-            <button type="button" className="btn-danger px-2" onClick={() => set(arr.filter((_, j) => j !== i))}>
+            <button type="button" className="btn-remove" onClick={() => set(arr.filter((_, j) => j !== i))}>
               <Trash2 className="h-4 w-4" />
             </button>
           </div>
@@ -1948,7 +1948,7 @@ function LootItemsEditor({ items, onChange }: { items: LootItem[]; onChange: (it
             <Hint text="Chance this drops as a blueprint instead of the finished item. 0 = always the item, 0.5 = half the time, 1 = always a blueprint." />
             <RangeNum value={numd(it.blueprintChance, 0)} onChange={(n) => patch(i, { blueprintChance: n })} min={0} max={1} step={0.05} />
           </div>
-          <button type="button" className="btn-danger px-2" onClick={() => onChange(items.filter((_, j) => j !== i))}>
+          <button type="button" className="btn-remove" onClick={() => onChange(items.filter((_, j) => j !== i))}>
             <Trash2 className="h-4 w-4" />
           </button>
         </div>
@@ -1982,7 +1982,7 @@ function CraftCostField({ def, value, onChange }: WidgetProps) {
           <div className="flex flex-wrap items-center gap-3">
             <span className="text-xs text-slate-400">Crafting</span>
             <ItemPicker value={c.item ?? ""} onChange={(cls) => patch(i, { item: cls })} />
-            <button type="button" className="btn-danger px-2" onClick={() => set(arr.filter((_, j) => j !== i))}>
+            <button type="button" className="btn-remove" onClick={() => set(arr.filter((_, j) => j !== i))}>
               <Trash2 className="h-4 w-4" />
             </button>
           </div>
@@ -2026,7 +2026,7 @@ function CraftCostResourcesEditor({
             exact
             <Hint text="Require this precise resource — no substitutes. Off lets similar resources (e.g. any wood) count toward the cost." />
           </label>
-          <button type="button" className="btn-danger px-2" onClick={() => onChange(resources.filter((_, j) => j !== i))}>
+          <button type="button" className="btn-remove" onClick={() => onChange(resources.filter((_, j) => j !== i))}>
             <Trash2 className="h-4 w-4" />
           </button>
         </div>
@@ -2065,7 +2065,7 @@ function SpawnContainerField({ def, value, onChange }: WidgetProps) {
               value={c.container ?? ""}
               onChange={(e) => patch(i, { container: e.target.value })}
             />
-            <button type="button" className="btn-danger px-2" onClick={() => set(arr.filter((_, j) => j !== i))}>
+            <button type="button" className="btn-remove" onClick={() => set(arr.filter((_, j) => j !== i))}>
               <Trash2 className="h-4 w-4" />
             </button>
           </div>
@@ -2091,7 +2091,7 @@ function SpawnContainerField({ def, value, onChange }: WidgetProps) {
                   step={0.1}
                 />
               </div>
-              <button type="button" className="btn-danger px-2" onClick={() => patch(i, { spawns: (c.spawns ?? []).filter((_, j) => j !== si) })}>
+              <button type="button" className="btn-remove" onClick={() => patch(i, { spawns: (c.spawns ?? []).filter((_, j) => j !== si) })}>
                 <Trash2 className="h-4 w-4" />
               </button>
             </div>
@@ -2120,7 +2120,7 @@ function SpawnContainerField({ def, value, onChange }: WidgetProps) {
                 />
                 <span className="text-xs text-slate-400">%</span>
               </div>
-              <button type="button" className="btn-danger px-2" onClick={() => patch(i, { limits: (c.limits ?? []).filter((_, j) => j !== li) })}>
+              <button type="button" className="btn-remove" onClick={() => patch(i, { limits: (c.limits ?? []).filter((_, j) => j !== li) })}>
                 <Trash2 className="h-4 w-4" />
               </button>
             </div>

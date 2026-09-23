@@ -163,7 +163,7 @@ export function ValheimModsTab({ serverId }: { serverId: string }) {
                     </button>
                   )}
                   <button
-                    className="text-slate-500 hover:text-rose-400"
+                    className="btn-remove"
                     title="Remove"
                     aria-label={`Remove ${m.name}`}
                     onClick={() => remove(m.name)}

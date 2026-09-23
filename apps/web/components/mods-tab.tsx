@@ -282,7 +282,7 @@ export function ModsTab({ serverId, game }: { serverId: string; game: Game }) {
                   {m.enabled ? "On" : "Off"}
                 </button>
                 <button
-                  className="px-1.5 text-slate-500 hover:text-rose-400"
+                  className="btn-remove"
                   title="Remove"
                   aria-label={`Remove ${m.mod.name}`}
                   onClick={() => remove(m)}

@@ -186,11 +186,7 @@ export function PlayersTab({ serverId }: { serverId: string }) {
                   return (
                     <button
                       key={a}
-                      className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium transition-colors disabled:opacity-50 ${
-                        meta.danger
-                          ? "border-rose-900/60 text-rose-300 hover:bg-rose-950/40"
-                          : "border-ark-border text-slate-300 hover:border-slate-500"
-                      }`}
+                      className={`${meta.danger ? "btn-danger" : "btn-secondary"} gap-1 px-2 py-1 text-xs`}
                       title={why ?? meta.title}
                       disabled={busy !== null || why !== null}
                       onClick={() => act(p.name, a)}

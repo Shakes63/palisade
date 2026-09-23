@@ -83,7 +83,7 @@ export function AccessListsCard({ serverId }: { serverId: string }) {
               >
                 {e}
                 <button
-                  className="text-slate-500 hover:text-rose-400"
+                  className="btn-remove p-0.5"
                   title="Remove"
                   disabled={saving !== null}
                   onClick={() => void save(list.key, list.entries.filter((x) => x !== e))}

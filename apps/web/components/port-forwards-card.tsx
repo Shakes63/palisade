@@ -149,7 +149,7 @@ export function PortForwardsCard({ serverId, ports }: { serverId: string; ports:
                           <Power className="h-4 w-4" />
                         </button>
                         <button
-                          className="text-slate-500 hover:text-rose-400"
+                          className="btn-remove"
                           title={`Delete this forward from ${routerLabel}`}
                           disabled={busy !== null}
                           onClick={() =>

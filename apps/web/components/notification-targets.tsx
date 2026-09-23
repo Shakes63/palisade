@@ -154,7 +154,7 @@ export function NotificationTargetsCard() {
                 </label>
                 <button
                   type="button"
-                  className="btn-secondary"
+                  className="btn-remove"
                   onClick={() => {
                     setSaved(false);
                     setDirty(true);

@@ -154,7 +154,7 @@ export function MinecraftModsTab({ serverId }: { serverId: string }) {
               </button>
             )}
             <button
-              className="shrink-0 px-1.5 text-slate-500 hover:text-rose-400"
+              className="btn-remove"
               title="Remove"
               aria-label={`Remove ${current.name}`}
               onClick={clear}

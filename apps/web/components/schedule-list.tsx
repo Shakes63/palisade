@@ -519,7 +519,7 @@ export function ScheduleList({ serverId }: { serverId: string }) {
                 <button className="btn-secondary" title="Edit" aria-label="Edit schedule" onClick={() => startEdit(s)}>
                   <Pencil className="h-4 w-4" />
                 </button>
-                <button className="btn-danger" title="Delete" aria-label="Delete schedule" onClick={() => remove(s)}>
+                <button className="btn-remove" title="Delete" aria-label="Delete schedule" onClick={() => remove(s)}>
                   <Trash2 className="h-4 w-4" />
                 </button>
               </div>

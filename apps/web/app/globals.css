@@ -27,7 +27,10 @@ body {
     @apply btn border border-ark-border bg-ark-bg hover:bg-ark-border;
   }
   .btn-danger {
-    @apply btn bg-red-600 text-white hover:bg-red-500;
+    @apply btn bg-rose-600 text-white hover:bg-rose-500;
+  }
+  .btn-remove {
+    @apply inline-flex shrink-0 items-center justify-center rounded-md p-1.5 text-slate-500 transition enabled:hover:bg-rose-950/40 enabled:hover:text-rose-400 disabled:opacity-50;
   }
 
   .input {
