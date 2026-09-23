@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { includeInBackup } from "./backups.service";
 
 // A backup keeps the live world + config + players/tribes, and drops ARK's own
@@ -26,7 +26,7 @@ describe("includeInBackup", () => {
 });
 
 // ── create(): retention runs before the BackupCreated announcement (GH #65) ──────
-import { mkdtemp, mkdir, rm, writeFile, stat } from "node:fs/promises";
+import { mkdtemp, mkdir, readdir, rm, writeFile, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { EventType } from "@ark/shared";
@@ -82,6 +82,37 @@ describe("BackupsService.create", () => {
       expect(seenAtEmit).toEqual([{ type: EventType.BackupCreated, oldStillOnDisk: false }]);
       expect(rows.map((r) => r.id)).toEqual(["new"]);
       await expect(stat(join(snap.path, "world", "level.dat"))).resolves.toBeTruthy();
+    } finally {
+      await rm(root, { recursive: true, force: true });
+      resetEnvCache();
+    }
+  });
+
+  it("refuses a backup that would capture nothing, leaving no row or directory behind", async () => {
+    process.env.SECRETS_KEY = "a".repeat(64);
+    process.env.JWT_SECRET = "test-jwt-secret-1234";
+    const root = await mkdtemp(join(tmpdir(), "palisade-backups-"));
+    process.env.DATA_DIR = root;
+    const { resetEnvCache } = await import("../config/env");
+    resetEnvCache();
+    try {
+      const prisma = {
+        server: { findUnique: async () => ({ id: "srv1", game: "MINECRAFT", backupKeep: 1 }) },
+        snapshot: { create: vi.fn() },
+      };
+      const events = { emit: vi.fn(async () => undefined) };
+      const { BackupsService } = await import("./backups.service");
+      const svc = new BackupsService(
+        prisma as never,
+        events as never,
+        { saveWorld: async () => undefined } as never,
+        {} as never,
+      );
+
+      await expect(svc.create("srv1", "manual")).rejects.toThrow("Nothing to back up yet");
+      expect(prisma.snapshot.create).not.toHaveBeenCalled();
+      expect(await readdir(join(root, "backups", "srv1"))).toEqual([]);
+      expect(events.emit).toHaveBeenCalledWith(expect.objectContaining({ type: EventType.Warning }));
     } finally {
       await rm(root, { recursive: true, force: true });
       resetEnvCache();

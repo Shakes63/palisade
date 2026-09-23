@@ -3,6 +3,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Archive, DatabaseBackup, Download, RotateCcw, Trash2, Upload, Loader2 } from "lucide-react";
 import { apiDelete, apiDownload, apiGet, apiPatch, apiPost, apiUpload } from "@/lib/api";
 import type { ServerSummary } from "@ark/shared";
+import { fmtLocal } from "@/lib/cron";
+import { fmtBytes } from "@/lib/mod-format";
 
 /** Matches the API's own bound and the built-in default when a server sets none. */
 const KEEP_MAX = 500;
@@ -12,8 +14,21 @@ interface Snapshot {
   id: string;
   reason: string;
   path: string;
+  sizeBytes: number | null;
   createdAt: string;
 }
+
+const REASON_LABELS: Record<string, string> = {
+  manual: "Manual",
+  scheduled: "Scheduled",
+  "pre-restart": "Before restart",
+  "pre-stop": "Before stop",
+  "pre-update": "Before game update",
+  "pre-update-mods": "Before mod update",
+  "pre-import": "Before import",
+  "pre-restore": "Before restore",
+};
+const reasonLabel = (r: string) => REASON_LABELS[r] ?? r.charAt(0).toUpperCase() + r.slice(1).replace(/-/g, " ");
 
 export function BackupsTab({
   serverId,
@@ -76,8 +91,9 @@ export function BackupsTab({
     await apiPost(`/servers/${serverId}/backups/${id}/restore`).catch((e) => alert(e.message));
   };
 
-  const remove = async (id: string) => {
-    await apiDelete(`/backups/${id}`).catch(() => undefined);
+  const remove = async (b: Snapshot) => {
+    if (!confirm(`Delete the backup from ${fmtLocal(b.createdAt)}? It can't be recovered.`)) return;
+    await apiDelete(`/backups/${b.id}`).catch((e) => alert((e as Error).message));
     refresh();
   };
 
@@ -172,20 +188,21 @@ export function BackupsTab({
       </div>
 
       {backups.length === 0 ? (
-        <div className="card text-slate-400">
+        <div className="card text-sm text-slate-400">
           No backups yet. You can also import a saves archive (.tar.gz, as produced by Download) onto a
           stopped server.
         </div>
       ) : (
         <div className="space-y-2">
           {backups.map((b) => (
-            <div key={b.id} className="card flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <Archive className="h-5 w-5 text-ark-accent2" />
-                <div>
-                  <div className="font-medium">{new Date(b.createdAt).toLocaleString()}</div>
-                  <div className="flex items-center gap-1.5 text-xs text-slate-500">
-                    {b.reason}
+            <div key={b.id} className="card flex flex-wrap items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-3">
+                <Archive className="h-5 w-5 shrink-0 text-ark-accent2" />
+                <div className="min-w-0">
+                  <div className="font-medium">{fmtLocal(b.createdAt)}</div>
+                  <div className="flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
+                    {reasonLabel(b.reason)}
+                    {fmtBytes(b.sizeBytes) && <span>· {fmtBytes(b.sizeBytes)}</span>}
                     {b.reason === "manual" && (
                       <span
                         className="rounded bg-slate-700/60 px-1.5 py-0.5 text-[10px] text-slate-300"
@@ -197,10 +214,11 @@ export function BackupsTab({
                   </div>
                 </div>
               </div>
-              <div className="flex gap-2">
+              <div className="flex shrink-0 gap-2">
                 <button
                   className="btn-secondary px-2"
                   title="Download this backup (tar.gz)"
+                  aria-label="Download backup"
                   onClick={() => download(b)}
                   disabled={downloading === b.id}
                 >
@@ -213,7 +231,7 @@ export function BackupsTab({
                 <button className="btn-secondary" onClick={() => restore(b.id)}>
                   <RotateCcw className="h-4 w-4" /> Restore
                 </button>
-                <button className="btn-danger px-2" onClick={() => remove(b.id)}>
+                <button className="btn-danger px-2" title="Delete this backup" aria-label="Delete backup" onClick={() => remove(b)}>
                   <Trash2 className="h-4 w-4" />
                 </button>
               </div>
