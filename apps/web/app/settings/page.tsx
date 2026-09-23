@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { Save, KeyRound, Send, CheckCircle2, Circle } from "lucide-react";
+import { Save, Settings, Send, CheckCircle2, Circle } from "lucide-react";
 import { apiGet, apiPatch, apiPost } from "@/lib/api";
 import { DEFAULT_LOG_LEVEL, GAME_LABELS, Game, LOG_LEVELS, type LogLevel } from "@ark/shared";
 import { TimezoneSelect, detectZone } from "@/components/timezone-select";
@@ -235,7 +235,7 @@ export default function SettingsPage() {
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <h1 className="flex items-center gap-2 text-xl font-semibold">
-        <KeyRound className="h-5 w-5 text-ark-accent" /> Settings
+        <Settings className="h-5 w-5 text-ark-accent" /> Settings
       </h1>
 
       <div ref={tabsRef} className="flex gap-1 overflow-x-auto border-b border-ark-border">
