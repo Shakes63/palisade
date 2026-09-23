@@ -1,9 +1,44 @@
+import { isFQDN, isIP, registerDecorator } from "class-validator";
 import type { ForwardPort } from "../catalog/ports";
 
 /** Which router product the port-forward integration talks to. */
 export type RouterKind = "pfsense" | "unifi";
 export const ROUTER_KINDS: readonly RouterKind[] = ["pfsense", "unifi"];
 export const ROUTER_LABELS: Record<RouterKind, string> = { pfsense: "pfSense", unifi: "UniFi" };
+
+const isHostname = (h: string) => isIP(h) || isFQDN(h, { require_tld: false });
+
+/** A router address as its client can use it: a hostname or IP, and for UniFi
+ *  (parseUnifiHost) an optional http(s) scheme, port and trailing slash. Blank
+ *  clears the setting. */
+export function isRouterHost(input: string, kind: RouterKind): boolean {
+  const v = input.trim();
+  if (!v) return true;
+  if (kind === "pfsense") return isHostname(v);
+  let url: URL;
+  try {
+    url = new URL(/^[a-z]+:\/\//i.test(v) ? v : `https://${v}`);
+  } catch {
+    return false;
+  }
+  if (!/^https?:$/.test(url.protocol) || url.username || url.password || url.search || url.hash) return false;
+  return url.pathname === "/" && isHostname(url.hostname.replace(/^\[(.*)\]$/, "$1"));
+}
+
+export function IsRouterHost(kindOf: (body: object) => RouterKind): PropertyDecorator {
+  return (target, propertyName) =>
+    registerDecorator({
+      target: target.constructor,
+      propertyName: String(propertyName),
+      validator: {
+        validate: (v: unknown, args) => typeof v === "string" && isRouterHost(v, kindOf(args!.object)),
+        defaultMessage: (args) =>
+          kindOf(args!.object) === "pfsense"
+            ? "pfSense host must be a hostname or IP address"
+            : "UniFi host must be a hostname or IP address, optionally with https:// and a port",
+      },
+    });
+}
 
 /** One WAN forward as the router reports it, normalised across products. */
 export interface RouterRule {

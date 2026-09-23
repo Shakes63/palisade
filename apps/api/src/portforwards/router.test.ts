@@ -1,5 +1,9 @@
+import "reflect-metadata";
 import { describe, expect, it } from "vitest";
-import { isPalisadeRule, portSpecCovers, protoCovers, ruleName } from "./router";
+import { plainToInstance } from "class-transformer";
+import { validateSync } from "class-validator";
+import { isPalisadeRule, isRouterHost, portSpecCovers, protoCovers, ruleName } from "./router";
+import { UpdateSettingsBody } from "../manager-settings/manager-settings.controller";
 import { normalizeUnifiRule, parseUnifiHost } from "./unifi.client";
 
 describe("portSpecCovers", () => {
@@ -94,5 +98,32 @@ describe("normalizeUnifiRule", () => {
       target: "",
       proto: "udp",
     });
+  });
+});
+
+describe("isRouterHost", () => {
+  it.each(["192.168.1.1", "pfsense", "pfsense.lan", "fd00::1", "", "  10.0.0.1  "])("pfSense accepts %j", (h) => {
+    expect(isRouterHost(h, "pfsense")).toBe(true);
+  });
+
+  it.each(["not a host!!", "https://192.168.1.1", "192.168.1.1:443", "192.168.1.999", "foo_bar"])(
+    "pfSense rejects %j (its client takes a bare host)",
+    (h) => expect(isRouterHost(h, "pfsense")).toBe(false),
+  );
+
+  it.each(["192.168.1.1", "192.168.1.1:8443", "https://unifi.example.com/", "http://unifi:8443", "https://[fd00::1]:8443"])(
+    "UniFi accepts %j",
+    (h) => expect(isRouterHost(h, "unifi")).toBe(true),
+  );
+
+  it.each(["not a host!!", "ftp://unifi", "https://unifi/network", "https://user:pw@unifi", "unifi?x=1"])(
+    "UniFi rejects %j",
+    (h) => expect(isRouterHost(h, "unifi")).toBe(false),
+  );
+
+  it("is enforced on the settings body", () => {
+    const errors = (body: object) => validateSync(plainToInstance(UpdateSettingsBody, body)).map((e) => e.property);
+    expect(errors({ unifiHost: "not a host!!", pfsenseHost: "https://pfsense" })).toEqual(["pfsenseHost", "unifiHost"]);
+    expect(errors({ unifiHost: "https://unifi:8443", pfsenseHost: "" })).toEqual([]);
   });
 });
