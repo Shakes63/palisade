@@ -5,6 +5,11 @@ export default {
   theme: {
     extend: {
       colors: {
+        // Lifted so muted text on ark.panel meets WCAG AA (4.8:1) and 600 reaches 3:1.
+        slate: {
+          500: "#7a899e",
+          600: "#5f6e84",
+        },
         ark: {
           bg: "#0b0f14",
           panel: "#141b24",
