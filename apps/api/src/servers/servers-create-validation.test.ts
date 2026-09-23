@@ -128,6 +128,27 @@ describe("update() validation", () => {
     const { svc } = makeSvc({ existingGame: Game.ASE, clusterMembers: [Game.ASA] });
     await expect(svc.update("s1", { clusterId: "c1" } as never)).rejects.toThrow("can't transfer");
   });
+
+  it("rejects clearing or shortening a required join password", async () => {
+    const { svc, prisma } = makeSvc({ existingGame: Game.VALHEIM });
+    await expect(svc.update("s1", { serverPassword: "" } as never)).rejects.toThrow("at least 5 characters");
+    await expect(svc.update("s1", { config: { values: { ServerPassword: "abc" } } } as never)).rejects.toThrow(
+      BadRequestException,
+    );
+    expect(prisma.server.update).not.toHaveBeenCalled();
+    await expect(svc.update("s1", { serverPassword: "secret" } as never)).resolves.toBeTruthy();
+  });
+
+  it("rejects a required admin password that is too short, but not a blank (unchanged) one", async () => {
+    const { svc } = makeSvc({ existingGame: Game.ZOMBOID });
+    await expect(svc.update("s1", { adminPassword: "abc" } as never)).rejects.toThrow("at least 5 characters");
+    await expect(svc.update("s1", { adminPassword: "" } as never)).resolves.toBeTruthy();
+  });
+
+  it("still lets a game without a required join password clear it", async () => {
+    const { svc } = makeSvc({ existingGame: Game.ASA });
+    await expect(svc.update("s1", { serverPassword: "" } as never)).resolves.toBeTruthy();
+  });
 });
 
 describe("DTO name", () => {
