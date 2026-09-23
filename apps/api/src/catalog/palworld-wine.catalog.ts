@@ -10,10 +10,9 @@ import { Game, SettingTarget, type SettingsCatalog, type SettingDef } from "@ark
  * orchestrator and not here.
  *
  * Covers every var in the image's configs/PalWorldSettings.ini.template except
- * the orchestrator-owned ones above. Each default here MUST equal the image's
- * own default (Dockerfile ENV / default.env): the spec emits `value ?? default`
- * for every entry, so a default that disagrees would silently rewrite a live
- * server's settings on its next restart rather than leaving them untouched.
+ * the orchestrator-owned ones above. Each default here MUST equal the game's
+ * DefaultPalWorldSettings.ini: the spec emits `value ?? default` for every
+ * entry, so a wrong default silently overrides the game's own on every start.
  * Beware the image's inherited misspellings — DECREACE, REGENE, INVISBIBLE are
  * correct as written here and must match the template verbatim.
  */
@@ -29,6 +28,7 @@ function pset(
 }
 
 const x = (help: string): Partial<SettingDef> => ({ min: 0, max: 5, step: 0.1, unit: "×", help });
+const xBig = (help: string): Partial<SettingDef> => ({ min: 0, max: 20, step: 0.1, unit: "×", help });
 
 const settings: SettingDef[] = [
   // ── Version ────────────────────────────────────────────────────────────────
@@ -58,84 +58,81 @@ const settings: SettingDef[] = [
     help: "Advertise the server in the in-game community list.",
   }),
   pset("ALLOW_CLIENT_MOD", "Allow client mods", "General", "bool", true, {
-    help: "Let players join with client-side mods.",
+    help: "Let players connect with client-side mods installed.",
   }),
 
   // ── PvP / combat ─────────────────────────────────────────────────────────────
-  pset("IS_PVP", "PvP enabled", "Combat", "bool", false, {
-    help: "Allow player-vs-player combat.",
+  pset("IS_PVP", "PvP enabled", "PvP & Rules", "bool", false, {
+    help: "Enable player-vs-player combat.",
   }),
-  pset("ENABLE_PLAYER_TO_PLAYER_DAMAGE", "Player↔player damage", "Combat", "bool", false, {
-    help: "Players can damage each other (needs PvP).",
+  pset("ENABLE_PLAYER_TO_PLAYER_DAMAGE", "Player-to-player damage", "PvP & Rules", "bool", false, {
+    help: "Players can deal damage to each other.",
   }),
-  pset("ENABLE_FRIENDLY_FIRE", "Friendly fire", "Combat", "bool", false, {
-    help: "Damage within a guild/party.",
+  pset("ENABLE_FRIENDLY_FIRE", "Friendly fire", "PvP & Rules", "bool", false, {
+    help: "Allow damage between members of the same guild.",
   }),
-  pset("ENABLE_INVADER_ENEMY", "Raid enemies", "Combat", "bool", true, {
-    help: "Wild raids can attack bases.",
+  pset("ENABLE_INVADER_ENEMY", "Base raids (invaders)", "PvP & Rules", "bool", true, {
+    help: "Hostile NPCs periodically raid your base.",
   }),
-  pset("DEATH_PENALTY", "Death penalty", "Combat", "enum", "All", {
+  pset("DEATH_PENALTY", "Death penalty", "PvP & Rules", "enum", "Item", {
     choices: [
-      { value: "None", label: "None" },
-      { value: "Item", label: "Drop items" },
-      { value: "ItemAndEquipment", label: "Items + equipment" },
-      { value: "All", label: "Everything (items, equipment, Pals)" },
+      { value: "None", label: "Drop nothing" },
+      { value: "Item", label: "Drop items (not equipment)" },
+      { value: "ItemAndEquipment", label: "Drop items + equipment" },
+      { value: "All", label: "Drop everything (incl. Pals)" },
     ],
-    help: "What a player drops on death.",
+    help: "What a player drops when they die.",
   }),
-  pset("HARDCORE", "Hardcore", "Combat", "bool", false, {
-    help: "Permadeath for player characters.",
+  pset("HARDCORE", "Hardcore (permadeath)", "PvP & Rules", "bool", false, {
+    help: "Characters are permanently lost on death.",
   }),
-  pset("ENABLE_PREDATOR_BOSS_PAL", "Predator (alpha) Pals", "Combat", "bool", true, {
-    help: "Spawn rare high-level predator Pals in the world.",
+  pset("ENABLE_PREDATOR_BOSS_PAL", "Predator/boss Pals", "World", "bool", true, {
+    help: "Spawn rare predator and field-boss Pals.",
   }),
 
   // ── Rates ────────────────────────────────────────────────────────────────────
-  pset("EXP_RATE", "EXP rate", "Progression", "float", 1, x("Experience multiplier.")),
-  pset("PAL_CAPTURE_RATE", "Pal capture rate", "Progression", "float", 1, x("Capture success multiplier.")),
-  pset("PAL_SPAWN_NUM_RATE", "Pal spawn rate", "Progression", "float", 1, x("How many Pals spawn in the world.")),
-  pset("COLLECTION_DROP_RATE", "Gather drop rate", "Progression", "float", 1, x("Yield from gathering nodes.")),
-  pset("ENEMY_DROP_ITEM_RATE", "Enemy drop rate", "Progression", "float", 1, x("Item drops from defeated enemies.")),
-  pset("DAYTIME_SPEEDRATE", "Daytime speed", "World", "float", 1, x("How fast daytime passes.")),
-  pset("NIGHTTIME_SPEEDRATE", "Nighttime speed", "World", "float", 1, x("How fast nighttime passes.")),
+  pset("EXP_RATE", "Experience", "Progression", "float", 1.0, xBig("Experience earned by players and Pals.")),
+  pset("PAL_CAPTURE_RATE", "Pal capture rate", "Progression", "float", 1.0, x("Success rate when capturing Pals.")),
+  pset("PAL_SPAWN_NUM_RATE", "Pal spawn amount", "Progression", "float", 1.0, x("How many wild Pals spawn in the world.")),
+  pset("COLLECTION_DROP_RATE", "Gathering yield", "Progression", "float", 1.0, xBig("Resources gained from gathering nodes.")),
+  pset("ENEMY_DROP_ITEM_RATE", "Enemy drops", "Progression", "float", 1.0, xBig("Item drops from defeated enemies.")),
+  pset("DAYTIME_SPEEDRATE", "Daytime speed", "World", "float", 1.0, x("Length of daytime — higher = shorter days.")),
+  pset("NIGHTTIME_SPEEDRATE", "Nighttime speed", "World", "float", 1.0, x("Length of night — higher = shorter nights.")),
 
   // ── Base building / guilds ───────────────────────────────────────────────────
   pset("BASE_CAMP_MAX_NUM", "Max base camps", "Building", "int", 128, {
     min: 1,
-    max: 128,
-    step: 1,
+    max: 1000,
     help: "Total base camps allowed on the server.",
   }),
-  pset("BASE_CAMP_WORKER_MAXNUM", "Base workers per camp", "Building", "int", 15, {
+  pset("BASE_CAMP_WORKER_MAXNUM", "Max workers per base", "Building", "int", 15, {
     min: 1,
     max: 50,
-    step: 1,
-    help: "Max Pals assignable to one base camp.",
+    unit: "Pals",
+    help: "How many Pals can work at a single base camp.",
   }),
-  pset("MAX_BUILDING_LIMIT_NUM", "Building limit (0 = none)", "Building", "int", 0, {
+  pset("MAX_BUILDING_LIMIT_NUM", "Max structures per base", "Building", "int", 0, {
     min: 0,
     max: 100000,
-    step: 100,
-    help: "Cap on placed structures per base (0 = unlimited).",
+    help: "Build limit per base camp (0 = unlimited).",
   }),
-  pset("GUILD_PLAYER_MAX_NUM", "Max guild members", "Guild", "int", 20, {
+  pset("GUILD_PLAYER_MAX_NUM", "Max guild size", "Guild", "int", 20, {
     min: 1,
     max: 100,
-    step: 1,
-    help: "Players per guild.",
+    unit: "players",
+    help: "Maximum players in a single guild.",
   }),
 
   // ── World / misc ─────────────────────────────────────────────────────────────
-  pset("ENABLE_FAST_TRAVEL", "Fast travel", "World", "bool", true, {
-    help: "Allow fast travel between statues.",
+  pset("ENABLE_FAST_TRAVEL", "Allow fast travel", "World", "bool", true, {
+    help: "Allow fast travel between unlocked statues.",
   }),
-  pset("DROP_ITEM_MAX_NUM", "Max dropped items", "World", "int", 3000, {
-    min: 100,
+  pset("DROP_ITEM_MAX_NUM", "Max dropped items", "Items", "int", 3000, {
+    min: 0,
     max: 10000,
-    step: 100,
-    help: "How many dropped items persist in the world.",
+    help: "How many dropped items persist in the world before cleanup.",
   }),
-  pset("AUTO_SAVE_SPAN", "Auto-save interval", "World", "float", 30, {
+  pset("AUTO_SAVE_SPAN", "Autosave interval", "World", "float", 30, {
     min: 5,
     max: 120,
     step: 1,
@@ -146,7 +143,7 @@ const settings: SettingDef[] = [
   // ═══ Full template coverage ════════════════════════════════════════════════
   // Everything below rounds the catalog out to every remaining var in the image's
   // PalWorldSettings.ini.template. Labels/help mirror the native Palworld catalog
-  // so the two variants read the same in the UI; defaults come from the image.
+  // so the two variants read the same in the UI; defaults come from the game.
 
   // ── General ───────────────────────────────────────────────────────────────────
   pset("ALLOW_GLOBAL_PALBOX_EXPORT", "Allow global Palbox export", "General", "bool", true, {
@@ -155,18 +152,18 @@ const settings: SettingDef[] = [
   pset("ALLOW_GLOBAL_PALBOX_IMPORT", "Allow global Palbox import", "General", "bool", false, {
     help: "Let players import Pals from the cross-save global Palbox.",
   }),
-  pset("BAN_LIST_URL", "Ban list URL", "General", "string", "https://api.palworldgame.com/api/banlist.txt", {
+  pset("BAN_LIST_URL", "Ban list URL", "General", "string", "https://b.palworldgame.com/api/banlist.txt", {
     help: "Remote ban list the server pulls from.",
     advanced: true,
   }),
-  pset("CHAT_POST_LIMIT_PER_MINUTE", "Chat rate limit", "General", "int", 10, {
+  pset("CHAT_POST_LIMIT_PER_MINUTE", "Chat rate limit", "General", "int", 30, {
     min: 0,
     max: 300,
     unit: "msgs/min",
     help: "Maximum chat messages a player can send per minute.",
   }),
   pset("CROSSPLAY_PLATFORMS", "Allowed platforms", "General", "string", "(Steam,Xbox,PS5,Mac)", {
-    help: "Platforms allowed to connect, e.g. (Steam,Xbox,PS5,Mac). Keep the parentheses.",
+    help: "Which platforms may connect, in parentheses, e.g. (Steam,Xbox,PS5,Mac). Keep the parentheses.",
   }),
   pset("ENABLE_AIM_ASSIST_KEYBOARD", "Keyboard aim assist", "General", "bool", false, {
     help: "Aim assist for keyboard/mouse players.",
@@ -183,7 +180,7 @@ const settings: SettingDef[] = [
   pset("IS_MULTIPLAY", "Multiplayer mode", "General", "bool", false, {
     help: "Enable multiplayer support.",
   }),
-  pset("IS_START_LOCATION_SELECT_BY_MAP", "Map start-location picker", "General", "bool", true, {
+  pset("IS_START_LOCATION_SELECT_BY_MAP", "Map start-location picker", "General", "bool", false, {
     help: "Let new players pick their starting location on the map.",
   }),
   pset("LOG_FORMAT_TYPE", "Log format", "General", "enum", "Text", {
@@ -330,12 +327,12 @@ const settings: SettingDef[] = [
     unit: "×",
     help: "How fast Pals heal while stored in the Palbox.",
   }),
-  pset("PAL_EGG_DEFAULT_HATCHING_TIME", "Egg hatch time", "Survival", "float", 72, {
+  pset("PAL_EGG_DEFAULT_HATCHING_TIME", "Egg hatch time", "Survival", "float", 1, {
     min: 0,
     max: 240,
     step: 1,
     unit: "hours",
-    help: "Real-world hours to hatch an egg.",
+    help: "Hours to hatch a Huge Egg.",
   }),
   pset("PAL_STAMINA_DECREACE_RATE", "Pal stamina drain", "Survival", "float", 1, {
     min: 0,
@@ -441,7 +438,7 @@ const settings: SettingDef[] = [
   pset("ENABLE_FAST_TRAVEL_ONLY_BASE_CAMP", "Fast travel only from base camp", "World", "bool", false, {
     help: "Restrict fast travel to base camps only (needs fast travel enabled).",
   }),
-  pset("ENABLE_WORLD_BACKUP", "In-game world backup", "World", "bool", false, {
+  pset("ENABLE_WORLD_BACKUP", "In-game world backup", "World", "bool", true, {
     help: "The game's own save-data backup (bIsUseBackupSaveData). Separate from Palisade's backups.",
   }),
   pset("IS_RANDOMIZER_PAL_LEVEL_RANDOM", "Randomize Pal levels", "World", "bool", false, {
@@ -456,8 +453,8 @@ const settings: SettingDef[] = [
     help: "Randomize which Pals spawn where.",
   }),
   pset("SERVER_REPLICATE_PAWN_CULL_DISTANCE", "Pawn replication distance", "World", "float", 15000, {
-    min: 0,
-    max: 30000,
+    min: 5000,
+    max: 15000,
     step: 500,
     unit: "cm",
     help: "Max distance at which players/Pals are replicated to clients.",
@@ -502,7 +499,7 @@ const settings: SettingDef[] = [
     help: "How long building-owner names are cached before refreshing.",
     advanced: true,
   }),
-  pset("ENABLE_BUILDING_PLAYER_UID_DISPLAY", "Show building owner", "Building", "bool", true, {
+  pset("ENABLE_BUILDING_PLAYER_UID_DISPLAY", "Show building owner", "Building", "bool", false, {
     help: "Display which player placed a structure.",
   }),
 
@@ -514,7 +511,7 @@ const settings: SettingDef[] = [
     unit: "hours",
     help: "How long dropped items persist before despawning.",
   }),
-  pset("DROP_ITEM_MAX_NUM_UNKO", "Max dropped Unko items", "Items", "int", 50, {
+  pset("DROP_ITEM_MAX_NUM_UNKO", "Max dropped Unko items", "Items", "int", 100, {
     min: 0,
     max: 10000,
     help: "How many Unko drops persist in the world.",
@@ -548,7 +545,7 @@ const settings: SettingDef[] = [
     unit: "×",
     help: "Multiplier applied to item weight.",
   }),
-  pset("PHYSICS_ACTIVE_DROP_ITEM_MAX_NUM", "Max physics-active dropped items", "Items", "int", 3000, {
+  pset("PHYSICS_ACTIVE_DROP_ITEM_MAX_NUM", "Max physics-active dropped items", "Items", "int", -1, {
     min: -1,
     max: 10000,
     help: "Cap on dropped items simulating physics (-1 = unlimited).",
@@ -581,7 +578,7 @@ const settings: SettingDef[] = [
   }),
   pset("BASE_CAMP_MAX_NUM_IN_GUILD", "Max base camps per guild", "Guild", "int", 4, {
     min: 1,
-    max: 50,
+    max: 10,
     unit: "camps",
   }),
   pset("COOP_PLAYER_MAX_NUM", "Max co-op (split-screen) players", "Guild", "int", 4, {

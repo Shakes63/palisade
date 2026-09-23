@@ -27,7 +27,8 @@ const settings: SettingDef[] = [
   dwset("WORLD_NAME", "World name", "World", "string", "MyWorld", {
     help: "Names the world the server creates on first start and its save file. This is what players search for under Worlds → Public (case-sensitive, max 16 characters). Changing it later loads a different world; the old save stays on disk.",
   }),
-  dwset(DRAGONWILDS_AUTOSAVE_KEY, "Autosave interval (minutes)", "World", "int", 5, {
+  dwset(DRAGONWILDS_AUTOSAVE_KEY, "Autosave interval", "World", "int", 5, {
+    unit: "min",
     min: 1,
     max: 60,
     help: "Stopping the server does NOT save — only this timer and a player's in-game quit do. A stop loses whatever happened since the last autosave, so 1–2 minutes is a sensible choice.",

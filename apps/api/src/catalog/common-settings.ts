@@ -277,7 +277,7 @@ export const COMMON_SETTINGS: SettingDef[] = [
   gusFloat("DinoCharacterHealthRecoveryMultiplier", "Dino health recovery", "All creatures", { max: 50, advanced: true }),
   gameFloat("DinoHarvestingDamageMultiplier", "Dino harvesting damage", "Tamed creatures", { def: 3.2, max: 100, advanced: true, help: "Harvest damage a tame does per hit (ARK default is 3.2). Game.ini setting." }),
   gameFloat("DinoTurretDamageMultiplier", "Turret damage to dinos", "All creatures", { max: 100, advanced: true, help: "Damage turrets deal to creatures. Game.ini setting." }),
-  gusFloat("ServerAutoForceRespawnWildDinosInterval", "Auto wild-dino respawn interval (s)", "Wild creatures", { def: 0, max: 604800, step: 3600, advanced: true, lo: "often", hi: "rarely" }),
+  gusFloat("ServerAutoForceRespawnWildDinosInterval", "Auto wild-dino respawn interval", "Wild creatures", { unit: "s", def: 0, max: 604800, step: 3600, advanced: true, lo: "often", hi: "rarely" }),
   gusInt("MaxTamedDinos", "Max tamed dinos (server)", "Tamed creatures", { def: 5000, min: 100, max: 100000, step: 100, advanced: true }),
 
   // ── Structures ─────────────────────────────────────────────────────────────
@@ -285,7 +285,7 @@ export const COMMON_SETTINGS: SettingDef[] = [
   gusFloat("StructureDamageMultiplier", "Structure damage", "Structure combat", { max: 100 }),
   gusInt("TheMaxStructuresInRange", "Max structures in range", "Structure limits", { def: 10500, min: 1000, max: 1000000, step: 500, advanced: true }),
   gusFloat("StructurePreventResourceRadiusMultiplier", "Resource-block radius", "Building", { advanced: true }),
-  gusFloat("PerPlatformMaxStructuresMultiplier", "Platform structure limit ×", "Structure limits", { advanced: true, max: 10 }),
+  gusFloat("PerPlatformMaxStructuresMultiplier", "Platform structure limit", "Structure limits", { unit: "×", advanced: true, max: 10 }),
   gusInt("MaxPlatformSaddleStructureLimit", "Max platform-saddle structures", "Structure limits", { def: 100, min: 0, max: 5000, step: 10, advanced: true }),
   gusBool("AlwaysAllowStructurePickup", "Always allow structure pickup", "Pickup & power", { advanced: true }),
   gusBool("DisableStructureDecayPVE", "Disable structure decay (PvE)", "Structure decay"),
@@ -326,7 +326,7 @@ export const COMMON_SETTINGS: SettingDef[] = [
   // ── Tribes ─────────────────────────────────────────────────────────────────
   gameInt("MaxNumberOfPlayersInTribe", "Max players per tribe", "Tribes", { def: 0, max: 500, help: "0 = unlimited." }),
   gameInt("MaxTribeLogs", "Max tribe log entries", "Tribes", { def: 100, min: 0, max: 1000, step: 10, advanced: true }),
-  gameFloat("TribeNameChangeCooldown", "Tribe name change cooldown (min)", "Tribes", { def: 15, max: 1440, step: 5, advanced: true, lo: "shorter", hi: "longer" }),
+  gameFloat("TribeNameChangeCooldown", "Tribe name change cooldown", "Tribes", { unit: "min", def: 15, max: 1440, step: 5, advanced: true, lo: "shorter", hi: "longer" }),
   gusBool("PreventTribeAlliances", "Prevent tribe alliances", "Tribes", { advanced: true }),
 
   // ── PvP ────────────────────────────────────────────────────────────────────
@@ -341,14 +341,14 @@ export const COMMON_SETTINGS: SettingDef[] = [
   gameBool("bPassiveDefensesDamageRiderlessDinos", "Spikes damage riderless dinos", "PvP", { advanced: true }),
 
   // ── Auto-save & idle ───────────────────────────────────────────────────────
-  gusFloat("AutoSavePeriodMinutes", "Auto-save period (min)", "Server", { def: 15, min: 1, max: 240, step: 1, lo: "often", hi: "rarely" }),
-  gusFloat("KickIdlePlayersPeriod", "Kick idle players after (s)", "Server", { def: 3600, min: 0, max: 7200, step: 60, advanced: true, lo: "sooner", hi: "later" }),
+  gusFloat("AutoSavePeriodMinutes", "Autosave interval", "Server", { unit: "min", def: 15, min: 1, max: 240, step: 1, lo: "often", hi: "rarely" }),
+  gusFloat("KickIdlePlayersPeriod", "Kick idle players after", "Server", { unit: "s", def: 3600, min: 0, max: 7200, step: 60, advanced: true, lo: "sooner", hi: "later" }),
   gameBool("bUseSingleplayerSettings", "Use single-player rates", "Server", { advanced: true }),
 
   // ── Tribute expiration (cross-server) ──────────────────────────────────────
-  gusInt("TributeItemExpirationSeconds", "Uploaded item expiration (s)", "Cross-server", { def: 86400, max: 2592000, step: 3600, advanced: true, lo: "shorter", hi: "longer" }),
-  gusInt("TributeDinoExpirationSeconds", "Uploaded dino expiration (s)", "Cross-server", { def: 86400, max: 2592000, step: 3600, advanced: true, lo: "shorter", hi: "longer" }),
-  gusInt("TributeCharacterExpirationSeconds", "Uploaded survivor expiration (s)", "Cross-server", { def: 86400, max: 2592000, step: 3600, advanced: true, lo: "shorter", hi: "longer" }),
+  gusInt("TributeItemExpirationSeconds", "Uploaded item expiration", "Cross-server", { unit: "s", def: 86400, max: 2592000, step: 3600, advanced: true, lo: "shorter", hi: "longer" }),
+  gusInt("TributeDinoExpirationSeconds", "Uploaded dino expiration", "Cross-server", { unit: "s", def: 86400, max: 2592000, step: 3600, advanced: true, lo: "shorter", hi: "longer" }),
+  gusInt("TributeCharacterExpirationSeconds", "Uploaded survivor expiration", "Cross-server", { unit: "s", def: 86400, max: 2592000, step: 3600, advanced: true, lo: "shorter", hi: "longer" }),
 
   // ── More rules ─────────────────────────────────────────────────────────────
   gusBool("AllowCaveBuildingPvE", "Allow cave building (PvE)", "Building", { advanced: true }),
@@ -376,7 +376,7 @@ export const COMMON_SETTINGS: SettingDef[] = [
 
   // ── More PvP / tribes ──────────────────────────────────────────────────────
   gusBool("PreventOfflinePvP", "Offline raid protection", "PvP", { advanced: true }),
-  gusFloat("PreventOfflinePvPInterval", "Offline-protection grace (s)", "PvP", { def: 0, max: 3600, step: 30, advanced: true }),
+  gusFloat("PreventOfflinePvPInterval", "Offline-protection grace", "PvP", { unit: "s", def: 0, max: 3600, step: 30, advanced: true }),
   gameInt("MaxAlliancesPerTribe", "Max alliances per tribe", "Tribes", { def: 0, max: 100, advanced: true }),
   gameInt("MaxTribesPerAlliance", "Max tribes per alliance", "Tribes", { def: 0, max: 100, advanced: true }),
 
@@ -566,7 +566,7 @@ export const COMMON_SETTINGS: SettingDef[] = [
   // Cryopods
   gusBool("EnableCryoSicknessPVE", "Cryo sickness (PvE)", "Cryopods", { advanced: true, help: "Apply the cryopod deploy cooldown/sickness in PvE." }),
   gusBool("EnableCryopodNerf", "Enable cryopod nerf", "Cryopods", { advanced: true, help: "Apply the post-deploy damage nerf (set the duration/mults below)." }),
-  gusFloat("CryopodNerfDuration", "Cryo nerf duration (s)", "Cryopods", { advanced: true, max: 600, emitAs: "CryopodNerfDuration", help: "Seconds the cryo-deploy debuff lasts." }),
+  gusFloat("CryopodNerfDuration", "Cryo nerf duration", "Cryopods", { unit: "s", advanced: true, max: 600, emitAs: "CryopodNerfDuration", help: "Seconds the cryo-deploy debuff lasts." }),
   gusFloat("CryopodNerfDamageMult", "Cryo nerf outgoing damage", "Cryopods", { advanced: true, step: 0.01, max: 1, lo: "less dmg", hi: "full dmg", help: "Fraction of damage a just-deployed creature deals. 0.1 = 90% removed." }),
   gusFloat("CryopodNerfIncomingDamageMultPercent", "Cryo nerf incoming damage", "Cryopods", { advanced: true, step: 0.01, max: 2, help: "Extra damage a just-deployed creature takes. 0.25 = +25%." }),
   gusBool("DisableCryopodEnemyCheck", "Cryo near enemies", "Cryopods", { advanced: true, help: "Allow cryopods to be used while enemies are nearby." }),
@@ -574,7 +574,7 @@ export const COMMON_SETTINGS: SettingDef[] = [
 
   // Structures
   gusFloat("AutoDestroyOldStructuresMultiplier", "Auto-destroy old structures", "Structure decay", { advanced: true, max: 100, help: "Auto-destroy abandoned structures after this × their decay time. Needs the auto-destroy launch flag. 0 = off." }),
-  gameInt("FastDecayInterval", "Fast-decay interval (s)", "Structure decay", { def: 43200, advanced: true, max: 1000000, help: "Decay time for unsnapped 'fast decay' structures (lone pillars/foundations)." }),
+  gameInt("FastDecayInterval", "Fast-decay interval", "Structure decay", { unit: "s", def: 43200, advanced: true, max: 1000000, help: "Decay time for unsnapped 'fast decay' structures (lone pillars/foundations)." }),
   gusBool("PvPStructureDecay", "Structure decay during ORP (PvP)", "Structure decay", { advanced: true, help: "Enable structure decay while Offline Raid Protection is active." }),
   gusBool("ForceAllStructureLocking", "Lock all structures by default", "Structure decay", { advanced: true, help: "New structures default to locked." }),
   gusBool("IgnoreLimitMaxStructuresInRangeTypeFlag", "No decorative structure cap", "Structure limits", { advanced: true, help: "Remove the 150 decorative-structure (signs/flags/dermis) limit." }),
@@ -584,7 +584,7 @@ export const COMMON_SETTINGS: SettingDef[] = [
   gameBool("bAllowPlatformSaddleMultiFloors", "Multi-floor platform saddles", "Platforms & saddles", { advanced: true, help: "Allow multiple platform floors." }),
   gameBool("bUseTameLimitForStructuresOnly", "Tame limit for platforms only", "Platforms & saddles", { advanced: true, help: "Only count platform/raft tames toward the tame limit." }),
   gusBool("PvEAllowStructuresAtSupplyDrops", "Build near supply drops (PvE)", "Building", { advanced: true, help: "Allow building near supply drop points in PvE." }),
-  gameInt("StructureDamageRepairCooldown", "Repair cooldown (s)", "Structure combat", { def: 180, advanced: true, max: 100000, help: "Cooldown after damage before a structure can be repaired. 0 = off." }),
+  gameInt("StructureDamageRepairCooldown", "Repair cooldown", "Structure combat", { unit: "s", def: 180, advanced: true, max: 100000, help: "Cooldown after damage before a structure can be repaired. 0 = off." }),
   gusBool("AllowCrateSpawnsOnTopOfStructures", "Crates on structures", "Building", { advanced: true, help: "Let air-drop supply crates land on top of structures." }),
   gameBool("bIgnoreStructuresPreventionVolumes", "Build in prevention zones", "Building", { advanced: true, help: "Allow building in normally-blocked areas (obelisks, portals, mission volumes)." }),
   gameInt("WirelessCraftingRangeOverride", "Wireless crafting range", "Structure limits", { def: 3000, advanced: true, max: 100000, help: "Range (Unreal units) for Tek Dedicated Storage wireless crafting." }),
@@ -600,10 +600,10 @@ export const COMMON_SETTINGS: SettingDef[] = [
   gameFloat("LimitTurretsRange", "Turret limit range", "Turrets", { def: 10000, advanced: true, max: 100000, help: "Area (Unreal units) counted toward the turret limit." }),
 
   // PvP
-  gameFloat("IncreasePvPRespawnIntervalBaseAmount", "PvP respawn penalty base (s)", "PvP", { def: 60, advanced: true, max: 3600, help: "Extra respawn time added when killed by the same team repeatedly." }),
-  gameFloat("IncreasePvPRespawnIntervalCheckPeriod", "PvP respawn penalty window (s)", "PvP", { def: 300, advanced: true, max: 3600, help: "Window in which repeat kills stack the respawn penalty." }),
+  gameFloat("IncreasePvPRespawnIntervalBaseAmount", "PvP respawn penalty base", "PvP", { unit: "s", def: 60, advanced: true, max: 3600, help: "Extra respawn time added when killed by the same team repeatedly." }),
+  gameFloat("IncreasePvPRespawnIntervalCheckPeriod", "PvP respawn penalty window", "PvP", { unit: "s", def: 300, advanced: true, max: 3600, help: "Window in which repeat kills stack the respawn penalty." }),
   gameFloat("IncreasePvPRespawnIntervalMultiplier", "PvP respawn penalty scale", "PvP", { def: 2, advanced: true, max: 100, help: "How much the respawn penalty scales on repeat kills." }),
-  gameFloat("PreventOfflinePvPConnectionInvincibleInterval", "Login invincibility (s)", "PvP", { advanced: true, max: 600, help: "Seconds a player can't take damage right after logging in." }),
+  gameFloat("PreventOfflinePvPConnectionInvincibleInterval", "Login invincibility", "PvP", { unit: "s", advanced: true, max: 600, help: "Seconds a player can't take damage right after logging in." }),
   gameBool("bPvEAllowTribeWar", "Allow tribe war (PvE)", "Tribes", { def: true, advanced: true, help: "Let PvE tribes mutually declare war." }),
   gameBool("bPvEAllowTribeWarCancel", "Allow tribe war cancel (PvE)", "Tribes", { advanced: true, help: "Allow cancelling an agreed war before it starts." }),
   gameBool("bDisableFriendlyFire", "Disable friendly fire", "PvP", { advanced: true, help: "Prevent damage between tribe mates / their tames / structures." }),
@@ -611,13 +611,13 @@ export const COMMON_SETTINGS: SettingDef[] = [
 
   // Tribes
   gusBool("TribeLogDestroyedEnemyStructures", "Log enemy structure kills", "Tribes", { advanced: true, help: "Show enemy structure destruction in the victim tribe's log." }),
-  gameFloat("TribeSlotReuseCooldown", "Tribe slot reuse cooldown (s)", "Tribes", { advanced: true, max: 1000000, help: "Lock a vacated tribe slot for this many seconds before someone can take it." }),
+  gameFloat("TribeSlotReuseCooldown", "Tribe slot reuse cooldown", "Tribes", { unit: "s", advanced: true, max: 1000000, help: "Lock a vacated tribe slot for this many seconds before someone can take it." }),
 
   // Players
   gameFloat("MaxFallSpeedMultiplier", "Fall damage threshold", "Players", { advanced: true, max: 100, help: "How far players can fall before taking damage. Higher = survive longer falls." }),
   gameBool("bUseCorpseLocator", "Corpse locator beam", "Players", { def: true, advanced: true, help: "Show the green beam at a player's death location." }),
   gameFloat("UseCorpseLifeSpanMultiplier", "Corpse/bag lifespan", "Players", { advanced: true, max: 100, help: "Scales how long corpses and dropped bags last." }),
-  gusFloat("ImplantSuicideCD", "Respawn cooldown (s)", "Players", { def: 28800, advanced: true, max: 1000000, help: "Cooldown between uses of the implant 'Respawn' feature." }),
+  gusFloat("ImplantSuicideCD", "Respawn cooldown", "Players", { unit: "s", def: 28800, advanced: true, max: 1000000, help: "Cooldown between uses of the implant 'Respawn' feature." }),
   gusBool("AllowSharedConnections", "Allow family sharing", "Server", { advanced: true, help: "Let Steam Family Sharing players connect." }),
 
   // Cross-server transfers
@@ -625,7 +625,7 @@ export const COMMON_SETTINGS: SettingDef[] = [
   gusBool("PreventUploadItems", "Prevent item uploads", "Cross-server", { advanced: true, help: "Block uploading items to ARK Data." }),
   gusBool("PreventUploadDinos", "Prevent creature uploads", "Cross-server", { advanced: true, help: "Block uploading creatures to ARK Data." }),
   gusBool("CrossARKAllowForeignDinoDownloads", "Allow foreign creature downloads", "Cross-server", { advanced: true, help: "Allow non-native creatures to be downloaded (e.g. on Aberration)." }),
-  gusFloat("MinimumDinoReuploadInterval", "Creature re-upload cooldown (s)", "Cross-server", { advanced: true, max: 1000000, help: "Cooldown between allowed creature re-uploads." }),
+  gusFloat("MinimumDinoReuploadInterval", "Creature re-upload cooldown", "Cross-server", { unit: "s", advanced: true, max: 1000000, help: "Cooldown between allowed creature re-uploads." }),
   gusInt("MaxTributeCharacters", "Uploaded survivor slots", "Cross-server", { def: 10, advanced: true, max: 1000, help: "Slots for uploaded survivors." }),
   gusInt("MaxTributeDinos", "Uploaded creature slots", "Cross-server", { def: 20, advanced: true, max: 1000, help: "Slots for uploaded creatures." }),
   gusInt("MaxTributeItems", "Uploaded item slots", "Cross-server", { def: 50, advanced: true, max: 1000, help: "Slots for uploaded items/resources." }),
@@ -635,13 +635,13 @@ export const COMMON_SETTINGS: SettingDef[] = [
   gameBool("bDisableHexagonStore", "Disable Hexagon store", "Hexagon store", { advanced: true, help: "Turn off the Hexagon/Club ARK store." }),
   gameFloat("HexagonCostMultiplier", "Hexagon store cost", "Hexagon store", { advanced: true, max: 100, help: "Scales item costs in the Hexagon/Club ARK store." }),
   gameFloat("BaseHexagonRewardMultiplier", "Hexagon reward", "Hexagon store", { advanced: true, max: 100, help: "Scales mission Hexagon/token rewards." }),
-  gusInt("MaxHexagonsPerCharacter", "Max Hexagons per character", "Hexagon store", { advanced: true, max: 2000000000, def: 2000000000, help: "Cap on Hexagons a character can hold." }),
+  gusInt("MaxHexagonsPerCharacter", "Max Hexagons per character", "Hexagon store", { advanced: true, max: 1000000, step: 1000, def: 2000000000, help: "Cap on Hexagons a character can hold. The default, 2000000000, is effectively no cap." }),
 
   // Ragnarok ([Ragnarok] section) — only shown on Ragnarok servers
   ragBool("EnableVolcano", "Enable volcano", "Ragnarok", { def: true, help: "Whether the Ragnarok volcano becomes active." }),
   ragFloat("VolcanoIntensity", "Volcano intensity", "Ragnarok", { def: 1, min: 0.25, max: 10, step: 0.25, lo: "milder", hi: "fiercer", help: "Lower value = a more intense eruption (minimum 0.25)." }),
   ragInt("VolcanoInterval", "Volcano interval", "Ragnarok", { def: 0, max: 100000, help: "0 = default 5000–15000s between eruptions; any value above acts as a multiplier." }),
-  ragInt("UnicornSpawnInterval", "Unicorn respawn (hours)", "Ragnarok", { def: 24, max: 168, help: "Minimum hours before a new Unicorn spawns once the wild one is gone." }),
+  ragInt("UnicornSpawnInterval", "Unicorn respawn", "Ragnarok", { unit: "hours", def: 24, max: 168, help: "Minimum hours before a new Unicorn spawns once the wild one is gone." }),
   ragBool("AllowMultipleTamedUnicorns", "Allow multiple tamed unicorns", "Ragnarok", { help: "Off = one Unicorn on the map at a time; on = unlimited tamed Unicorns." }),
 
   // Rules / misc
@@ -658,7 +658,7 @@ export const COMMON_SETTINGS: SettingDef[] = [
   gameFloat("ResourceNoReplenishRadiusPlayers", "Resource regrow radius (players)", "Rates", { advanced: true, max: 10, help: "How far from players resources refuse to regrow. >1 widens it, <1 shrinks it." }),
   gameFloat("ResourceNoReplenishRadiusStructures", "Resource regrow radius (structures)", "Rates", { advanced: true, max: 10, help: "How far from structures resources refuse to regrow. >1 widens it, <1 shrinks it." }),
   gusBool("UseFjordurTraversalBuff", "Fjordur biome teleport", "Fjordur", { advanced: true, help: "Enable the hold-to-teleport biome travel on Fjordur." }),
-  gusInt("ExtinctionEventTimeInterval", "ARKpocalypse interval (s)", "Server", { advanced: true, max: 100000000, help: "Enables extinction/ARKpocalypse mode; server wipes on this interval (e.g. 2592000 = 30 days)." }),
+  gusInt("ExtinctionEventTimeInterval", "ARKpocalypse interval", "Server", { unit: "s", advanced: true, max: 7776000, step: 3600, help: "Enables extinction/ARKpocalypse mode; server wipes on this interval (e.g. 2592000 = 30 days)." }),
 
   // Chat filtering
   gusBool("bFilterChat", "Filter chat", "Chat", { advanced: true, help: "Filter chat messages against the bad/good word lists." }),

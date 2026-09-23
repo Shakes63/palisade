@@ -79,10 +79,10 @@ const settings: SettingDef[] = [
     ],
     help: "A preset difficulty. “Custom” leaves your individual rates below in control.",
   }),
-  pset("SHOW_PLAYER_LIST", "Show player list", "General", "bool", true, {
+  pset("SHOW_PLAYER_LIST", "Show player list", "General", "bool", false, {
     help: "Let players see who else is online.",
   }),
-  pset("ENABLE_FAST_TRAVEL", "Allow fast travel", "General", "bool", true, {
+  pset("ENABLE_FAST_TRAVEL", "Allow fast travel", "World", "bool", true, {
     help: "Allow fast travel between unlocked statues.",
   }),
   pset("REGION", "Region", "General", "string", "", {
@@ -169,7 +169,7 @@ const settings: SettingDef[] = [
   pset("ENABLE_INVADER_ENEMY", "Base raids (invaders)", "PvP & Rules", "bool", true, {
     help: "Hostile NPCs periodically raid your base.",
   }),
-  pset("DEATH_PENALTY", "Death penalty", "PvP & Rules", "enum", "All", {
+  pset("DEATH_PENALTY", "Death penalty", "PvP & Rules", "enum", "Item", {
     choices: [
       { value: "None", label: "Drop nothing" },
       { value: "Item", label: "Drop items (not equipment)" },
@@ -234,6 +234,7 @@ const settings: SettingDef[] = [
     advanced: true,
   }),
   pset("ADDITIONAL_DROP_ITEM_WHEN_PLAYER_KILLING_IN_PVP_MODE_NUM", "PvP kill bonus item count", "PvP & Rules", "int", 1, {
+    emitAs: "ADDITIONAL_DROP_ITEM_NUM_WHEN_PLAYER_KILLING_IN_PVP_MODE",
     min: 0,
     max: 100,
     help: "How many of the bonus item drop.",
@@ -295,9 +296,16 @@ const settings: SettingDef[] = [
     unit: "min",
     help: "Time between supply drops.",
   }),
+  pset("AUTO_SAVE_SPAN", "Autosave interval", "World", "float", 30, {
+    min: 5,
+    max: 120,
+    step: 1,
+    unit: "s",
+    help: "Seconds between world auto-saves.",
+  }),
   pset("SERVER_REPLICATE_PAWN_CULL_DISTANCE", "Pawn replication distance", "World", "float", 15000, {
-    min: 0,
-    max: 30000,
+    min: 5000,
+    max: 15000,
     step: 500,
     unit: "cm",
     help: "Max distance at which players/Pals are replicated to clients.",
@@ -330,12 +338,12 @@ const settings: SettingDef[] = [
     help: "How often the server checks for Pal storage updates.",
     advanced: true,
   }),
-  pset("PAL_EGG_DEFAULT_HATCHING_TIME", "Egg hatch time", "Survival", "float", 72, {
+  pset("PAL_EGG_DEFAULT_HATCHING_TIME", "Egg hatch time", "Survival", "float", 1, {
     min: 0,
     max: 240,
     step: 1,
     unit: "hours",
-    help: "Real-world hours to hatch an egg.",
+    help: "Hours to hatch a Huge Egg.",
   }),
 
   // ── Building ───────────────────────────────────────────────────────────────
@@ -347,7 +355,11 @@ const settings: SettingDef[] = [
     max: 100000,
     help: "Build limit per base camp (0 = unlimited).",
   }),
-  pset("BASE_CAMP_MAX_NUM", "Max base camps", "Building", "int", 128, { min: 1, max: 1000 }),
+  pset("BASE_CAMP_MAX_NUM", "Max base camps", "Building", "int", 128, {
+    min: 1,
+    max: 1000,
+    help: "Total base camps allowed on the server.",
+  }),
   pset("BASE_CAMP_WORKER_MAX_NUM", "Max workers per base", "Building", "int", 15, {
     min: 1,
     max: 50,
@@ -411,13 +423,6 @@ const settings: SettingDef[] = [
     unit: "players",
     help: "Maximum players in a single guild.",
   }),
-  pset("AUTO_SAVE_SPAN", "Auto-save interval", "Guild", "float", 30, {
-    min: 1,
-    max: 120,
-    step: 1,
-    unit: "min",
-    help: "How often the world auto-saves.",
-  }),
   pset("AUTO_RESET_GUILD_NO_ONLINE_PLAYERS", "Auto-reset empty guilds", "Guild", "bool", false, {
     help: "Automatically reset a guild once no members are online.",
   }),
@@ -430,7 +435,7 @@ const settings: SettingDef[] = [
   }),
   pset("BASE_CAMP_MAX_NUM_IN_GUILD", "Max base camps per guild", "Guild", "int", 4, {
     min: 1,
-    max: 50,
+    max: 10,
     unit: "camps",
   }),
   pset("COOP_PLAYER_MAX_NUM", "Max co-op (split-screen) players", "Guild", "int", 4, {

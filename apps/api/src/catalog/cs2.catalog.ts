@@ -56,8 +56,13 @@ const settings: SettingDef[] = [
   cset("CS2_LAN", "LAN mode", "Server", "enum", "0", {
     choices: onOff("LAN only", "Internet"),
     advanced: true,
+    help: "Sets sv_lan at launch; LAN only runs the server in LAN mode.",
   }),
-  cset("CS2_CHEATS", "Allow cheats (sv_cheats)", "Server", "enum", "0", { choices: onOff(), advanced: true }),
+  cset("CS2_CHEATS", "Allow cheats (sv_cheats)", "Server", "enum", "0", {
+    choices: onOff(),
+    advanced: true,
+    help: "Enables cheat commands on the server.",
+  }),
   cset("CS2_SERVER_HIBERNATE", "Hibernate when empty", "Server", "enum", "0", {
     choices: onOff(),
     advanced: true,
@@ -99,6 +104,7 @@ const settings: SettingDef[] = [
       { value: "2", label: "Hard" },
       { value: "3", label: "Expert" },
     ],
+    help: "Skill level of the bots. Default keeps each game mode's own setting.",
   }),
   cset("CS2_BOT_QUOTA_MODE", "Bot quota mode", "Bots", "enum", "", {
     choices: [
@@ -107,6 +113,7 @@ const settings: SettingDef[] = [
       { value: "competitive", label: "Competitive" },
     ],
     advanced: true,
+    help: "How the bot count is managed. Default keeps each game mode's own setting.",
   }),
 
   // ── CSTV ─────────────────────────────────────────────────────────────────────
@@ -114,11 +121,32 @@ const settings: SettingDef[] = [
     choices: onOff(),
     help: "SourceTV/CSTV broadcast on the CSTV port (spectators + demo recording).",
   }),
-  cset("TV_AUTORECORD", "Auto-record demos", "CSTV", "enum", "0", { choices: onOff(), advanced: true }),
-  cset("TV_PW", "CSTV password", "CSTV", "string", "changeme", { advanced: true }),
-  cset("TV_RELAY_PW", "CSTV relay password", "CSTV", "string", "changeme", { advanced: true }),
-  cset("TV_MAXRATE", "CSTV max rate", "CSTV", "int", 0, { min: 0, max: 1000000, advanced: true }),
-  cset("TV_DELAY", "CSTV broadcast delay", "CSTV", "int", 0, { min: 0, max: 900, unit: "s", advanced: true }),
+  cset("TV_AUTORECORD", "Auto-record demos", "CSTV", "enum", "0", {
+    choices: onOff(),
+    advanced: true,
+    help: "Records every game as a CSTV demo.",
+  }),
+  cset("TV_PW", "CSTV password", "CSTV", "string", "changeme", {
+    advanced: true,
+    help: "Password spectators need to connect to CSTV.",
+  }),
+  cset("TV_RELAY_PW", "CSTV relay password", "CSTV", "string", "changeme", {
+    advanced: true,
+    help: "Password relay proxies need to connect to CSTV.",
+  }),
+  cset("TV_MAXRATE", "CSTV max rate", "CSTV", "int", 0, {
+    min: 0,
+    max: 1000000,
+    advanced: true,
+    help: "Maximum bandwidth rate allowed per CSTV spectator. 0 = unlimited.",
+  }),
+  cset("TV_DELAY", "CSTV broadcast delay", "CSTV", "int", 0, {
+    min: 0,
+    max: 900,
+    unit: "s",
+    advanced: true,
+    help: "How far the CSTV broadcast runs behind the live game, in seconds.",
+  }),
 
   // ── Logging ──────────────────────────────────────────────────────────────────
   cset("CS2_LOG", "Server logging", "Logging", "enum", "on", {
@@ -127,8 +155,13 @@ const settings: SettingDef[] = [
       { value: "off", label: "Off" },
     ],
     advanced: true,
+    help: "Turns server logging (the log command) on or off.",
   }),
-  cset("CS2_LOG_MONEY", "Log money", "Logging", "enum", "0", { choices: onOff(), advanced: true }),
+  cset("CS2_LOG_MONEY", "Log money", "Logging", "enum", "0", {
+    choices: onOff(),
+    advanced: true,
+    help: "Adds money events to the server log.",
+  }),
   cset("CS2_LOG_DETAIL", "Combat damage logging", "Logging", "enum", "0", {
     advanced: true,
     choices: [
@@ -137,9 +170,18 @@ const settings: SettingDef[] = [
       { value: "2", label: "Friendly" },
       { value: "3", label: "All" },
     ],
+    help: "Which combat damage the server logs: none, damage to enemies, to teammates, or all.",
   }),
-  cset("CS2_LOG_ITEMS", "Log items", "Logging", "enum", "0", { choices: onOff(), advanced: true }),
-  cset("CS2_LOG_FILE", "Log to file", "Logging", "enum", "0", { choices: onOff(), advanced: true }),
+  cset("CS2_LOG_ITEMS", "Log items", "Logging", "enum", "0", {
+    choices: onOff(),
+    advanced: true,
+    help: "Adds item events to the server log.",
+  }),
+  cset("CS2_LOG_FILE", "Log to file", "Logging", "enum", "0", {
+    choices: onOff(),
+    advanced: true,
+    help: "Writes game events to a log file.",
+  }),
 ];
 
 export const CS2_CATALOG: SettingsCatalog = { game: Game.CS2, version: "1", settings };

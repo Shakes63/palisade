@@ -40,7 +40,7 @@ const settings: SettingDef[] = [
     max: 10,
     help: "Which save slot the server continues (a new slot starts a fresh world).",
   }),
-  sset("SaveInterval", "Autosave interval (seconds)", "World", "int", 600, { min: 60, max: 3600 }),
+  sset("SaveInterval", "Autosave interval", "World", "int", 600, { unit: "s", min: 60, max: 3600 }),
 
   // ── Network ───────────────────────────────────────────────────────────────────
   sset("LanOnly", "LAN only", "Network", "bool", false, {

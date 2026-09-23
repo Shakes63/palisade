@@ -151,25 +151,37 @@ const settings: SettingDef[] = [
   ),
   vset(
     "GAME_SETTINGS_GameTimeModifiers__DayDurationInSeconds",
-    "Day length (seconds)",
+    "Day length",
     "Rates",
     "int",
     1080,
-    { min: 60, max: 86400 },
+    { unit: "s", min: 60, max: 86400 },
   ),
 
   // ── Server / visibility ───────────────────────────────────────────────────────
   vset("HOST_SETTINGS_ListOnSteam", "List on Steam browser", "Server", "bool", false, {
     help: "Also enables the Steam query responder — live player counts in the dashboard need this on (verified live).",
   }),
-  vset("HOST_SETTINGS_ListOnEOS", "List on EOS (crossplay)", "Server", "bool", false),
-  vset("HOST_SETTINGS_Description", "Server description", "Server", "string", ""),
-  vset("HOST_SETTINGS_Secure", "VAC secure", "Server", "bool", true),
-  vset("HOST_SETTINGS_AutoSaveInterval", "Autosave interval (seconds)", "Server", "int", 120, {
+  vset("HOST_SETTINGS_ListOnEOS", "List on EOS (crossplay)", "Server", "bool", false, {
+    help: "Registers the server on the Epic Online Services list, which the game client searches by default.",
+  }),
+  vset("HOST_SETTINGS_Description", "Server description", "Server", "string", "", {
+    help: "Short text shown in the server list details panel and printed in chat when a player connects.",
+  }),
+  vset("HOST_SETTINGS_Secure", "VAC secure", "Server", "bool", true, {
+    help: "Enables VAC protection, so VAC-banned clients cannot connect.",
+  }),
+  vset("HOST_SETTINGS_AutoSaveInterval", "Autosave interval", "Server", "int", 120, {
+    unit: "s",
     min: 30,
     max: 3600,
+    help: "Time between autosaves.",
   }),
-  vset("HOST_SETTINGS_AutoSaveCount", "Autosaves kept", "Server", "int", 20, { min: 2, max: 100 }),
+  vset("HOST_SETTINGS_AutoSaveCount", "Autosaves kept", "Server", "int", 20, {
+    min: 2,
+    max: 100,
+    help: "Total autosaves to keep; after smart retention runs, the oldest are deleted down to this count.",
+  }),
   vset("HOST_SETTINGS_AutoSaveSmartKeep", "Smart autosave retention", "Server", "string", "", {
     help: "Comma-separated A:B:C entries — within the past A minutes keep the B newest and C oldest saves. Each window excludes the ones before it; the autosave cap still applies afterwards. Empty = keep only the newest. Stunlock's example: 10:1:1,30:0:1,60:0:1,120:0:1,180:0:1,240:0:1,360:0:1,720:0:1,1440:0:1,2880:0:1,52560000:99:0",
   }),
@@ -181,10 +193,13 @@ const settings: SettingDef[] = [
     max: 60,
     help: "30 is plenty for casual play; 60 suits intense PvP at higher CPU use.",
   }),
-  vset("HOST_SETTINGS_LowerFPSWhenEmpty", "Lower tick rate when empty", "Server", "bool", false),
+  vset("HOST_SETTINGS_LowerFPSWhenEmpty", "Lower tick rate when empty", "Server", "bool", false, {
+    help: "Runs the server at a lower frame-rate target while no players are logged in.",
+  }),
   vset("HOST_SETTINGS_LowerFPSWhenEmptyValue", "Empty-server tick rate (FPS)", "Server", "int", 1, {
     min: 1,
     max: 60,
+    help: "Frame-rate target used while the lower tick rate option is on.",
   }),
   vset("HOST_SETTINGS_GameSettingsPreset", "Game settings preset", "Server", "string", "", {
     help: "A preset name (e.g. StandardPvP) from VRisingServer_Data/StreamingAssets/GameSettingPresets (custom files there work too). Applied before the difficulty preset, so any setting both define comes from the difficulty preset.",
