@@ -321,9 +321,9 @@ function serverLabels(input: RuntimeSpecInput): Record<string, string> {
 }
 
 /**
- * The server join password. Primary source is the plain-text catalog setting
- * (config.values.ServerPassword) so it's visible/editable in the UI; falls back
- * to the legacy encrypted value (input.serverPassword) for older servers.
+ * The server join password (input.serverPassword). ARK servers not saved since it
+ * moved out of the ServerPassword setting may still carry it there; that value
+ * wins until the next save migrates it.
  */
 function serverPassword(input: RuntimeSpecInput): string {
   const v = input.config.values?.["ServerPassword"];

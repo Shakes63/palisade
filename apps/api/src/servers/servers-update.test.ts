@@ -108,3 +108,45 @@ describe("update() configDirty (restart-needed) flag", () => {
     expect(dataOf().configDirty).toBeUndefined();
   });
 });
+
+// ARK's join password used to live in two places (the ServerPassword setting and the
+// encrypted column), and the setting silently won over the Overview's Access card.
+describe("update() join password has one home", () => {
+  const legacy = (pw: string) => JSON.stringify({ values: { ServerPassword: pw, XPMultiplier: 2 } });
+  const valuesOf = (json: unknown) => (JSON.parse(json as string) as { values: Record<string, unknown> }).values;
+
+  it("an Access-card change replaces a legacy ServerPassword setting", async () => {
+    const { svc, dataOf } = makeSvc({ configJson: legacy("old"), serverPasswordEnc: null });
+    const summary = await svc.update("s1", { serverPassword: "new" } as never);
+    expect(dataOf().serverPasswordEnc).toBe("enc(new)");
+    expect(valuesOf(dataOf().configJson)).toEqual({ XPMultiplier: 2 });
+    expect(summary.joinPassword).toBe("new");
+    expect(dataOf().configDirty).toBe(true);
+  });
+
+  it("clearing it on the Access card also clears the legacy setting", async () => {
+    const { svc, dataOf } = makeSvc({ configJson: legacy("old"), serverPasswordEnc: "enc(old)" });
+    const summary = await svc.update("s1", { serverPassword: "" } as never);
+    expect(dataOf().serverPasswordEnc).toBeNull();
+    expect(valuesOf(dataOf().configJson)).toEqual({ XPMultiplier: 2 });
+    expect(summary.joinPassword).toBeNull();
+  });
+
+  it("a Settings-tab save writes the column, not the config", async () => {
+    const { svc, dataOf } = makeSvc({ serverPasswordEnc: "enc(old)" });
+    const summary = await svc.update("s1", {
+      config: { values: { ServerPassword: "fromSettings", XPMultiplier: 3 } },
+    } as never);
+    expect(dataOf().serverPasswordEnc).toBe("enc(fromSettings)");
+    expect(valuesOf(dataOf().configJson)).toEqual({ XPMultiplier: 3 });
+    expect(summary.joinPassword).toBe("fromSettings");
+  });
+
+  it("flags a restart when dropping a legacy value that differed from the column", async () => {
+    // The runtime launched with the setting ("old"), so moving to "kept" is a change.
+    const { svc, dataOf } = makeSvc({ configJson: legacy("old"), serverPasswordEnc: "enc(kept)" });
+    await svc.update("s1", { serverPassword: "kept" } as never);
+    expect(dataOf().serverPasswordEnc).toBeUndefined();
+    expect(dataOf().configDirty).toBe(true);
+  });
+});
