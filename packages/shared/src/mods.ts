@@ -60,6 +60,9 @@ export interface MinecraftModpack {
   updateAvailable?: boolean;
 }
 
+/** Which package index a Valheim mod search result came from. */
+export type ValheimModSource = "thunderstore" | "hexium";
+
 /** One installed mod's update state, unified across sources (Thunderstore package or
  *  CurseForge modpack). `id` is what the apply path needs to update just this one. */
 export interface ModUpdateItem {

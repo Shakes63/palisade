@@ -38,7 +38,7 @@ player administration, and even your router's port-forwards.
 | Minecraft (Java) | native (itzg) | RCON | CurseForge modpacks (auto-install) |
 | Minecraft Bedrock | native (itzg) | — | add-on pack uploader |
 | Icarus | Wine | — | .pak uploader |
-| Valheim | native (lloesche) | — | Thunderstore browser (auto-deps) |
+| Valheim | native (lloesche) | — | Thunderstore + Hexium browser (auto-deps) |
 | 7 Days to Die | native (LinuxGSM) | telnet (in-app) | mod-zip uploader |
 | Enshrouded | Proton | — | — (game has no mod support) |
 | Project Zomboid | native (Java) | RCON | Steam Workshop browser (auto Mod-ID) |
@@ -553,7 +553,8 @@ wouldn't exist without them:
 
 Also standing on: [SteamCMD](https://developer.valvesoftware.com/wiki/SteamCMD),
 GE-Proton/Wine for the Windows-only servers,
-[Thunderstore](https://thunderstore.io/) (Valheim mod index), and the
+[Thunderstore](https://thunderstore.io/) and [Hexium](https://hexium.gg/)
+(Valheim mod indexes), and the
 [CurseForge](https://www.curseforge.com/) + Steam Web APIs for mod browsing.
 
 ## License

@@ -687,7 +687,7 @@ function CreditsCard() {
         ))}
       </ul>
       <p className="text-[11px] text-slate-500">
-        Plus SteamCMD, GE-Proton/Wine, <a href="https://thunderstore.io/" target="_blank" rel="noreferrer" className="text-ark-accent hover:underline">Thunderstore</a>, and the CurseForge + Steam Web APIs for mod browsing.
+        Plus SteamCMD, GE-Proton/Wine, <a href="https://thunderstore.io/" target="_blank" rel="noreferrer" className="text-ark-accent hover:underline">Thunderstore</a>, <a href="https://hexium.gg/" target="_blank" rel="noreferrer" className="text-ark-accent hover:underline">Hexium</a>, and the CurseForge + Steam Web APIs for mod browsing.
         Game artwork — covers, banners, and logos — comes from the wonderful{" "}
         <a href="https://www.steamgriddb.com/" target="_blank" rel="noreferrer" className="text-ark-accent hover:underline">SteamGridDB</a>{" "}
         community (bring your own free API key), with Steam&apos;s CDN header images as the fallback.

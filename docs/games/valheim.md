@@ -13,6 +13,6 @@ Light and quick: the image SteamCMD-downloads the server and generates the world
 - A join password of at least 5 characters is REQUIRED or the server won't boot — the create form enforces it.
 - Valheim does not answer direct A2S on its query port (queries go through Steam's relay), so Palisade reads player counts from the image's own HTTP status endpoint on game port + 3 (2459) instead. That port stays LAN-only.
 - World modifiers (preset / modifiers / keys) are LAUNCH FLAGS, not env vars — the "World modifiers" settings compile into the image's `SERVER_ARGS` (`-preset X`, `-modifier name value`, `-setkey name`).
-- Mods come from Thunderstore via the panel's mod browser: installs land in `config/bepinex/plugins/<Owner-Mod>/` with dependencies resolved, and BepInEx is auto-enabled. Players must run the same mods locally (r2modman).
-- Valheim is one of only two games (with Minecraft) in the mod-updater's scope — out-of-date Thunderstore plugins are detected, badged, and updatable in bulk or on a schedule.
+- Mods come from Thunderstore and Hexium via the panel's mod browser: installs land in `config/bepinex/plugins/<Owner-Mod>/` with dependencies resolved across both, and BepInEx is auto-enabled. When a mod is on both, the Thunderstore package is used unless its author deprecated it there (usually because they moved to Hexium). Players must run the same mods locally (r2modman or Gale).
+- Valheim is one of only two games (with Minecraft) in the mod-updater's scope — out-of-date Thunderstore and Hexium plugins are detected, badged, and updatable in bulk or on a schedule.
 - The container runs as root (lloesche's default; PUID/PGID unset) — this is expected, and it's why the root-owned instance binds work without a chown.

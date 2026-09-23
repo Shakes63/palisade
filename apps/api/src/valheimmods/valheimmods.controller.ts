@@ -11,13 +11,13 @@ export class ValheimModsController {
     return this.valheimmods.status(id);
   }
 
-  /** Search the Thunderstore Valheim package index. */
+  /** Search the merged Thunderstore + Hexium Valheim package index. */
   @Get("search")
   search(@Query("q") q = "", @Query("page") page = "0") {
     return this.valheimmods.search(q, Math.max(0, Number(page) || 0));
   }
 
-  /** Install a package (by "Owner-ModName") + its Thunderstore dependencies. */
+  /** Install a package (by "Owner-ModName") + its dependencies. */
   @Post("install")
   install(@Param("id") id: string, @Body() body: { fullName: string }) {
     return this.valheimmods.install(id, body.fullName);

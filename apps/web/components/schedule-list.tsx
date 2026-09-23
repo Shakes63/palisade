@@ -40,7 +40,7 @@ const ACTIONS: { value: string; label: string; hint: string }[] = [
   {
     value: "update-mods",
     label: "Update mods",
-    hint: "Check for mod updates first (Valheim/Thunderstore or a pinned Minecraft modpack). If there are any: warn players, take a backup, install them, then restart. Otherwise nothing happens.",
+    hint: "Check for mod updates first (Valheim mods or a pinned Minecraft modpack). If there are any: warn players, take a backup, install them, then restart. Otherwise nothing happens.",
   },
   { value: "stop", label: "Stop", hint: "Warn players, take a backup, then shut the server down." },
   { value: "start", label: "Start", hint: "Bring the server up." },

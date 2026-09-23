@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Search, Download, Trash2, Package, Loader2, TriangleAlert, ExternalLink } from "lucide-react";
+import type { ValheimModSource } from "@ark/shared";
 import { apiGet, apiPost, apiDelete } from "@/lib/api";
 import { fmtCount } from "@/lib/mod-format";
 import { confirmDialog } from "@/components/dialogs";
@@ -17,6 +18,7 @@ interface TsResult {
   rating: number;
   categories: string[];
   packageUrl: string;
+  source: ValheimModSource;
 }
 type SearchResp = { total: number; page: number; pageSize: number; results: TsResult[] };
 interface InstalledMod {
@@ -27,9 +29,11 @@ interface InstalledMod {
 }
 type Status = { mods: InstalledMod[] };
 
+const SOURCE_LABELS: Record<ValheimModSource, string> = { thunderstore: "Thunderstore", hexium: "Hexium" };
+
 /**
- * Valheim mod browser backed by Thunderstore (the Valheim mod DB). Search installs
- * the mod (+ its dependencies) into config/bepinex/plugins and auto-enables BepInEx.
+ * Valheim mod browser backed by Thunderstore and Hexium (the Valheim mod DBs). Search
+ * installs the mod (+ its dependencies) into config/bepinex/plugins and auto-enables BepInEx.
  * Every connecting player still needs the same mods locally.
  */
 export function ValheimModsTab({ serverId }: { serverId: string }) {
@@ -177,7 +181,7 @@ export function ValheimModsTab({ serverId }: { serverId: string }) {
           </ul>
         ) : (
           <p className="text-sm text-slate-400">
-            No mods installed. Search Thunderstore below — installing auto-enables BepInEx and pulls in each
+            No mods installed. Search Thunderstore and Hexium below — installing auto-enables BepInEx and pulls in each
             mod&apos;s dependencies. Restart the server to load changes.
           </p>
         )}
@@ -188,14 +192,14 @@ export function ValheimModsTab({ serverId }: { serverId: string }) {
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
         <input
           className="input pl-9"
-          placeholder="Search Thunderstore mods (e.g. Jotunn, Craft From Containers)…"
+          placeholder="Search Thunderstore and Hexium mods (e.g. Jotunn, Craft From Containers)…"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
       </div>
 
       {loading && !resp ? (
-        <Loading label="Loading Thunderstore…" />
+        <Loading label="Loading mod index…" />
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
           {resp?.results.map((m) => {
@@ -218,13 +222,13 @@ export function ValheimModsTab({ serverId }: { serverId: string }) {
                       target="_blank"
                       rel="noreferrer"
                       className="shrink-0 text-slate-500 hover:text-slate-300"
-                      title="View on Thunderstore"
+                      title={`View on ${SOURCE_LABELS[m.source]}`}
                     >
                       <ExternalLink className="h-3.5 w-3.5" />
                     </a>
                   </div>
                   <p className="text-xs text-slate-500">
-                    by {m.owner} · {fmtCount(m.downloads)} downloads
+                    by {m.owner} · {fmtCount(m.downloads)} downloads · {SOURCE_LABELS[m.source]}
                   </p>
                   <p className="mt-1 line-clamp-2 text-xs leading-snug text-slate-400">{m.description}</p>
                   <div className="mt-2">
@@ -258,7 +262,7 @@ export function ValheimModsTab({ serverId }: { serverId: string }) {
         <ul className="list-disc space-y-1 pl-5 text-xs leading-snug text-slate-400">
           <li>
             <span className="text-slate-200">Everyone needs the same mods.</span> Each player installs the same
-            Thunderstore mods locally (via r2modman / Thunderstore Mod Manager), or they can&apos;t join.
+            mods locally (via a mod manager like r2modman or Gale), or they can&apos;t join.
           </li>
           <li>
             <span className="text-slate-200">BepInEx is enabled automatically</span> when you install a mod
