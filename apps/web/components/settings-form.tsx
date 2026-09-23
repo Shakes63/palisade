@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import {
   Save,
   Info,
@@ -88,7 +88,7 @@ const ARK_CRATES = [
   { className: "SupplyCrate_Cave_QualityTier3_C", name: "Cave Crate — Tier 3" },
 ];
 const numBox =
-  "w-16 shrink-0 rounded border border-ark-border bg-ark-bg px-1.5 py-1 text-right text-sm outline-none focus:border-ark-accent2";
+  "w-16 shrink-0 rounded border border-ark-border bg-ark-bg px-1.5 py-1 text-right text-sm outline-none focus:border-ark-accent2 focus:ring-2 focus:ring-ark-accent2/50";
 
 /**
  * Settings are grouped into top-level tabs so a server's options aren't one endless
@@ -269,6 +269,7 @@ export function SettingsForm({
   initial: ServerConfigValues;
   onSaved?: () => void;
 }) {
+  const uid = useId();
   const [catalog, setCatalog] = useState<SettingsCatalog | null>(null);
   // Tabs + their category membership are game-specific.
   const GROUPS = useMemo(() => (
@@ -794,8 +795,8 @@ export function SettingsForm({
           <RawArea label="GameUserSettings.ini" value={raw.gus} onChange={(v) => setRaw((r) => ({ ...r, gus: v }))} />
           <RawArea label="Game.ini" value={raw.game} onChange={(v) => setRaw((r) => ({ ...r, game: v }))} />
           <div>
-            <label className="label">Extra command-line args</label>
-            <input className="input" value={raw.args} onChange={(e) => setRaw((r) => ({ ...r, args: e.target.value }))} />
+            <label htmlFor={`${uid}-args`} className="label">Extra command-line args</label>
+            <input id={`${uid}-args`} className="input" value={raw.args} onChange={(e) => setRaw((r) => ({ ...r, args: e.target.value }))} />
           </div>
         </div>
       )}
@@ -903,6 +904,7 @@ function PresetsMenu({
                   <button
                     type="button"
                     title="Delete preset"
+                    aria-label={`Delete preset ${p.name}`}
                     className="btn-remove mr-1 mt-2"
                     onClick={async () => {
                       if (await confirmDialog({ title: `Delete preset “${p.name}”?`, confirmLabel: "Delete", danger: true }))
@@ -1041,6 +1043,7 @@ function Field({
   get?: (k: string) => unknown;
   presetMark?: { preset: string; edited: boolean };
 }) {
+  const labelId = useId();
   // A setting may be inactive because another one disables it (e.g. PvE mode
   // greys out PvP-only options, a master toggle being off greys its sub-options).
   const dep = get ? settingActive(def.key, get) : { active: true as const, reason: undefined };
@@ -1056,7 +1059,7 @@ function Field({
   const shownStep = round(stepRaw * scale, 3);
   return (
     <div className={STRUCTURED.has(def.type) ? "md:col-span-2" : undefined}>
-      <FieldLabel label={def.label} help={def.help} overridden={overridden} />
+      <FieldLabel id={labelId} label={def.label} help={def.help} overridden={overridden} />
       {presetMark && (
         <span
           title={
@@ -1074,7 +1077,11 @@ function Field({
           {presetMark.edited ? `preset · edited` : presetMark.preset}
         </span>
       )}
-      <fieldset disabled={!dep.active} className={`min-w-0 ${dep.active ? "" : "opacity-50"}`}>
+      <fieldset
+        disabled={!dep.active}
+        aria-labelledby={labelId}
+        className={`min-w-0 ${dep.active ? "" : "opacity-50"}`}
+      >
       {def.optionsSource === "game-versions" ? (
         <VersionSelectField def={def} game={game} value={value} onChange={onChange} />
       ) : def.type === "grid" ? (
@@ -1100,12 +1107,18 @@ function Field({
       ) : def.type === "bool" ? (
         <input
           type="checkbox"
+          aria-labelledby={labelId}
           checked={Boolean(value)}
           onChange={(e) => onChange(def.key, e.target.checked)}
           className="h-4 w-4"
         />
       ) : def.type === "enum" ? (
-        <select className="input" value={String(value)} onChange={(e) => onChange(def.key, e.target.value)}>
+        <select
+          aria-labelledby={labelId}
+          className="input"
+          value={String(value)}
+          onChange={(e) => onChange(def.key, e.target.value)}
+        >
           {(def.choices ?? (def.options ?? []).map((o) => ({ value: o, label: o }))).map((c) => (
             <option key={c.value} value={c.value}>
               {c.label}
@@ -1119,12 +1132,18 @@ function Field({
       ) : def.type === "time" ? (
         <input
           type="time"
+          aria-labelledby={labelId}
           className="input w-auto"
           value={String(value ?? "")}
           onChange={(e) => onChange(def.key, e.target.value)}
         />
       ) : def.type === "string" ? (
-        <input className="input" value={String(value)} onChange={(e) => onChange(def.key, e.target.value)} />
+        <input
+          aria-labelledby={labelId}
+          className="input"
+          value={String(value)}
+          onChange={(e) => onChange(def.key, e.target.value)}
+        />
       ) : (
         <div className="flex items-end gap-3">
           <div className="flex-1">
@@ -1136,6 +1155,7 @@ function Field({
             )}
             <input
               type="range"
+              aria-labelledby={labelId}
               className="h-2 w-full cursor-pointer accent-ark-accent"
               min={shownMin ?? 0}
               max={shownMax ?? 100}
@@ -1147,7 +1167,8 @@ function Field({
           <div className="flex shrink-0 items-center gap-1.5">
             <input
               type="number"
-              className={`w-20 rounded-lg border bg-ark-bg px-2 py-1.5 text-right text-sm outline-none focus:border-ark-accent2 ${
+              aria-labelledby={labelId}
+              className={`w-20 rounded-lg border bg-ark-bg px-2 py-1.5 text-right text-sm outline-none focus:border-ark-accent2 focus:ring-2 focus:ring-ark-accent2/50 ${
                 overridden ? "border-ark-accent/70 text-ark-accent" : "border-ark-border"
               }`}
               min={shownMin}
@@ -1178,7 +1199,17 @@ function Field({
   );
 }
 
-function FieldLabel({ label, help, overridden }: { label: string; help?: string; overridden?: boolean }) {
+function FieldLabel({
+  id,
+  label,
+  help,
+  overridden,
+}: {
+  id?: string;
+  label: string;
+  help?: string;
+  overridden?: boolean;
+}) {
   return (
     <div
       className={`label group relative mb-1 flex w-fit items-center gap-1.5 ${
@@ -1191,7 +1222,7 @@ function FieldLabel({ label, help, overridden }: { label: string; help?: string;
           title="Changed from default"
         />
       )}
-      <span className={help ? "cursor-help border-b border-dotted border-slate-600" : ""}>
+      <span id={id} className={help ? "cursor-help border-b border-dotted border-slate-600" : ""}>
         {label}
       </span>
       {help && <HelpTip text={help} label={label} popClass="left-0 z-30 w-64" />}
@@ -1226,10 +1257,12 @@ function HelpTip({ text, label, popClass }: { text: string; label?: string; popC
 }
 
 function RawArea({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  const uid = useId();
   return (
     <div>
-      <label className="label">{label}</label>
+      <label htmlFor={`${uid}-raw`} className="label">{label}</label>
       <textarea
+        id={`${uid}-raw`}
         className="input h-28 font-mono text-xs"
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -1265,7 +1298,7 @@ function RangeNum({
       <span className="inline-flex flex-col items-stretch">
         <input
           type="number"
-          className={`${width} shrink-0 rounded border border-ark-border bg-ark-bg px-1.5 py-1 text-right text-sm outline-none focus:border-ark-accent2`}
+          className={`${width} shrink-0 rounded border border-ark-border bg-ark-bg px-1.5 py-1 text-right text-sm outline-none focus:border-ark-accent2 focus:ring-2 focus:ring-ark-accent2/50`}
           min={min}
           max={max}
           step={step}
@@ -1360,7 +1393,7 @@ function ItemMaxField({ def, value, onChange }: WidgetProps) {
             exact
             <Hint text="Use this exact stack size, ignoring the global item stack-size multiplier. Off = your number is multiplied by it." />
           </label>
-          <button type="button" className="btn-remove" onClick={() => set(arr.filter((_, j) => j !== i))}>
+          <button type="button" className="btn-remove" title="Remove" aria-label="Remove" onClick={() => set(arr.filter((_, j) => j !== i))}>
             <Trash2 className="h-4 w-4" />
           </button>
         </div>
@@ -1618,7 +1651,7 @@ function SpawnWeightField({ def, value, onChange }: WidgetProps) {
               <span className="text-xs text-slate-400">%</span>
             </div>
           )}
-          <button type="button" className="btn-remove" onClick={() => set(arr.filter((_, j) => j !== i))}>
+          <button type="button" className="btn-remove" title="Remove" aria-label="Remove" onClick={() => set(arr.filter((_, j) => j !== i))}>
             <Trash2 className="h-4 w-4" />
           </button>
         </div>
@@ -1664,7 +1697,7 @@ function NpcReplaceField({ def, value, onChange }: WidgetProps) {
           />
           <Hint text="Pick a creature to replace it with, or leave empty to stop this creature from spawning at all." />
           {!e.to && <span className="text-xs italic text-amber-400">disables spawn</span>}
-          <button type="button" className="btn-remove" onClick={() => set(arr.filter((_, j) => j !== i))}>
+          <button type="button" className="btn-remove" title="Remove" aria-label="Remove" onClick={() => set(arr.filter((_, j) => j !== i))}>
             <Trash2 className="h-4 w-4" />
           </button>
         </div>
@@ -1870,7 +1903,7 @@ function EngramsField({ def, value, onChange }: WidgetProps) {
             <Hint text="Automatically grant this engram for free when a player reaches this level. Leave blank for no auto-unlock." />
             <input type="number" min={0} max={999} placeholder="lvl" className={numBox} value={e.autoUnlockLevel ?? ""} onChange={(ev) => patch(i, { autoUnlockLevel: numOrUndef(ev.target.value) })} />
           </div>
-          <button type="button" className="btn-remove" onClick={() => set(arr.filter((_, j) => j !== i))}>
+          <button type="button" className="btn-remove" title="Remove" aria-label="Remove" onClick={() => set(arr.filter((_, j) => j !== i))}>
             <Trash2 className="h-4 w-4" />
           </button>
         </div>
@@ -1905,7 +1938,7 @@ function LootCrateField({ def, value, onChange }: WidgetProps) {
               <span className="text-xs text-slate-500">to</span>
               <RangeNum value={numd(c.maxItems, 3)} onChange={(n) => patch(i, { maxItems: n })} min={1} max={20} />
             </div>
-            <button type="button" className="btn-remove" onClick={() => set(arr.filter((_, j) => j !== i))}>
+            <button type="button" className="btn-remove" title="Remove" aria-label="Remove" onClick={() => set(arr.filter((_, j) => j !== i))}>
               <Trash2 className="h-4 w-4" />
             </button>
           </div>
@@ -1948,7 +1981,7 @@ function LootItemsEditor({ items, onChange }: { items: LootItem[]; onChange: (it
             <Hint text="Chance this drops as a blueprint instead of the finished item. 0 = always the item, 0.5 = half the time, 1 = always a blueprint." />
             <RangeNum value={numd(it.blueprintChance, 0)} onChange={(n) => patch(i, { blueprintChance: n })} min={0} max={1} step={0.05} />
           </div>
-          <button type="button" className="btn-remove" onClick={() => onChange(items.filter((_, j) => j !== i))}>
+          <button type="button" className="btn-remove" title="Remove" aria-label="Remove" onClick={() => onChange(items.filter((_, j) => j !== i))}>
             <Trash2 className="h-4 w-4" />
           </button>
         </div>
@@ -1982,7 +2015,7 @@ function CraftCostField({ def, value, onChange }: WidgetProps) {
           <div className="flex flex-wrap items-center gap-3">
             <span className="text-xs text-slate-400">Crafting</span>
             <ItemPicker value={c.item ?? ""} onChange={(cls) => patch(i, { item: cls })} />
-            <button type="button" className="btn-remove" onClick={() => set(arr.filter((_, j) => j !== i))}>
+            <button type="button" className="btn-remove" title="Remove" aria-label="Remove" onClick={() => set(arr.filter((_, j) => j !== i))}>
               <Trash2 className="h-4 w-4" />
             </button>
           </div>
@@ -2026,7 +2059,7 @@ function CraftCostResourcesEditor({
             exact
             <Hint text="Require this precise resource — no substitutes. Off lets similar resources (e.g. any wood) count toward the cost." />
           </label>
-          <button type="button" className="btn-remove" onClick={() => onChange(resources.filter((_, j) => j !== i))}>
+          <button type="button" className="btn-remove" title="Remove" aria-label="Remove" onClick={() => onChange(resources.filter((_, j) => j !== i))}>
             <Trash2 className="h-4 w-4" />
           </button>
         </div>
@@ -2065,7 +2098,7 @@ function SpawnContainerField({ def, value, onChange }: WidgetProps) {
               value={c.container ?? ""}
               onChange={(e) => patch(i, { container: e.target.value })}
             />
-            <button type="button" className="btn-remove" onClick={() => set(arr.filter((_, j) => j !== i))}>
+            <button type="button" className="btn-remove" title="Remove" aria-label="Remove" onClick={() => set(arr.filter((_, j) => j !== i))}>
               <Trash2 className="h-4 w-4" />
             </button>
           </div>
@@ -2091,7 +2124,7 @@ function SpawnContainerField({ def, value, onChange }: WidgetProps) {
                   step={0.1}
                 />
               </div>
-              <button type="button" className="btn-remove" onClick={() => patch(i, { spawns: (c.spawns ?? []).filter((_, j) => j !== si) })}>
+              <button type="button" className="btn-remove" title="Remove" aria-label="Remove" onClick={() => patch(i, { spawns: (c.spawns ?? []).filter((_, j) => j !== si) })}>
                 <Trash2 className="h-4 w-4" />
               </button>
             </div>
@@ -2120,7 +2153,7 @@ function SpawnContainerField({ def, value, onChange }: WidgetProps) {
                 />
                 <span className="text-xs text-slate-400">%</span>
               </div>
-              <button type="button" className="btn-remove" onClick={() => patch(i, { limits: (c.limits ?? []).filter((_, j) => j !== li) })}>
+              <button type="button" className="btn-remove" title="Remove" aria-label="Remove" onClick={() => patch(i, { limits: (c.limits ?? []).filter((_, j) => j !== li) })}>
                 <Trash2 className="h-4 w-4" />
               </button>
             </div>

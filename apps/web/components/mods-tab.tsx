@@ -202,9 +202,11 @@ export function ModsTab({ serverId, game }: { serverId: string; game: Game }) {
   return (
     <div className="space-y-4">
       {/* Sub-tabs */}
-      <div className="flex gap-1 overflow-x-auto border-b border-ark-border">
+      <div role="tablist" className="flex gap-1 overflow-x-auto border-b border-ark-border">
         <button
           type="button"
+          role="tab"
+          aria-selected={view === "installed"}
           onClick={() => changeView("installed")}
           className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap px-3 py-2 text-sm sm:px-4 ${
             view === "installed"
@@ -219,6 +221,8 @@ export function ModsTab({ serverId, game }: { serverId: string; game: Game }) {
         </button>
         <button
           type="button"
+          role="tab"
+          aria-selected={view === "browse"}
           onClick={() => changeView("browse")}
           className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap px-3 py-2 text-sm sm:px-4 ${
             view === "browse"
@@ -231,6 +235,8 @@ export function ModsTab({ serverId, game }: { serverId: string; game: Game }) {
         </button>
         <button
           type="button"
+          role="tab"
+          aria-selected={view === "favorites"}
           onClick={() => changeView("favorites")}
           className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap px-3 py-2 text-sm sm:px-4 ${
             view === "favorites"
@@ -268,13 +274,21 @@ export function ModsTab({ serverId, game }: { serverId: string; game: Game }) {
                 </div>
               </div>
               <div className="flex items-center gap-1">
-                <button className="btn-secondary px-2" onClick={() => move(i, -1)} disabled={i === 0}>
+                <button
+                  className="btn-secondary px-2"
+                  onClick={() => move(i, -1)}
+                  disabled={i === 0}
+                  title="Move up"
+                  aria-label={`Move ${m.mod.name} up`}
+                >
                   <ArrowUp className="h-4 w-4" />
                 </button>
                 <button
                   className="btn-secondary px-2"
                   onClick={() => move(i, 1)}
                   disabled={i === installed.length - 1}
+                  title="Move down"
+                  aria-label={`Move ${m.mod.name} down`}
                 >
                   <ArrowDown className="h-4 w-4" />
                 </button>
@@ -359,6 +373,7 @@ export function ModsTab({ serverId, game }: { serverId: string; game: Game }) {
                       type="button"
                       className="rounded p-1.5 hover:bg-ark-border"
                       title="Unfavorite"
+                      aria-label={`Unfavorite ${f.name}`}
                       onClick={() => toggleFavorite(f)}
                     >
                       <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
@@ -502,6 +517,7 @@ export function ModsTab({ serverId, game }: { serverId: string; game: Game }) {
                     type="button"
                     className="rounded p-1.5 hover:bg-ark-border"
                     title={favIds.has(r.remoteId) ? "Unfavorite" : "Favorite"}
+                    aria-label={`${favIds.has(r.remoteId) ? "Unfavorite" : "Favorite"} ${r.name}`}
                     onClick={(e) => {
                       e.stopPropagation();
                       toggleFavorite({ remoteId: r.remoteId, name: r.name, thumbnailUrl: r.thumbnailUrl });

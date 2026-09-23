@@ -81,7 +81,7 @@ export function ArtworkPicker({
           <h3 className="text-sm font-semibold uppercase tracking-wide text-ark-accent2">
             Choose artwork
           </h3>
-          <button className="text-slate-400 hover:text-slate-200" onClick={onClose}>
+          <button className="text-slate-400 hover:text-slate-200" onClick={onClose} title="Close" aria-label="Close">
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -94,6 +94,7 @@ export function ArtworkPicker({
                 kind === k.key ? "bg-ark-bg font-medium text-slate-100" : "text-slate-400 hover:text-slate-200"
               }`}
               onClick={() => setKind(k.key)}
+              aria-pressed={kind === k.key}
             >
               {k.label}
             </button>
@@ -138,6 +139,8 @@ export function ArtworkPicker({
                     }`}
                     onClick={() => pick(o.url)}
                     disabled={saving}
+                    aria-label={`Use this ${meta.label.toLowerCase()}`}
+                    aria-pressed={active}
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img

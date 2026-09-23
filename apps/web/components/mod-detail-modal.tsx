@@ -48,7 +48,7 @@ export function ModDetailModal({
       <div className="card my-4 w-full max-w-3xl" onClick={(e) => e.stopPropagation()}>
         <div className="mb-3 flex items-start justify-between gap-3">
           <h3 className="text-lg font-semibold">{detail?.name ?? (error ? "Couldn’t load mod" : "Loading…")}</h3>
-          <button className="btn-secondary px-2" onClick={onClose}>
+          <button className="btn-secondary px-2" onClick={onClose} title="Close" aria-label="Close">
             <X className="h-4 w-4" />
           </button>
         </div>

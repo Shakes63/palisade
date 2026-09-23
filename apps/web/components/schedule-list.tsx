@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { CalendarClock, Pencil, Plus, Save, Trash2 } from "lucide-react";
 import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/api";
 import { describePlayerCondition, RCON_SCHEDULE_ACTIONS } from "@ark/shared";
@@ -86,6 +86,7 @@ const CONDITIONS: { value: string; label: string }[] = [
 ];
 
 export function ScheduleList({ serverId }: { serverId: string }) {
+  const uid = useId();
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [action, setAction] = useState("restart");
   const [frequency, setFrequency] = useState<Frequency>("daily");
@@ -255,8 +256,8 @@ export function ScheduleList({ serverId }: { serverId: string }) {
         )}
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
-            <label className="label">Do this</label>
-            <select className="input" value={action} onChange={(e) => setAction(e.target.value)}>
+            <label htmlFor={`${uid}-action`} className="label">Do this</label>
+            <select id={`${uid}-action`} className="input" value={action} onChange={(e) => setAction(e.target.value)}>
               {actionOptions.map((a) => (
                 <option key={a.value} value={a.value}>
                   {a.label}
@@ -267,8 +268,9 @@ export function ScheduleList({ serverId }: { serverId: string }) {
             <p className="mt-1 text-xs text-slate-500">{ACTIONS.find((a) => a.value === action)?.hint}</p>
           </div>
           <div>
-            <label className="label">How often</label>
+            <label htmlFor={`${uid}-freq`} className="label">How often</label>
             <select
+              id={`${uid}-freq`}
               className="input"
               value={frequency}
               onChange={(e) => setFrequency(e.target.value as Frequency)}
@@ -284,10 +286,11 @@ export function ScheduleList({ serverId }: { serverId: string }) {
 
         {needsText && (
           <div>
-            <label className="label">
+            <label htmlFor={`${uid}-text`} className="label">
               {action === "announce" ? "Message" : "Command"}
             </label>
             <input
+              id={`${uid}-text`}
               className="input"
               value={command}
               placeholder={
@@ -307,8 +310,9 @@ export function ScheduleList({ serverId }: { serverId: string }) {
         <div className="flex flex-wrap items-end gap-4">
           {isOnce && (
             <div>
-              <label className="label">On</label>
+              <label htmlFor={`${uid}-once`} className="label">On</label>
               <input
+                id={`${uid}-once`}
                 type="datetime-local"
                 className="input w-auto"
                 value={onceAt}
@@ -319,13 +323,16 @@ export function ScheduleList({ serverId }: { serverId: string }) {
           )}
           {frequency === "weekly" && (
             <div>
-              <label className="label">On days</label>
-              <div className="flex gap-1">
+              <span id={`${uid}-days`} className="label">
+                On days
+              </span>
+              <div role="group" aria-labelledby={`${uid}-days`} className="flex gap-1">
                 {DAYS.map((d, i) => (
                   <button
                     key={d}
                     type="button"
                     onClick={() => toggleDay(i)}
+                    aria-pressed={days.includes(i)}
                     className={`h-8 w-9 rounded-md text-xs font-medium ${
                       days.includes(i)
                         ? "bg-ark-accent text-slate-900"
@@ -340,8 +347,9 @@ export function ScheduleList({ serverId }: { serverId: string }) {
           )}
           {(frequency === "daily" || frequency === "weekly") && (
             <div>
-              <label className="label">At</label>
+              <label htmlFor={`${uid}-at`} className="label">At</label>
               <input
+                id={`${uid}-at`}
                 type="time"
                 className="input w-auto"
                 value={time}
@@ -351,8 +359,9 @@ export function ScheduleList({ serverId }: { serverId: string }) {
           )}
           {frequency === "everyN" && (
             <div>
-              <label className="label">Every</label>
+              <label htmlFor={`${uid}-every`} className="label">Every</label>
               <select
+                id={`${uid}-every`}
                 className="input w-auto"
                 value={intervalHours}
                 onChange={(e) => setIntervalHours(Number(e.target.value))}
@@ -367,8 +376,9 @@ export function ScheduleList({ serverId }: { serverId: string }) {
           )}
           {(frequency === "hourly" || frequency === "everyN") && (
             <div>
-              <label className="label">At minute</label>
+              <label htmlFor={`${uid}-minute`} className="label">At minute</label>
               <input
+                id={`${uid}-minute`}
                 type="number"
                 min={0}
                 max={59}
@@ -390,8 +400,9 @@ export function ScheduleList({ serverId }: { serverId: string }) {
 
         {disruptive && canWarn && (
           <div className="max-w-xs">
-            <label className="label">Warn players (minutes)</label>
+            <label htmlFor={`${uid}-warn`} className="label">Warn players (minutes)</label>
             <input
+              id={`${uid}-warn`}
               type="number"
               min={0}
               max={60}
@@ -407,9 +418,10 @@ export function ScheduleList({ serverId }: { serverId: string }) {
         )}
 
         <div>
-          <label className="label">Player count</label>
+          <label htmlFor={`${uid}-players`} className="label">Player count</label>
           <div className="flex flex-wrap items-center gap-2">
             <select
+              id={`${uid}-players`}
               className="input sm:w-auto"
               value={condition}
               onChange={(e) => setCondition(e.target.value)}
@@ -438,8 +450,9 @@ export function ScheduleList({ serverId }: { serverId: string }) {
         </div>
 
         <div>
-          <label className="label">Name (optional)</label>
+          <label htmlFor={`${uid}-name`} className="label">Name (optional)</label>
           <input
+            id={`${uid}-name`}
             className="input"
             placeholder={summary}
             value={name}

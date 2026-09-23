@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Network, Save, Check } from "lucide-react";
 import { ServerState, INDEPENDENT_QUERY_PORT, consolePortSpec, type ServerSummary } from "@ark/shared";
 import { apiPatch } from "@/lib/api";
@@ -8,6 +8,7 @@ import { toast } from "@/components/dialogs";
 /** Edit a stopped server's ports (the container bindings + configs re-render on the
  *  next start). Derived siblings follow the game port automatically server-side. */
 export function PortsCard({ server, onSaved }: { server: ServerSummary; onSaved: () => void }) {
+  const uid = useId();
   const [gamePort, setGamePort] = useState(String(server.ports.game));
   const [queryPort, setQueryPort] = useState(String(server.ports.query));
   const [rconPort, setRconPort] = useState(String(server.ports.rcon));
@@ -49,8 +50,9 @@ export function PortsCard({ server, onSaved }: { server: ServerSummary; onSaved:
       </div>
       <div className="grid gap-3 sm:grid-cols-3">
         <div>
-          <label className="label">Game port</label>
+          <label htmlFor={`${uid}-game`} className="label">Game port</label>
           <input
+            id={`${uid}-game`}
             type="number"
             min={1024}
             max={65535}
@@ -62,8 +64,9 @@ export function PortsCard({ server, onSaved }: { server: ServerSummary; onSaved:
         </div>
         {showQuery && (
           <div>
-            <label className="label">Query port</label>
+            <label htmlFor={`${uid}-query`} className="label">Query port</label>
             <input
+              id={`${uid}-query`}
               type="number"
               min={1024}
               max={65535}
@@ -76,11 +79,12 @@ export function PortsCard({ server, onSaved }: { server: ServerSummary; onSaved:
         )}
         {consolePort && server.ports.rcon > 0 && (
           <div>
-            <label className="label">
+            <label htmlFor={`${uid}-console`} className="label">
               {consolePort.label}
               {consolePort.editable ? "" : " (fixed)"}
             </label>
             <input
+              id={`${uid}-console`}
               type="number"
               min={1024}
               max={65535}

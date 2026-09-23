@@ -34,9 +34,11 @@ const FALLBACK_ZONES = [
 
 /** Dropdown of every IANA timezone, grouped by region with current UTC offsets. */
 export function TimezoneSelect({
+  id,
   value,
   onChange,
 }: {
+  id?: string;
   value: string;
   onChange: (v: string) => void;
 }) {
@@ -77,7 +79,7 @@ export function TimezoneSelect({
   }, []);
 
   return (
-    <select className="input" value={value} onChange={(e) => onChange(e.target.value)}>
+    <select id={id} className="input" value={value} onChange={(e) => onChange(e.target.value)}>
       {/* Keep a saved value selectable even if the runtime doesn't list it. */}
       {value && !known.has(value) && <option value={value}>{value}</option>}
       {groups.map(([region, zones]) => (

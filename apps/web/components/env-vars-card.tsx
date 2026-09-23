@@ -206,6 +206,7 @@ export function EnvVarsCard({ server, onSaved }: { server: ServerSummary; onSave
                       className="btn-remove mt-1"
                       onClick={() => removeRow(i)}
                       title="Remove"
+                      aria-label={`Remove ${row.key || "variable"}`}
                       type="button"
                     >
                       <Trash2 className="h-4 w-4" />

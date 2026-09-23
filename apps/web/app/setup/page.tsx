@@ -1,11 +1,12 @@
 "use client";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Rocket } from "lucide-react";
 import { apiPost, setToken } from "@/lib/api";
 import { TimezoneSelect, DEFAULT_TIMEZONE } from "@/components/timezone-select";
 
 export default function SetupPage() {
+  const uid = useId();
   const router = useRouter();
   const [form, setForm] = useState({
     username: "",
@@ -46,12 +47,13 @@ export default function SetupPage() {
       <form onSubmit={submit} className="card space-y-4">
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">
-            <label className="label">Admin username</label>
-            <input className="input" autoComplete="username" value={form.username} onChange={set("username")} />
+            <label htmlFor={`${uid}-username`} className="label">Admin username</label>
+            <input id={`${uid}-username`} className="input" autoComplete="username" value={form.username} onChange={set("username")} />
           </div>
           <div>
-            <label className="label">Password (8+ chars)</label>
+            <label htmlFor={`${uid}-password`} className="label">Password (8+ chars)</label>
             <input
+              id={`${uid}-password`}
               type="password"
               className="input"
               autoComplete="new-password"
@@ -60,8 +62,9 @@ export default function SetupPage() {
             />
           </div>
           <div>
-            <label className="label">Confirm password</label>
+            <label htmlFor={`${uid}-confirm`} className="label">Confirm password</label>
             <input
+              id={`${uid}-confirm`}
               type="password"
               className="input"
               autoComplete="new-password"
@@ -71,19 +74,20 @@ export default function SetupPage() {
           </div>
         </div>
         <div>
-          <label className="label">Timezone</label>
+          <label htmlFor={`${uid}-tz`} className="label">Timezone</label>
           <TimezoneSelect
+            id={`${uid}-tz`}
             value={form.timezone}
             onChange={(tz) => setForm((f) => ({ ...f, timezone: tz }))}
           />
         </div>
         <div>
-          <label className="label">CurseForge API key (ASA mods and Minecraft modpacks — optional)</label>
-          <input className="input" value={form.curseForgeApiKey} onChange={set("curseForgeApiKey")} />
+          <label htmlFor={`${uid}-cf`} className="label">CurseForge API key (ASA mods and Minecraft modpacks — optional)</label>
+          <input id={`${uid}-cf`} className="input" value={form.curseForgeApiKey} onChange={set("curseForgeApiKey")} />
         </div>
         <div>
-          <label className="label">Steam Web API key (ASE mod browser — optional)</label>
-          <input className="input" value={form.steamWebApiKey} onChange={set("steamWebApiKey")} />
+          <label htmlFor={`${uid}-steam`} className="label">Steam Web API key (ASE mod browser — optional)</label>
+          <input id={`${uid}-steam`} className="input" value={form.steamWebApiKey} onChange={set("steamWebApiKey")} />
         </div>
         {error && <p className="text-sm text-red-400">{error}</p>}
         <button className="btn-primary w-full justify-center" disabled={busy}>

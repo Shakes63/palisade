@@ -161,6 +161,7 @@ export function NotificationTargetsCard() {
                     setTargets((ts) => ts.filter((x) => x.id !== t.id));
                   }}
                   title="Remove destination"
+                  aria-label="Remove destination"
                 >
                   <Trash2 className="h-4 w-4" />
                 </button>

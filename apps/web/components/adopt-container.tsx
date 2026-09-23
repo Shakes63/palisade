@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { Import, Loader2 } from "lucide-react";
 import { ADMIN_PASSWORD_META, GAME_LABELS, JOIN_PASSWORD_META, type Game } from "@ark/shared";
 import { apiGet, apiPost } from "@/lib/api";
@@ -21,6 +21,7 @@ interface Candidate {
  * left in place until the user removes it.
  */
 export function AdoptContainerPanel({ onDone }: { onDone: () => void }) {
+  const uid = useId();
   const [candidates, setCandidates] = useState<Candidate[] | null>(null);
   const [selected, setSelected] = useState<Candidate | null>(null);
   const [name, setName] = useState("");
@@ -118,13 +119,14 @@ export function AdoptContainerPanel({ onDone }: { onDone: () => void }) {
       {selected && adminMeta && joinMeta && (
         <div className="grid gap-4 md:grid-cols-2">
           <div>
-            <label className="label">Server name (required)</label>
-            <input className="input" required value={name} onChange={(e) => setName(e.target.value)} />
+            <label htmlFor={`${uid}-name`} className="label">Server name (required)</label>
+            <input id={`${uid}-name`} className="input" required value={name} onChange={(e) => setName(e.target.value)} />
           </div>
           {adminMeta.show && (
             <div>
-              <label className="label">{adminMeta.label}</label>
+              <label htmlFor={`${uid}-admin`} className="label">{adminMeta.label}</label>
               <input
+                id={`${uid}-admin`}
                 type="password"
                 className="input"
                 value={adminPassword}
@@ -135,8 +137,9 @@ export function AdoptContainerPanel({ onDone }: { onDone: () => void }) {
           )}
           {joinMeta.show && (
             <div>
-              <label className="label">{joinMeta.label}</label>
+              <label htmlFor={`${uid}-join`} className="label">{joinMeta.label}</label>
               <input
+                id={`${uid}-join`}
                 type="password"
                 className="input"
                 placeholder={joinMeta.required ? "" : "Leave blank for an open server"}

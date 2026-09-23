@@ -82,6 +82,7 @@ export function DialogProvider() {
               onClick={() => setToasts((all) => all.filter((x) => x.id !== t.id))}
               className="text-slate-400 hover:text-slate-200"
               title="Dismiss"
+              aria-label="Dismiss"
             >
               <X className="h-4 w-4" />
             </button>

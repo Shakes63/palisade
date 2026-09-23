@@ -321,6 +321,7 @@ export function UsersCard() {
                     setEditing(editing === u.id ? null : u.id);
                   }}
                   title="Edit role and access"
+                  aria-label={`Edit ${u.username}`}
                 >
                   <Pencil className="h-4 w-4" />
                 </button>
@@ -328,6 +329,7 @@ export function UsersCard() {
                   type="button"
                   className="btn-remove"
                   onClick={() => remove(u)}
+                  aria-label={`Delete ${u.username}`}
                   disabled={users.length <= 1 || lastAdmin}
                   title={
                     users.length <= 1

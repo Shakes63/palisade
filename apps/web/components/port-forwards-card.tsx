@@ -135,6 +135,7 @@ export function PortForwardsCard({ serverId, ports }: { serverId: string; ports:
                         <button
                           className="text-slate-500 hover:text-slate-200"
                           title={f.state === "disabled" ? "Enable this forward" : "Disable this forward (rule kept)"}
+                          aria-label={`${f.state === "disabled" ? "Enable" : "Disable"} forward ${f.port}/${f.proto}`}
                           disabled={busy !== null}
                           onClick={() =>
                             run(key, () =>
@@ -151,6 +152,7 @@ export function PortForwardsCard({ serverId, ports }: { serverId: string; ports:
                         <button
                           className="btn-remove"
                           title={`Delete this forward from ${routerLabel}`}
+                          aria-label={`Delete forward ${f.port}/${f.proto}`}
                           disabled={busy !== null}
                           onClick={() =>
                             run(key, () =>

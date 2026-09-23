@@ -257,6 +257,7 @@ function GameBuildBlock({ server, onChanged }: { server: ServerSummary; onChange
           onClick={() => void load()}
           disabled={loading}
           title="Check Steam for the latest build"
+          aria-label="Check Steam for the latest build"
         >
           <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
         </button>

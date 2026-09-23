@@ -28,7 +28,7 @@ export function AppHeader() {
     <header className="border-b border-ark-border bg-ark-panel">
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3">
         <div className="flex items-center gap-4 sm:gap-6">
-          <Link href="/" className="flex items-center gap-2 font-semibold text-slate-100" title="Palisade">
+          <Link href="/" className="flex items-center gap-2 font-semibold text-slate-100" title="Palisade" aria-label="Palisade">
             <Logo className="h-6 w-6" />
             <span className="hidden sm:inline">Palisade</span>
           </Link>
@@ -49,7 +49,7 @@ export function AppHeader() {
           )}
         </div>
         {token && (
-          <button onClick={logout} className="btn-secondary" title="Sign out">
+          <button onClick={logout} className="btn-secondary" title="Sign out" aria-label="Sign out">
             <LogOut className="h-4 w-4" />
             <span className="hidden sm:inline">Sign out</span>
           </button>

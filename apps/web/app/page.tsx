@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
 import Link from "next/link";
 import {
   Plus, Play, Square, Download, Settings2, Boxes, Loader2, RotateCw,
@@ -314,6 +314,7 @@ export default function DashboardPage() {
 }
 
 function CreateServerForm({ onDone }: { onDone: () => void }) {
+  const uid = useId();
   const [game, setGame] = useState<Game>(Game.ASA);
   const maps = MAPS_BY_GAME[game];
   const [form, setForm] = useState<{
@@ -359,8 +360,9 @@ function CreateServerForm({ onDone }: { onDone: () => void }) {
     <form onSubmit={submit} className="card space-y-4">
       <div className="grid gap-4 md:grid-cols-2">
         <div>
-          <label className="label">Server name (required)</label>
+          <label htmlFor={`${uid}-name`} className="label">Server name (required)</label>
           <input
+            id={`${uid}-name`}
             className="input"
             required
             value={form.name}
@@ -368,8 +370,9 @@ function CreateServerForm({ onDone }: { onDone: () => void }) {
           />
         </div>
         <div>
-          <label className="label">Game</label>
+          <label htmlFor={`${uid}-game`} className="label">Game</label>
           <select
+            id={`${uid}-game`}
             className="input"
             value={game}
             onChange={(e) => {
@@ -393,13 +396,14 @@ function CreateServerForm({ onDone }: { onDone: () => void }) {
           </select>
         </div>
         <div>
-          <label className="label">Map</label>
+          <label htmlFor={`${uid}-map`} className="label">Map</label>
           {game === Game.ICARUS ? (
             // Icarus has no launch map — the world is a "prospect" (map + game mode +
             // difficulty) players create in the in-game lobby. Show why, not an empty picker.
             <p className="py-2 text-sm text-slate-400">Chosen in-game (players pick the map + mode)</p>
           ) : (
             <select
+              id={`${uid}-map`}
               className="input"
               value={form.map}
               onChange={(e) => setForm((f) => ({ ...f, map: e.target.value }))}
@@ -413,8 +417,9 @@ function CreateServerForm({ onDone }: { onDone: () => void }) {
           )}
         </div>
         <div>
-          <label className="label">Max players</label>
+          <label htmlFor={`${uid}-max`} className="label">Max players</label>
           <input
+            id={`${uid}-max`}
             type="number"
             min={1}
             max={maxPlayersCap}
@@ -426,8 +431,9 @@ function CreateServerForm({ onDone }: { onDone: () => void }) {
         </div>
         {adminMeta.show && (
           <div>
-            <label className="label">{adminMeta.label}</label>
+            <label htmlFor={`${uid}-admin`} className="label">{adminMeta.label}</label>
             <input
+              id={`${uid}-admin`}
               className="input"
               value={form.adminPassword}
               onChange={(e) => setForm((f) => ({ ...f, adminPassword: e.target.value }))}
@@ -437,8 +443,9 @@ function CreateServerForm({ onDone }: { onDone: () => void }) {
         )}
         {joinMeta.show && (
           <div>
-            <label className="label">{joinMeta.label}</label>
+            <label htmlFor={`${uid}-join`} className="label">{joinMeta.label}</label>
             <input
+              id={`${uid}-join`}
               className="input"
               placeholder={joinMeta.required ? "" : "Leave blank for an open server"}
               value={form.serverPassword}
