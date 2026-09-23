@@ -1,4 +1,4 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { ConflictException, Injectable, Logger } from "@nestjs/common";
 import {
   Game,
   GAME_LABELS,
@@ -127,7 +127,12 @@ export class ArtworkService {
   /** Candidate assets of one kind for the per-server picker (score-sorted by SGDB). */
   async options(game: Game, kind: ArtworkKind): Promise<ArtworkOption[]> {
     const key = await this.settings.get(SettingKeys.SteamGridDbApiKey);
-    if (!key) return [];
+    if (!key) {
+      throw new ConflictException({
+        code: "SGDB_KEY_MISSING",
+        message: "No SteamGridDB API key is set, so there's nothing to browse.",
+      });
+    }
     const ref = await this.resolveRef(game, key).catch(() => null);
     if (!ref) return [];
     const assets = (await this.sgdb<SgdbAsset[]>(this.assetPath(kind, ref), key).catch(() => null)) ?? [];

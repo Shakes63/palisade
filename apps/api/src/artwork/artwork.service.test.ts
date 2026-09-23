@@ -75,4 +75,12 @@ describe("ArtworkService", () => {
     expect(res.fetched).toBe(0);
     expect(res.missing).toBeGreaterThan(0);
   });
+
+  it("picker options without a key say so instead of looking like a game with no art", async () => {
+    const { svc } = makeService({});
+    await expect(svc.options(Game.ASA, "grid")).rejects.toMatchObject({
+      response: { code: "SGDB_KEY_MISSING" },
+    });
+    expect(calls).toHaveLength(0);
+  });
 });

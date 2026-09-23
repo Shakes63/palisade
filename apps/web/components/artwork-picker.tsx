@@ -1,8 +1,9 @@
 "use client";
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { Loader2, RotateCcw, X } from "lucide-react";
 import type { ArtworkKind, ArtworkOption, Game, GameArtwork, ServerSummary } from "@ark/shared";
-import { apiGet, apiPatch } from "@/lib/api";
+import { ApiError, apiGet, apiPatch } from "@/lib/api";
 
 const KINDS: { key: ArtworkKind; label: string; aspect: string }[] = [
   { key: "grid", label: "Cover", aspect: "aspect-[2/3]" },
@@ -34,6 +35,7 @@ export function ArtworkPicker({
   const [options, setOptions] = useState<ArtworkOption[] | null>(null);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [noKey, setNoKey] = useState(false);
 
   useEffect(() => {
     setOptions(null);
@@ -42,7 +44,11 @@ export function ArtworkPicker({
       .then(setOptions)
       .catch((e) => {
         setOptions([]);
-        setErr((e as Error).message);
+        if (e instanceof ApiError && (e.body as { code?: string } | undefined)?.code === "SGDB_KEY_MISSING") {
+          setNoKey(true);
+        } else {
+          setErr((e as Error).message);
+        }
       });
   }, [game, kind]);
 
@@ -80,7 +86,7 @@ export function ArtworkPicker({
           </button>
         </div>
 
-        <div className="flex items-center gap-1 border-b border-ark-border px-4 pt-3">
+        <div className="flex flex-wrap items-center gap-1 border-b border-ark-border px-4 pt-3">
           {KINDS.map((k) => (
             <button
               key={k.key}
@@ -93,12 +99,12 @@ export function ArtworkPicker({
             </button>
           ))}
           <button
-            className="ml-auto mb-1 inline-flex items-center gap-1 self-end text-xs text-slate-400 hover:text-slate-200 disabled:opacity-50"
+            className="ml-auto mb-1 inline-flex shrink-0 items-center gap-1 self-end whitespace-nowrap text-xs text-slate-400 hover:text-slate-200 disabled:opacity-50"
             onClick={() => pick(null)}
             disabled={saving || !selected}
             title="Reset this to the game default"
           >
-            <RotateCcw className="h-3.5 w-3.5" /> Reset to default
+            <RotateCcw className="h-3.5 w-3.5 shrink-0" /> Reset to default
           </button>
         </div>
 
@@ -108,6 +114,14 @@ export function ArtworkPicker({
             <div className="flex items-center justify-center gap-2 py-12 text-slate-400">
               <Loader2 className="h-4 w-4 animate-spin" /> Loading options…
             </div>
+          ) : noKey ? (
+            <p className="py-12 text-center text-sm text-slate-400">
+              Artwork comes from SteamGridDB. Add your SteamGridDB API key in{" "}
+              <Link href="/settings?tab=integrations" className="text-ark-accent hover:underline">
+                Settings → Integrations
+              </Link>{" "}
+              to browse it.
+            </p>
           ) : options.length === 0 ? (
             <p className="py-12 text-center text-sm text-slate-400">
               No {meta.label.toLowerCase()} options found for this game.
