@@ -36,6 +36,7 @@ function makeController(row = { action: "restart", command: null as string | nul
     prisma as never,
     scheduler as never,
     new AccessService(prisma as never),
+    {} as never,
   );
   return { ctl, prisma, scheduler };
 }

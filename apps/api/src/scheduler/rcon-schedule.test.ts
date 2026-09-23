@@ -119,14 +119,18 @@ describe("scheduled RCON actions (GH #78)", () => {
   });
 });
 
-function makeController(row: { action: string; command: string | null } = {
-  action: "announce",
-  command: "old message",
-}) {
+function makeController(
+  row: { action: string; command: string | null } = {
+    action: "announce",
+    command: "old message",
+  },
+  game = "ASA",
+  modUpdates = false,
+) {
   const prisma = {
     userServerAccess: { findMany: vi.fn(async () => []) },
     userClusterAccess: { findMany: vi.fn(async () => []) },
-    server: { findMany: vi.fn(async () => []) },
+    server: { findMany: vi.fn(async () => []), findUnique: vi.fn(async () => ({ game })) },
     schedule: {
       findUnique: vi.fn(async () => ({ serverId: "srv-1", ...row })),
       create: vi.fn(async ({ data }: { data: Record<string, unknown> }) => ({ id: "new", ...data })),
@@ -134,7 +138,13 @@ function makeController(row: { action: string; command: string | null } = {
     },
   };
   const scheduler = { registerWithTimezone: vi.fn(async () => undefined), unregister: vi.fn() };
-  const ctl = new SchedulesController(prisma as never, scheduler as never, new AccessService(prisma as never));
+  const mods = { status: vi.fn(async () => ({ supported: modUpdates, count: 0, items: [] })) };
+  const ctl = new SchedulesController(
+    prisma as never,
+    scheduler as never,
+    new AccessService(prisma as never),
+    mods as never,
+  );
   return { ctl, prisma };
 }
 
@@ -183,5 +193,41 @@ describe("schedule payload validation (GH #78)", () => {
     const { ctl, prisma } = makeController();
     await ctl.update("sch-1", { enabled: false }, admin);
     expect(dataOf(prisma.schedule.update)).not.toHaveProperty("command");
+  });
+});
+
+describe("schedule actions the game can't run", () => {
+  it("offers announce and command only to console games, update-mods only to mod-updater games", async () => {
+    const { ctl: ark } = makeController(undefined, "ASA");
+    const ottd = makeController(undefined, "OPENTTD").ctl;
+    const valheim = makeController(undefined, "VALHEIM", true).ctl;
+    expect(await ark.actions(admin, "srv-1")).toEqual(
+      expect.arrayContaining(["restart", "announce", "command"]),
+    );
+    expect(await ark.actions(admin, "srv-1")).not.toContain("update-mods");
+    expect(await ottd.actions(admin, "srv-1")).not.toContain("announce");
+    expect(await ottd.actions(admin, "srv-1")).not.toContain("command");
+    expect(await ottd.actions(admin, "srv-1")).toContain("restart");
+    expect(await valheim.actions(admin, "srv-1")).toContain("update-mods");
+  });
+
+  it("rejects them on create, before anything is written", async () => {
+    const { ctl, prisma } = makeController(undefined, "OPENTTD");
+    await expect(ctl.create({ ...body, command: "hi" }, admin)).rejects.toThrow("has no remote console");
+    await expect(ctl.create({ ...body, action: "update-mods" }, admin)).rejects.toThrow("no mod updates");
+    expect(prisma.schedule.create).not.toHaveBeenCalled();
+    await ctl.create({ ...body, action: "restart" }, admin);
+    expect(prisma.schedule.create).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects a patch that switches to one, but not an unrelated edit of an old row", async () => {
+    const { ctl, prisma } = makeController({ action: "restart", command: null }, "OPENTTD");
+    await expect(ctl.update("sch-1", { action: "command", command: "x" }, admin)).rejects.toThrow(
+      "has no remote console",
+    );
+    const legacy = makeController({ action: "announce", command: "hi" }, "OPENTTD");
+    await legacy.ctl.update("sch-1", { enabled: false }, admin);
+    expect(legacy.prisma.schedule.update).toHaveBeenCalled();
+    expect(prisma.schedule.update).not.toHaveBeenCalled();
   });
 });
