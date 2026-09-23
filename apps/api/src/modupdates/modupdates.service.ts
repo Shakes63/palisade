@@ -23,7 +23,7 @@ const INITIAL_DELAY_MS = 45_000; // let the app settle before the first sweep
  * CurseForge-list games redownload mods on every start (nothing to check), and the
  * file-upload games (Palworld/Icarus/7DTD/Bedrock) have no remote source or version.
  */
-const MOD_UPDATE_GAMES = new Set<Game>([Game.VALHEIM, Game.MINECRAFT]);
+export const MOD_UPDATE_GAMES: ReadonlySet<Game> = new Set<Game>([Game.VALHEIM, Game.MINECRAFT]);
 
 /**
  * The mod updater. Mirrors UpdatesService (which does this for Steam server builds):

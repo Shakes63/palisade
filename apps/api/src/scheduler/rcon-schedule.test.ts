@@ -125,7 +125,6 @@ function makeController(
     command: "old message",
   },
   game = "ASA",
-  modUpdates = false,
 ) {
   const prisma = {
     userServerAccess: { findMany: vi.fn(async () => []) },
@@ -138,12 +137,10 @@ function makeController(
     },
   };
   const scheduler = { registerWithTimezone: vi.fn(async () => undefined), unregister: vi.fn() };
-  const mods = { status: vi.fn(async () => ({ supported: modUpdates, count: 0, items: [] })) };
   const ctl = new SchedulesController(
     prisma as never,
     scheduler as never,
     new AccessService(prisma as never),
-    mods as never,
   );
   return { ctl, prisma };
 }
@@ -200,7 +197,8 @@ describe("schedule actions the game can't run", () => {
   it("offers announce and command only to console games, update-mods only to mod-updater games", async () => {
     const { ctl: ark } = makeController(undefined, "ASA");
     const ottd = makeController(undefined, "OPENTTD").ctl;
-    const valheim = makeController(undefined, "VALHEIM", true).ctl;
+    const valheim = makeController(undefined, "VALHEIM").ctl;
+    const minecraft = makeController(undefined, "MINECRAFT").ctl;
     expect(await ark.actions(admin, "srv-1")).toEqual(
       expect.arrayContaining(["restart", "announce", "command"]),
     );
@@ -209,6 +207,7 @@ describe("schedule actions the game can't run", () => {
     expect(await ottd.actions(admin, "srv-1")).not.toContain("command");
     expect(await ottd.actions(admin, "srv-1")).toContain("restart");
     expect(await valheim.actions(admin, "srv-1")).toContain("update-mods");
+    expect(await minecraft.actions(admin, "srv-1")).toContain("update-mods");
   });
 
   it("rejects them on create, before anything is written", async () => {
