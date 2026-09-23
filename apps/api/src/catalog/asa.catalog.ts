@@ -15,8 +15,8 @@ const asaExtras: SettingDef[] = [
   gusBool("AllowCryoFridgeOnSaddle", "Allow cryofridge on saddle", "Cryopods", { advanced: true }),
   gusBool("AllowFlyingStaminaRecovery", "Flyer stamina recovery", "Tamed creatures", { advanced: true }),
   gusBool("AllowMultipleAttachedC4", "Allow multiple attached C4", "PvP", { advanced: true }),
-  gameFloat("StructurePickupTimeAfterPlacement", "Structure pickup window (s)", "Pickup & power", { def: 30, max: 600, step: 5, advanced: true }),
-  gameFloat("StructurePickupHoldDuration", "Structure pickup hold (s)", "Pickup & power", { def: 0.5, max: 10, step: 0.1, advanced: true }),
+  gameFloat("StructurePickupTimeAfterPlacement", "Structure pickup window", "Pickup & power", { unit: "s", def: 30, max: 600, step: 5, advanced: true }),
+  gameFloat("StructurePickupHoldDuration", "Structure pickup hold", "Pickup & power", { unit: "s", def: 0.5, max: 10, step: 0.1, advanced: true }),
   gameBool("bDisableStructurePlacementCollision", "Disable placement collision", "Pickup & power", { advanced: true }),
   gusBool("AllowIntegratedSPlusStructures", "Enable integrated S+ structures", "Pickup & power", { def: true, advanced: true }),
 
@@ -36,12 +36,12 @@ const asaExtras: SettingDef[] = [
   gusBool("AllowRidingDinosInsideBunkers", "Ride creatures inside bunkers", "Tek Bunker", { def: true, advanced: true }),
   gusBool("AllowDinoAIInsideBunkers", "Creature AI inside bunkers", "Tek Bunker", { def: true, advanced: true }),
   gusFloat("EnemyAccessBunkerHPThreshold", "Enemy access HP threshold", "Tek Bunker", { def: 0.25, advanced: true, max: 1, step: 0.05, help: "Bunker HP fraction below which enemies can get in." }),
-  gusFloat("BunkerUnderHPThresholdDmgMultiplier", "Below-threshold damage ×", "Tek Bunker", { def: 0.05, advanced: true, max: 10, step: 0.05, help: "Damage multiplier once a bunker drops below the HP threshold." }),
+  gusFloat("BunkerUnderHPThresholdDmgMultiplier", "Below-threshold damage", "Tek Bunker", { unit: "×", def: 0.05, advanced: true, max: 10, step: 0.05, help: "Damage multiplier once a bunker drops below the HP threshold." }),
   // Cryo Hospital
   gusFloat("CryoHospitalHoursToRegenHP", "Hours to regen HP", "Cryo Hospital", { def: 1, advanced: true, max: 100, help: "Hours for a stored creature to regenerate health." }),
   gusFloat("CryoHospitalHoursToRegenFood", "Hours to regen food", "Cryo Hospital", { def: 24, advanced: true, max: 100 }),
   gusFloat("CryoHospitalHoursToDrainTorpor", "Hours to drain torpor", "Cryo Hospital", { def: 1, advanced: true, max: 100 }),
-  gusFloat("CryoHospitalMatingCooldownReduction", "Mating cooldown reduction ×", "Cryo Hospital", { def: 2, advanced: true, max: 100 }),
+  gusFloat("CryoHospitalMatingCooldownReduction", "Mating cooldown reduction", "Cryo Hospital", { unit: "×", def: 2, advanced: true, max: 100 }),
   // Bloodforge
   gusFloat("BloodforgeReinforceExtraDurability", "Reinforce extra durability", "Bloodforge", { def: 0.3, advanced: true, max: 10, step: 0.05 }),
   gusFloat("BloodforgeReinforceResourceCostMultiplier", "Reinforce resource cost", "Bloodforge", { def: 3, advanced: true, max: 100 }),

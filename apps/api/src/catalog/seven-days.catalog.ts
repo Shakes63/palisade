@@ -54,7 +54,7 @@ const settings: SettingDef[] = [
   sset("DayLightLength", "Daylight hours", "World", "int", 18, {
     min: 0,
     max: 24,
-    unit: "hrs",
+    unit: "hours",
     help: "How many of the 24 in-game hours are daylight.",
   }),
 
@@ -102,7 +102,7 @@ const settings: SettingDef[] = [
   sset("PlayerSafeZoneHours", "New-player safe-zone hours", "Difficulty", "int", 5, {
     min: 0,
     max: 24,
-    unit: "hrs",
+    unit: "hours",
     help: "How many in-game hours the new-player safe zone lasts.",
   }),
 
@@ -215,7 +215,7 @@ const settings: SettingDef[] = [
   sset("AirDropFrequency", "Air-drop frequency", "Loot", "int", 72, {
     min: 0,
     max: 240,
-    unit: "hrs",
+    unit: "hours",
     help: "In-game hours between supply air drops (0 disables them).",
   }),
   sset("AirDropMarker", "Air-drop map marker", "Loot", "bool", true, {
@@ -257,13 +257,13 @@ const settings: SettingDef[] = [
   sset("LandClaimOnlineDurabilityModifier", "Durability — owner online", "Land claim", "int", 4, {
     min: 0,
     max: 64,
-    unit: "x",
+    unit: "×",
     help: "Block-hardness multiplier inside a claim while the owner is online (0 disables protection).",
   }),
   sset("LandClaimOfflineDurabilityModifier", "Durability — owner offline", "Land claim", "int", 4, {
     min: 0,
     max: 64,
-    unit: "x",
+    unit: "×",
     help: "Block-hardness multiplier inside a claim while the owner is offline (0 disables protection).",
   }),
   sset("LandClaimOfflineDelay", "Offline protection delay", "Land claim", "int", 0, {

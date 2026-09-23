@@ -64,7 +64,8 @@ const settings: SettingDef[] = [
 
   // ── Saves ─────────────────────────────────────────────────────────────────────
   tset("AnnounceSave", "Announce world saves", "Saves", "bool", true),
-  tset("BackupInterval", "TShock backup interval (minutes)", "Saves", "int", 10, {
+  tset("BackupInterval", "TShock backup interval", "Saves", "int", 10, {
+    unit: "min",
     min: 0,
     max: 240,
     help: "TShock's own rolling world backups (inside the worlds volume). 0 disables.",

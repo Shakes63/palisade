@@ -69,12 +69,13 @@ const settings: SettingDef[] = [
     step: 0.1,
     help: "Terraforming speed during tunneling only. 0.8 is vanilla.",
   }),
-  lset("craftingPeriod", "Crafting tick (seconds)", "World", "int", 60, {
+  lset("craftingPeriod", "Crafting tick", "World", "int", 60, {
+    unit: "s",
     min: 1,
     max: 3600,
     help: "Seconds per crafting tick (fuel burn, heating…).",
   }),
-  lset("animalBFPeriod", "Breeding tick (minutes)", "World", "int", 60, { min: 1, max: 600 }),
+  lset("animalBFPeriod", "Breeding tick", "World", "int", 60, { unit: "min", min: 1, max: 600 }),
   lset("animalsCount", "Animal spawn points", "World", "int", 50, {
     min: 0,
     max: 100,
@@ -86,12 +87,14 @@ const settings: SettingDef[] = [
     step: 0.1,
     help: "Decay multiplier outside claims. 0 disables decay.",
   }),
-  lset("horsesDecayTimeMinutes", "Horse decay (minutes)", "World", "int", 0, {
+  lset("horsesDecayTimeMinutes", "Horse decay", "World", "int", 0, {
+    unit: "min",
     min: 0,
     max: 35791,
     help: "0 disables.",
   }),
-  lset("movableMaxDropHeightMeters", "Max object drop height (m)", "World", "int", 5, {
+  lset("movableMaxDropHeightMeters", "Max object drop height", "World", "int", 5, {
+    unit: "m",
     min: 0,
     max: 1000,
   }),

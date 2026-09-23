@@ -32,13 +32,13 @@ const settings: SettingDef[] = [
   iset("SERVER_SHUTDOWN_IF_NOT_JOINED", "Return to lobby if unjoined", "Session", "int", 300, {
     min: 0,
     max: 3600,
-    unit: "sec",
+    unit: "s",
     help: "Seconds to wait for a player after a prospect loads before returning to the lobby (0 = never).",
   }),
   iset("SERVER_SHUTDOWN_IF_EMPTY", "Return to lobby when empty", "Session", "int", 60, {
     min: 0,
     max: 3600,
-    unit: "sec",
+    unit: "s",
     help: "Seconds after the last player leaves before returning to the lobby (0 = never).",
   }),
 

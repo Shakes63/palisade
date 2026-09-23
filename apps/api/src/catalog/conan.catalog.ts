@@ -116,7 +116,7 @@ const settings: SettingDef[] = [
   rset("DisconnectionGraceTime", "Disconnect body grace period", "General", "int", 120, {
     min: 0,
     max: 3600,
-    unit: "sec",
+    unit: "s",
     help: "How long a disconnected player's body lingers in the world before despawning.",
   }),
 

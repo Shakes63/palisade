@@ -132,7 +132,7 @@ const settings: SettingDef[] = [
     max: 10000,
     help: "How many dropped items persist in the world before cleanup.",
   }),
-  pset("AUTO_SAVE_SPAN", "Auto-save interval", "World", "float", 30, {
+  pset("AUTO_SAVE_SPAN", "Autosave interval", "World", "float", 30, {
     min: 5,
     max: 120,
     step: 1,

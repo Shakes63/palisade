@@ -28,7 +28,8 @@ const settings: SettingDef[] = [
   rset("RUST_SERVER_LEVELURL", "Custom map URL", "World", "string", "", {
     help: "URL of a custom .map file. When set, the seed and world size are ignored.",
   }),
-  rset("RUST_SERVER_SAVE_INTERVAL", "Autosave interval (seconds)", "World", "int", 600, {
+  rset("RUST_SERVER_SAVE_INTERVAL", "Autosave interval", "World", "int", 600, {
+    unit: "s",
     min: 60,
     max: 3600,
   }),

@@ -455,45 +455,45 @@ const settings: SettingDef[] = [
   }),
 
   // ── Chat & voice ──────────────────────────────────────────────────────────────
-  zini("GlobalChat", "Global chat", "Chat & Voice", "bool", true, {
+  zini("GlobalChat", "Global chat", "Chat & voice", "bool", true, {
     help: "The /all global chat channel.",
   }),
-  zini("ChatStreams", "Enabled chat streams", "Chat & Voice", "string", "s,r,a,w,y,sh,f,all", {
+  zini("ChatStreams", "Enabled chat streams", "Chat & voice", "string", "s,r,a,w,y,sh,f,all", {
     advanced: true,
     help: "Comma list: s=say r=shout a=admin w=whisper y=yell sh=safehouse f=faction all=global.",
   }),
-  zini("ChatMessageCharacterLimit", "Chat message length limit", "Chat & Voice", "int", 256, {
+  zini("ChatMessageCharacterLimit", "Chat message length limit", "Chat & voice", "int", 256, {
     min: 1,
     max: 1024,
     advanced: true,
   }),
-  zini("ChatMessageSlowModeTime", "Chat slow mode", "Chat & Voice", "int", 0, {
+  zini("ChatMessageSlowModeTime", "Chat slow mode", "Chat & voice", "int", 0, {
     min: 0,
     max: 300,
     unit: "s",
     advanced: true,
     help: "Minimum seconds between chat messages per player. 0 = off (B42).",
   }),
-  zini("BanKickGlobalSound", "Ban/kick global sound", "Chat & Voice", "bool", true, {
+  zini("BanKickGlobalSound", "Ban/kick global sound", "Chat & voice", "bool", true, {
     advanced: true,
   }),
-  zini("VoiceEnable", "Voice chat", "Chat & Voice", "bool", true),
-  zini("Voice3D", "3D positional voice", "Chat & Voice", "bool", true, {
+  zini("VoiceEnable", "Voice chat", "Chat & voice", "bool", true),
+  zini("Voice3D", "3D positional voice", "Chat & voice", "bool", true, {
     advanced: true,
   }),
-  zini("VoiceMinDistance", "Voice min distance", "Chat & Voice", "float", 10, {
+  zini("VoiceMinDistance", "Voice min distance", "Chat & voice", "float", 10, {
     min: 0,
     max: 100,
     step: 1,
     advanced: true,
   }),
-  zini("VoiceMaxDistance", "Voice max distance", "Chat & Voice", "float", 100, {
+  zini("VoiceMaxDistance", "Voice max distance", "Chat & voice", "float", 100, {
     min: 10,
     max: 300,
     step: 1,
     advanced: true,
   }),
-  zini("BadWordPolicy", "Bad-word policy", "Chat & Voice", "enum", "0", {
+  zini("BadWordPolicy", "Bad-word policy", "Chat & voice", "enum", "0", {
     choices: [
       { value: "0", label: "Off" },
       { value: "1", label: "Replace words" },
@@ -502,18 +502,18 @@ const settings: SettingDef[] = [
     advanced: true,
     help: "Chat filtering against the server's bad-word list (B42).",
   }),
-  zini("BadWordReplacement", "Bad-word replacement", "Chat & Voice", "string", "****", {
+  zini("BadWordReplacement", "Bad-word replacement", "Chat & voice", "string", "****", {
     advanced: true,
   }),
-  zini("DisableRadioStaff", "No radio: staff", "Chat & Voice", "bool", false, {
+  zini("DisableRadioStaff", "No radio: staff", "Chat & voice", "bool", false, {
     advanced: true,
     help: "Hide radio transmissions from staff roles (this + the ones below control whose speech goes out over in-game radio).",
   }),
-  zini("DisableRadioAdmin", "No radio: admin", "Chat & Voice", "bool", true, { advanced: true }),
-  zini("DisableRadioGM", "No radio: GM", "Chat & Voice", "bool", true, { advanced: true }),
-  zini("DisableRadioOverseer", "No radio: overseer", "Chat & Voice", "bool", false, { advanced: true }),
-  zini("DisableRadioModerator", "No radio: moderator", "Chat & Voice", "bool", false, { advanced: true }),
-  zini("DisableRadioInvisible", "No radio: invisible staff", "Chat & Voice", "bool", true, { advanced: true }),
+  zini("DisableRadioAdmin", "No radio: admin", "Chat & voice", "bool", true, { advanced: true }),
+  zini("DisableRadioGM", "No radio: GM", "Chat & voice", "bool", true, { advanced: true }),
+  zini("DisableRadioOverseer", "No radio: overseer", "Chat & voice", "bool", false, { advanced: true }),
+  zini("DisableRadioModerator", "No radio: moderator", "Chat & voice", "bool", false, { advanced: true }),
+  zini("DisableRadioInvisible", "No radio: invisible staff", "Chat & voice", "bool", true, { advanced: true }),
 
   // ── Discord ───────────────────────────────────────────────────────────────────
   zini("DiscordEnable", "Discord bridge", "Discord", "bool", false, {
@@ -781,7 +781,7 @@ const settings: SettingDef[] = [
     min: 0,
     max: 8760,
     step: 1,
-    unit: "h",
+    unit: "hours",
     help: "In-game hours before zombies may respawn in a cell. 0 = never respawn.",
   }),
   zsand("ZombieConfig.RespawnUnseenHours", "Respawn unseen hours", "Zombies", "float", 16, {
@@ -789,7 +789,7 @@ const settings: SettingDef[] = [
     min: 0,
     max: 8760,
     step: 1,
-    unit: "h",
+    unit: "hours",
     advanced: true,
     help: "A chunk must be unseen this long before zombies respawn in it.",
   }),
@@ -840,7 +840,7 @@ const settings: SettingDef[] = [
   zsand("SeenHoursPreventLootRespawn", "No respawn if seen within", "Loot", "int", 0, {
     min: 0,
     max: 8760,
-    unit: "h",
+    unit: "hours",
     advanced: true,
     help: "A container seen within this many in-game hours won't restock. 0 = off.",
   }),
@@ -848,7 +848,7 @@ const settings: SettingDef[] = [
     min: 0,
     max: 8760,
     step: 1,
-    unit: "h",
+    unit: "hours",
     advanced: true,
     help: "In-game hours before dropped items on the ground are cleaned up.",
   }),
@@ -885,12 +885,14 @@ const settings: SettingDef[] = [
     advanced: true,
     help: "How advanced world erosion/decay is at spawn (1 = day one).",
   }),
-  zsand("WaterShutModifier", "Water shutoff (days)", "World", "int", 14, {
+  zsand("WaterShutModifier", "Water shutoff", "World", "int", 14, {
+    unit: "days",
     min: -1,
     max: 2147483647,
     help: "Days until tap water shuts off. -1 = instant, 2147483647 = never.",
   }),
-  zsand("ElecShutModifier", "Electricity shutoff (days)", "World", "int", 14, {
+  zsand("ElecShutModifier", "Electricity shutoff", "World", "int", 14, {
+    unit: "days",
     min: -1,
     max: 2147483647,
     help: "Days until the power grid shuts off. -1 = instant, 2147483647 = never.",
@@ -1078,7 +1080,7 @@ const settings: SettingDef[] = [
     min: -1,
     max: 8760,
     step: 1,
-    unit: "h",
+    unit: "hours",
     advanced: true,
     help: "In-game hours before zombie corpses despawn. -1 = never.",
   }),
@@ -1173,7 +1175,7 @@ const settings: SettingDef[] = [
     min: 0,
     max: 168,
     step: 1,
-    unit: "h",
+    unit: "hours",
     advanced: true,
     help: "Hours before a wailing car siren dies. 0 = only when the battery drains.",
   }),

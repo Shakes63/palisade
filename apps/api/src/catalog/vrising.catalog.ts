@@ -151,11 +151,11 @@ const settings: SettingDef[] = [
   ),
   vset(
     "GAME_SETTINGS_GameTimeModifiers__DayDurationInSeconds",
-    "Day length (seconds)",
+    "Day length",
     "Rates",
     "int",
     1080,
-    { min: 60, max: 86400 },
+    { unit: "s", min: 60, max: 86400 },
   ),
 
   // ── Server / visibility ───────────────────────────────────────────────────────
@@ -165,7 +165,8 @@ const settings: SettingDef[] = [
   vset("HOST_SETTINGS_ListOnEOS", "List on EOS (crossplay)", "Server", "bool", false),
   vset("HOST_SETTINGS_Description", "Server description", "Server", "string", ""),
   vset("HOST_SETTINGS_Secure", "VAC secure", "Server", "bool", true),
-  vset("HOST_SETTINGS_AutoSaveInterval", "Autosave interval (seconds)", "Server", "int", 120, {
+  vset("HOST_SETTINGS_AutoSaveInterval", "Autosave interval", "Server", "int", 120, {
+    unit: "s",
     min: 30,
     max: 3600,
   }),

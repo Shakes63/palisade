@@ -34,16 +34,17 @@ const settings: SettingDef[] = [
   fset("require_user_verification", "Require factorio.com login", "Visibility", "bool", true, {
     help: "Verify joining players against factorio.com. Turn OFF for pure-LAN play without accounts.",
   }),
-  fset("username", "factorio.com username", "Visibility", "string", "", {
+  fset("username", "Factorio.com username", "Visibility", "string", "", {
     help: "Needed for public listing and mod downloads.",
   }),
-  fset("token", "factorio.com token", "Visibility", "string", "", {
+  fset("token", "Factorio.com token", "Visibility", "string", "", {
     help: "From factorio.com/profile (not your password).",
   }),
 
   // ── Gameplay ──────────────────────────────────────────────────────────────────
   fset("auto_pause", "Pause when empty", "Gameplay", "bool", true),
-  fset("afk_autokick_interval", "AFK autokick (minutes)", "Gameplay", "int", 0, {
+  fset("afk_autokick_interval", "AFK autokick", "Gameplay", "int", 0, {
+    unit: "min",
     min: 0,
     max: 240,
     help: "0 disables.",
@@ -51,7 +52,7 @@ const settings: SettingDef[] = [
   fset("only_admins_can_pause_the_game", "Only admins can pause", "Gameplay", "bool", true),
 
   // ── Saves ─────────────────────────────────────────────────────────────────────
-  fset("autosave_interval", "Autosave interval (minutes)", "Saves", "int", 10, { min: 1, max: 120 }),
+  fset("autosave_interval", "Autosave interval", "Saves", "int", 10, { unit: "min", min: 1, max: 120 }),
   fset("autosave_slots", "Autosave slots", "Saves", "int", 5, { min: 1, max: 50 }),
   fset("non_blocking_saving", "Non-blocking saving", "Saves", "bool", false, {
     help: "Fork-based autosaves (no pause) — experimental, needs spare RAM.",

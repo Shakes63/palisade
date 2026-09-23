@@ -41,7 +41,7 @@ const settings: SettingDef[] = [
   fset("SERVERSTREAMING", "Asset streaming", "Performance", "bool", true, {
     help: "Stream assets on demand (less RAM). Off preloads everything.",
   }),
-  fset("TIMEOUT", "Client timeout (seconds)", "Performance", "int", 30, { min: 10, max: 300 }),
+  fset("TIMEOUT", "Client timeout", "Performance", "int", 30, { unit: "s", min: 10, max: 300 }),
 
   // ── Updates / branch ──────────────────────────────────────────────────────────
   fset("STEAMBETA", "Experimental branch", "Updates", "bool", false, {
