@@ -59,6 +59,39 @@ describe("resolveVersionTag", () => {
     ];
     expect(resolveVersionTag(tags, "latest")).toBeNull();
   });
+
+  // Real aliases seen on Docker Hub: hermsi/ark-server, lloesche/valheim-server,
+  // itzg/minecraft-server and acekorneya/asa_server.
+  it.each(["tools-b709d0bda5a6662a15242102bd4f711f3d0fe93e", "sha-e36cbfb0ddc8", "java25", "2_1_beta", "latest-1789974994"])(
+    "never answers with the commit, variant or channel tag %s",
+    (alias) => {
+      const tags: ImageTag[] = [
+        { name: "latest", digest: "d1" },
+        { name: alias, digest: "d1" },
+      ];
+      expect(resolveVersionTag(tags, "latest")).toBeNull();
+    },
+  );
+
+  it("leaves a tag that is already a version alone rather than shortening it", () => {
+    // ferment9348/dragonwilds: the shipped tag 1.1.1 shares a digest with 1.1.
+    const tags: ImageTag[] = [
+      { name: "1.1.1", digest: "d1" },
+      { name: "1.1", digest: "d1" },
+      { name: "latest", digest: "d1" },
+    ];
+    expect(resolveVersionTag(tags, "1.1.1")).toBeNull();
+  });
+
+  it("still resolves to a bare major, a v-prefixed version or a build date", () => {
+    const tag = (name: string): ImageTag[] => [
+      { name: "latest", digest: "d1" },
+      { name, digest: "d1" },
+    ];
+    expect(resolveVersionTag(tag("v2.8.1"), "latest")).toBe("v2.8.1");
+    expect(resolveVersionTag(tag("2"), "latest")).toBe("2");
+    expect(resolveVersionTag(tag("2026-04-23-1036"), "latest")).toBe("2026-04-23-1036");
+  });
 });
 
 describe("describeImageTag", () => {

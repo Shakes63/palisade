@@ -844,27 +844,33 @@ export class ServersService implements OnApplicationBootstrap, OnApplicationShut
     applyPassword(existing.spectatorPasswordEnc, dto.spectatorPassword, "spectatorPasswordEnc");
     // Join password is shown in the UI and clearable: an explicit "" REMOVES it
     // (unlike the secrets above, where "" means "leave unchanged"). Absent = keep.
-    if (dto.serverPassword !== undefined) {
+    // ARK's Settings tab edits it as the ServerPassword setting, where older servers
+    // stored it; a write from either side lands in the column and drops the setting.
+    const stored = JSON.parse(existing.configJson) as ServerConfigValues;
+    const settingPw = dto.config?.values?.["ServerPassword"];
+    const joinPw = dto.serverPassword ?? (typeof settingPw === "string" ? settingPw : undefined);
+    if (joinPw !== undefined) {
       let current: string;
       try {
         current = existing.serverPasswordEnc ? this.crypto.decrypt(existing.serverPasswordEnc) : "";
       } catch {
         current = " "; // undecryptable → force a change
       }
-      if (dto.serverPassword !== current) {
-        data.serverPasswordEnc = dto.serverPassword ? this.crypto.encrypt(dto.serverPassword) : null;
+      if (joinPw !== current) {
+        data.serverPasswordEnc = joinPw ? this.crypto.encrypt(joinPw) : null;
         launchChanged = true;
+      }
+      const legacy = stored.values?.["ServerPassword"];
+      if (legacy !== undefined) {
+        if (typeof legacy === "string" && legacy.trim() && legacy !== joinPw) launchChanged = true;
+        delete stored.values["ServerPassword"];
+        data.configJson = JSON.stringify(stored);
       }
     }
     if (dto.config) {
-      const merged: ServerConfigValues = {
-        ...JSON.parse(existing.configJson),
-        ...dto.config,
-        values: {
-          ...JSON.parse(existing.configJson).values,
-          ...(dto.config.values ?? {}),
-        },
-      };
+      const values = { ...stored.values, ...(dto.config.values ?? {}) };
+      if (joinPw !== undefined) delete values["ServerPassword"];
+      const merged: ServerConfigValues = { ...stored, ...dto.config, values };
       data.configJson = JSON.stringify(merged);
       launchChanged = true; // settings feed the generated INI / command line
     }
@@ -2189,9 +2195,9 @@ export class ServersService implements OnApplicationBootstrap, OnApplicationShut
 
   private toSummary(row: ServerRow, imageReady = false): ServerSummary {
     if (!row) throw new NotFoundException("Server not found");
-    // Join password is shown so it can be copied for the in-game prompt. Prefer the
-    // plain-text catalog value (ARK's ServerPassword), else fall back to the
-    // first-class encrypted field (how Conan + the create/edit form set it).
+    // Join password is shown so it can be copied for the in-game prompt. It lives in
+    // the encrypted field; an ARK server not saved since then may still carry it as
+    // the ServerPassword setting, which wins because the runtime launches with it.
     const catalogPw = (JSON.parse(row.configJson) as ServerConfigValues).values?.["ServerPassword"];
     let joinPassword: string | null =
       typeof catalogPw === "string" && catalogPw.trim() ? catalogPw : null;

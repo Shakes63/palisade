@@ -13,12 +13,15 @@ export function Sparkline({
   points,
   format,
   height = 36,
+  emptyLabel = "collecting…",
 }: {
   /** Chronological samples; null = unknown at that instant. */
   points: { at: string; value: number | null }[];
   /** Format a value for the hover readout (e.g. v => `${v}%`). */
   format?: (v: number) => string;
   height?: number;
+  /** Shown instead of the line while no sample has a value. */
+  emptyLabel?: string;
 }) {
   const ref = useRef<SVGSVGElement>(null);
   const [hover, setHover] = useState<number | null>(null); // sample index
@@ -48,7 +51,7 @@ export function Sparkline({
   }, [points, height]);
 
   if (points.length < 2 || !path) {
-    return <div className="h-9 text-[10px] leading-9 text-slate-600">collecting…</div>;
+    return <div className="h-9 text-[10px] leading-9 text-slate-600">{emptyLabel}</div>;
   }
 
   const onMove = (e: React.MouseEvent<SVGSVGElement>) => {

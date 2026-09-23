@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { Game } from "@ark/shared";
+import { Game, portRows, consolePortSpec } from "@ark/shared";
 import {
   derivePorts,
+  portsFor,
   nextBasePort,
   serverPortSet,
   PORT_POOL_START,
@@ -50,5 +51,44 @@ describe("serverPortSet (start-time port-conflict guard)", () => {
     expect([...a].filter((p) => b.has(p)).length).toBeGreaterThan(0);
     const c = serverPortSet(Game.BEDROCK, { game: 20132, rawSocket: 20133, query: 20132, rcon: 0 });
     expect([...a].filter((p) => c.has(p))).toEqual([]);
+  });
+});
+
+describe("portRows (Overview)", () => {
+  const rows = (game: Game) => portRows(game, portsFor(game));
+
+  it("lists a port once with every protocol it carries", () => {
+    expect(rows(Game.OPENTTD)).toEqual([{ label: "Game port", value: "3979/tcp+udp" }]);
+    expect(rows(Game.BEAMMP)).toEqual([{ label: "Game port", value: "30814/tcp+udp" }]);
+    expect(rows(Game.SEVEN_DAYS)[0]).toEqual({ label: "Game port", value: "26900/tcp+udp" });
+  });
+
+  it("shows Satisfactory's TCP API and reliable-messaging ports", () => {
+    expect(rows(Game.SATISFACTORY)).toEqual([
+      { label: "Game port", value: "7777/tcp+udp" },
+      { label: "Reliable messaging port", value: "8888/tcp" },
+    ]);
+  });
+
+  it("gives Palworld no query port", () => {
+    expect(rows(Game.PALWORLD).map((r) => r.label)).toEqual(["Game port", "RCON port"]);
+  });
+
+  it("names the console port by what the game runs", () => {
+    expect(rows(Game.SEVEN_DAYS).at(-1)).toEqual({ label: "Telnet port", value: "8081/tcp" });
+    expect(rows(Game.CS2).at(-1)).toEqual({ label: "RCON port", value: "27025/tcp" });
+    expect(rows(Game.VALHEIM).some((r) => r.label.includes("RCON"))).toBe(false);
+  });
+
+  it("keeps a label's detail after the word port", () => {
+    expect(rows(Game.ASA)).toContainEqual({ label: "Query port (server browser)", value: "7779/udp" });
+  });
+});
+
+describe("consolePortSpec", () => {
+  it("marks Zomboid's image-fixed RCON port read-only and CS2's editable", () => {
+    expect(consolePortSpec(Game.ZOMBOID)).toEqual({ label: "RCON port", editable: false });
+    expect(consolePortSpec(Game.CS2)?.editable).toBe(true);
+    expect(consolePortSpec(Game.OPENTTD)).toBeNull();
   });
 });

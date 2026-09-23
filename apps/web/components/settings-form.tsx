@@ -34,6 +34,8 @@ import {
   SETTINGS_PRESETS,
   settingActive,
   Game,
+  ServerState,
+  type ServerSummary,
   type SettingsPreset,
   type CustomPreset,
   type SettingsCatalog,
@@ -54,6 +56,7 @@ import {
   type GameVersionsResult,
 } from "@ark/shared";
 import { apiGet, apiPatch, apiPost, apiDelete } from "@/lib/api";
+import { useRealtime } from "@/lib/socket";
 import { ARK_ITEMS } from "@/lib/ark-items";
 import { ARK_CREATURES } from "@/lib/ark-creatures";
 import { ARK_ENGRAMS } from "@/lib/ark-engrams";
@@ -307,8 +310,20 @@ export function SettingsForm({
     game: initial.rawGameIni ?? "",
     args: initial.rawCommandLineArgs ?? "",
   });
+  // What the server has stored, so Save only lights up for real changes.
+  const [baseline, setBaseline] = useState({ values, raw });
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [server, setServer] = useState<ServerSummary | null>(null);
+  const refreshServer = () =>
+    apiGet<ServerSummary>(`/servers/${serverId}`).then(setServer).catch(() => undefined);
+  useEffect(() => {
+    void refreshServer();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [serverId]);
+  useRealtime((msg) => {
+    if (msg.serverId === serverId && (msg.topic === "server.state" || msg.topic === "event")) void refreshServer();
+  }, serverId);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [activeGroup, setActiveGroup] = useState("general");
   const [query, setQuery] = useState("");
@@ -369,6 +384,17 @@ export function SettingsForm({
   useEffect(() => {
     apiGet<SettingsCatalog>(`/catalog/${game}`).then(setCatalog).catch(() => undefined);
   }, [game]);
+
+  // ARK shows the join password here as a setting, but it's stored on the server
+  // record (the Overview's Access card edits the same value).
+  const joinSeeded = useRef(false);
+  useEffect(() => {
+    if (joinSeeded.current || !server || !catalog?.settings.some((d) => d.key === "ServerPassword")) return;
+    joinSeeded.current = true;
+    const pw = server.joinPassword ?? "";
+    setValues((v) => ({ ...v, ServerPassword: pw }));
+    setBaseline((b) => ({ ...b, values: { ...b.values, ServerPassword: pw } }));
+  }, [server, catalog]);
 
   // All categories with their defs, in catalog order.
   const allByCat = useMemo(() => {
@@ -519,7 +545,8 @@ export function SettingsForm({
         rawGameIni: raw.game || undefined,
         rawCommandLineArgs: raw.args || undefined,
       };
-      await apiPatch(`/servers/${serverId}`, { config });
+      setServer(await apiPatch<ServerSummary>(`/servers/${serverId}`, { config }));
+      setBaseline({ values, raw });
       setSaved(true);
     } catch (err) {
       alert((err as Error).message);
@@ -531,6 +558,14 @@ export function SettingsForm({
   if (!catalog) return <div className="text-slate-400">Loading settings…</div>;
 
   const totalChanged = catalog.settings.filter(isOverridden).length;
+  const dirty =
+    Object.keys({ ...values, ...baseline.values }).some(
+      (k) => JSON.stringify(values[k]) !== JSON.stringify(baseline.values[k]),
+    ) || JSON.stringify(raw) !== JSON.stringify(baseline.raw);
+  const needsRestart =
+    !dirty &&
+    server?.configDirty === true &&
+    (server.state === ServerState.Running || server.state === ServerState.Starting);
 
   return (
     <div className="space-y-5">
@@ -555,8 +590,8 @@ export function SettingsForm({
             onChange={(e) => setQuery(e.target.value)}
           />
         </div>
-        <div className="flex items-center gap-2">
-          {totalChanged > 0 && <span className="text-xs text-slate-400">{totalChanged} changed</span>}
+        <div className="flex flex-wrap items-center gap-2">
+          {totalChanged > 0 && <span className="whitespace-nowrap text-xs text-slate-400">{totalChanged} changed</span>}
           {presetCount > 0 && (
             <button
               type="button"
@@ -580,12 +615,13 @@ export function SettingsForm({
             onSave={saveCustomPreset}
             onDelete={deleteCustomPreset}
           />
-          <button className="btn-secondary" onClick={resetAll}>
+          <button className="btn-secondary whitespace-nowrap" onClick={resetAll}>
             <RotateCcw className="h-4 w-4" /> Reset all
           </button>
-          <button className="btn-primary" onClick={save} disabled={busy}>
-            <Save className="h-4 w-4" /> {busy ? "Saving…" : saved ? "Saved ✓" : "Save"}
+          <button className="btn-primary whitespace-nowrap" onClick={save} disabled={busy || !dirty}>
+            <Save className="h-4 w-4" /> {busy ? "Saving…" : saved && !dirty ? "Saved ✓" : "Save"}
           </button>
+          {needsRestart && <span className="whitespace-nowrap text-xs text-amber-400">Restart to apply</span>}
         </div>
       </div>
 
@@ -806,9 +842,11 @@ function PresetsMenu({
       </button>
       {open && (
         <div className="absolute right-0 z-40 mt-1 max-h-[70vh] w-80 overflow-auto rounded-md border border-ark-border bg-ark-panel shadow-xl">
-          <div className="border-b border-ark-border px-3 py-2 text-[11px] uppercase tracking-wide text-slate-500">
-            Apply a preset
-          </div>
+          {presets.length > 0 && (
+            <div className="border-b border-ark-border px-3 py-2 text-[11px] uppercase tracking-wide text-slate-500">
+              Apply a preset
+            </div>
+          )}
           {presets.map((p) => (
             <button
               type="button"
@@ -826,7 +864,9 @@ function PresetsMenu({
 
           {customPresets.length > 0 && (
             <>
-              <div className="border-y border-ark-border px-3 py-2 text-[11px] uppercase tracking-wide text-slate-500">
+              <div
+                className={`${presets.length > 0 ? "border-y" : "border-b"} border-ark-border px-3 py-2 text-[11px] uppercase tracking-wide text-slate-500`}
+              >
                 Your presets
               </div>
               {customPresets.map((p) => (
@@ -859,7 +899,9 @@ function PresetsMenu({
             </>
           )}
 
-          <div className="space-y-2 border-t border-ark-border p-3">
+          <div
+            className={`space-y-2 border-ark-border p-3 ${presets.length + customPresets.length > 0 ? "border-t" : ""}`}
+          >
             <div className="text-[11px] uppercase tracking-wide text-slate-500">Save current as preset</div>
             {changedCount === 0 ? (
               <p className="text-[11px] leading-relaxed text-slate-500">
@@ -1135,16 +1177,34 @@ function FieldLabel({ label, help, overridden }: { label: string; help?: string;
       <span className={help ? "cursor-help border-b border-dotted border-slate-600" : ""}>
         {label}
       </span>
-      {help && <Info className="h-3 w-3 text-slate-500 group-hover:text-slate-300" />}
-      {help && (
-        <span
-          role="tooltip"
-          className="pointer-events-none absolute left-0 top-full z-30 mt-1 hidden w-64 rounded-md border border-ark-border bg-ark-panel px-3 py-2 text-xs normal-case leading-relaxed tracking-normal text-slate-200 shadow-xl group-hover:block"
-        >
-          {help}
-        </span>
-      )}
+      {help && <HelpTip text={help} label={label} popClass="left-0 z-30 w-64" />}
     </div>
+  );
+}
+
+/** The ⓘ behind a hover tooltip, also opened by tap/click and keyboard focus. */
+function HelpTip({ text, label, popClass }: { text: string; label?: string; popClass: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button
+        type="button"
+        aria-label={label ? `About ${label}` : "More info"}
+        aria-expanded={open}
+        className="peer inline-flex rounded text-slate-500 hover:text-slate-300 group-hover:text-slate-300 focus-visible:outline focus-visible:outline-1 focus-visible:outline-ark-accent2"
+        onClick={() => setOpen((o) => !o)}
+        onBlur={() => setOpen(false)}
+        onKeyDown={(e) => e.key === "Escape" && setOpen(false)}
+      >
+        <Info className="h-3 w-3" />
+      </button>
+      <span
+        role="tooltip"
+        className={`pointer-events-none absolute top-full mt-1 rounded-md border border-ark-border bg-ark-panel px-3 py-2 text-xs normal-case leading-relaxed tracking-normal text-slate-200 shadow-xl group-hover:block peer-focus-visible:block ${popClass} ${open ? "block" : "hidden"}`}
+      >
+        {text}
+      </span>
+    </>
   );
 }
 
@@ -2121,14 +2181,11 @@ function CratePicker({ value, onChange }: { value: string; onChange: (className:
   );
 }
 
-/** A small hover-tooltip "?" icon for explaining an inline field. */
+/** A small tooltip "?" icon for explaining an inline field. */
 function Hint({ text }: { text: string }) {
   return (
     <span className="group relative inline-flex">
-      <Info className="h-3 w-3 cursor-help text-slate-500 hover:text-slate-300" />
-      <span className="pointer-events-none absolute left-1/2 top-full z-40 mt-1 hidden w-56 -translate-x-1/2 rounded-md border border-ark-border bg-ark-panel px-3 py-2 text-xs normal-case leading-relaxed tracking-normal text-slate-200 shadow-xl group-hover:block">
-        {text}
-      </span>
+      <HelpTip text={text} popClass="left-1/2 z-40 w-56 -translate-x-1/2" />
     </span>
   );
 }

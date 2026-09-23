@@ -1,4 +1,6 @@
-import { Game, type PortSet } from "@ark/shared";
+import { Game, ZOMBOID_STEAM_PORTS, type PortSet } from "@ark/shared";
+
+export { forwardSpec, ZOMBOID_STEAM_PORTS, type ForwardPort } from "@ark/shared";
 
 /**
  * Each server gets a contiguous block of host ports derived from a single base,
@@ -74,12 +76,9 @@ export const ENSHROUDED_PORTS: PortSet = { game: 15636, rawSocket: 15637, query:
  * query answers on the game port itself. Source RCON on TCP 27015 — the PZ ini
  * default (the danixu86 image has no RCON-port env var) — carried in the rcon
  * slot. rawSocket carries the direct port. Steam also needs its two fixed
- * comms ports (8766/8767 UDP, ZOMBOID_STEAM_PORTS below).
+ * comms ports (8766/8767 UDP, ZOMBOID_STEAM_PORTS).
  */
 export const ZOMBOID_PORTS: PortSet = { game: 16261, rawSocket: 16262, query: 16261, rcon: 27015 };
-
-/** PZ's Steam comms ports (STEAMPORT1/STEAMPORT2) — fixed, UDP, player-facing. */
-export const ZOMBOID_STEAM_PORTS = [8766, 8767] as const;
 
 /**
  * V Rising: game on UDP 9876, Steam query on UDP 9877 (both env-configurable).
@@ -233,134 +232,6 @@ export function serverPortSet(game: Game, ports: PortSet): Set<number> {
   if (game === Game.ZOMBOID) for (const p of ZOMBOID_STEAM_PORTS) set.add(p); // Steam comms
   if (game === Game.LIF) set.add(ports.game + 3); // 28003, mapped by the ich777 template
   return set;
-}
-
-export interface ForwardPort {
-  port: number;
-  proto: "udp" | "tcp";
-  label: string;
-}
-
-/**
- * The PLAYER-FACING ports a game needs forwarded on the router (what we've been
- * creating on pfSense by hand per game). Deliberately excludes admin/internal
- * ports: RCON, 7DTD telnet, and Valheim's HTTP status endpoint stay LAN-only.
- */
-export function forwardSpec(game: Game, ports: PortSet): ForwardPort[] {
-  switch (game) {
-    case Game.MINECRAFT:
-      return [{ port: ports.game, proto: "tcp", label: "game" }];
-    case Game.BEDROCK:
-      return [
-        { port: ports.game, proto: "udp", label: "game (IPv4)" },
-        { port: ports.rawSocket, proto: "udp", label: "game (IPv6)" },
-      ];
-    case Game.ICARUS:
-    case Game.ENSHROUDED:
-      return [
-        { port: ports.game, proto: "udp", label: "game" },
-        { port: ports.query, proto: "udp", label: "query (server browser)" },
-      ];
-    case Game.VALHEIM:
-      return [
-        { port: ports.game, proto: "udp", label: "game" },
-        { port: ports.query, proto: "udp", label: "query (server browser)" },
-        { port: ports.rawSocket, proto: "udp", label: "crossplay" },
-      ];
-    case Game.SEVEN_DAYS:
-      return [
-        { port: ports.game, proto: "tcp", label: "game (tcp)" },
-        { port: ports.game, proto: "udp", label: "game (udp)" },
-        { port: ports.rawSocket, proto: "udp", label: "game +1" },
-        { port: ports.query, proto: "udp", label: "query (server browser)" },
-      ];
-    case Game.PALWORLD:
-    case Game.PALWORLD_WINE:
-      return [{ port: ports.game, proto: "udp", label: "game" }];
-    case Game.ZOMBOID:
-      return [
-        { port: ports.game, proto: "udp", label: "game (+ query)" },
-        { port: ports.rawSocket, proto: "udp", label: "direct connection" },
-        { port: ZOMBOID_STEAM_PORTS[0], proto: "udp", label: "steam comms 1" },
-        { port: ZOMBOID_STEAM_PORTS[1], proto: "udp", label: "steam comms 2" },
-      ];
-    case Game.VRISING:
-      return [
-        { port: ports.game, proto: "udp", label: "game" },
-        { port: ports.query, proto: "udp", label: "query (server browser)" },
-      ];
-    case Game.SOTF:
-      return [
-        { port: ports.game, proto: "udp", label: "game" },
-        { port: ports.query, proto: "udp", label: "query (server browser)" },
-        { port: ports.rawSocket, proto: "udp", label: "blob sync" },
-      ];
-    case Game.SATISFACTORY:
-      return [
-        { port: ports.game, proto: "udp", label: "game" },
-        { port: ports.game, proto: "tcp", label: "server API (join/manage)" },
-        { port: ports.rawSocket, proto: "tcp", label: "reliable messaging" },
-      ];
-    case Game.LIF:
-      return [
-        { port: ports.game, proto: "tcp", label: "game (tcp)" },
-        { port: ports.game, proto: "udp", label: "game (udp)" },
-        { port: ports.rawSocket, proto: "tcp", label: "game +1 (tcp)" },
-        { port: ports.rawSocket, proto: "udp", label: "game +1 (udp)" },
-        { port: ports.query, proto: "tcp", label: "query (tcp)" },
-        { port: ports.query, proto: "udp", label: "query (server browser)" },
-      ];
-    case Game.ATS:
-    case Game.ETS2:
-      return [
-        { port: ports.game, proto: "udp", label: "connection" },
-        { port: ports.query, proto: "udp", label: "query (server browser)" },
-      ];
-    case Game.CORE_KEEPER:
-      return []; // Steam relay — nothing to forward
-    case Game.TERRARIA:
-      return [{ port: ports.game, proto: "tcp", label: "game" }]; // REST stays LAN-only
-    case Game.FACTORIO:
-      return [{ port: ports.game, proto: "udp", label: "game" }]; // RCON stays LAN-only
-    case Game.RUST:
-      return [
-        { port: ports.game, proto: "udp", label: "game" },
-        { port: ports.query, proto: "udp", label: "query (server browser)" },
-        { port: ports.rawSocket, proto: "tcp", label: "Rust+ companion app" },
-      ]; // RCON (28016 tcp) stays LAN-only
-    case Game.BEAMMP:
-      return [
-        { port: ports.game, proto: "tcp", label: "game (tcp)" },
-        { port: ports.game, proto: "udp", label: "game (udp)" },
-      ];
-    case Game.OPENTTD:
-      return [
-        { port: ports.game, proto: "tcp", label: "game (tcp)" },
-        { port: ports.game, proto: "udp", label: "game (udp)" },
-      ];
-    case Game.CS2:
-      return [
-        { port: ports.game, proto: "tcp", label: "game (tcp)" },
-        { port: ports.game, proto: "udp", label: "game + query (udp)" },
-        { port: ports.rawSocket, proto: "udp", label: "CSTV spectator" },
-      ];
-    case Game.DST:
-      return [
-        { port: ports.game, proto: "udp", label: "master shard" },
-        { port: ports.rawSocket, proto: "udp", label: "caves shard" },
-        { port: ports.query, proto: "udp", label: "steam auth" },
-        { port: ports.query + 1, proto: "udp", label: "steam master" },
-      ];
-    case Game.DRAGONWILDS:
-      return [{ port: ports.game, proto: "udp", label: "game" }];
-    default:
-      // ARK family + Conan: game + raw socket + query, all UDP.
-      return [
-        { port: ports.game, proto: "udp", label: "game" },
-        { port: ports.rawSocket, proto: "udp", label: "raw socket" },
-        { port: ports.query, proto: "udp", label: "query (server browser)" },
-      ];
-  }
 }
 
 /** The fixed port block a new server gets, by game. */
