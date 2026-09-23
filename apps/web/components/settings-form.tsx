@@ -261,11 +261,13 @@ export function SettingsForm({
   game,
   map,
   initial,
+  onSaved,
 }: {
   serverId: string;
   game: Game;
   map: string;
   initial: ServerConfigValues;
+  onSaved?: () => void;
 }) {
   const [catalog, setCatalog] = useState<SettingsCatalog | null>(null);
   // Tabs + their category membership are game-specific.
@@ -559,6 +561,7 @@ export function SettingsForm({
         rawCommandLineArgs: raw.args || undefined,
       };
       setServer(await apiPatch<ServerSummary>(`/servers/${serverId}`, { config }));
+      onSaved?.();
       setBaseline({ values, raw });
       setSaved(true);
     } catch (err) {

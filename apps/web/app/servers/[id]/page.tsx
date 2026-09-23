@@ -135,6 +135,12 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
     reload();
   }, [id, reload]);
 
+  const refetchConfig = useCallback(() => {
+    apiGet<ServerConfigValues>(`/servers/${id}/config`)
+      .then(setConfig)
+      .catch(() => undefined);
+  }, [id]);
+
   useRealtime((msg) => {
     if (msg.serverId === id && (msg.topic === "server.state" || msg.topic === "event")) refresh();
   }, id);
@@ -476,7 +482,7 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
       {activeTab === "Overview" && <Overview server={server} onChanged={refresh} />}
       {activeTab === "Settings" &&
         (config ? (
-          <SettingsForm key={configKey} serverId={id} game={server.game} map={server.map} initial={config} />
+          <SettingsForm key={configKey} serverId={id} game={server.game} map={server.map} initial={config} onSaved={refetchConfig} />
         ) : (
           <div className="text-slate-400">Loading settings…</div>
         ))}
