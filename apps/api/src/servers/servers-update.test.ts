@@ -150,3 +150,32 @@ describe("update() join password has one home", () => {
     expect(dataOf().configDirty).toBe(true);
   });
 });
+
+describe("update() game-port edit", () => {
+  it("keeps Satisfactory's reliable-messaging port", async () => {
+    const { svc, dataOf } = makeSvc({
+      game: "SATISFACTORY",
+      state: "Stopped",
+      gamePort: 7777,
+      rawSocketPort: 8888,
+      queryPort: 7777,
+      rconPort: 0,
+    });
+    await svc.update("s1", { gamePort: 7800 } as never);
+    expect(dataOf()).toMatchObject({ gamePort: 7800, queryPort: 7800 });
+    expect(dataOf().rawSocketPort).toBeUndefined();
+  });
+
+  it("moves Valheim's query and crossplay ports with it", async () => {
+    const { svc, dataOf } = makeSvc({
+      game: "VALHEIM",
+      state: "Stopped",
+      gamePort: 2456,
+      rawSocketPort: 2458,
+      queryPort: 2457,
+      rconPort: 0,
+    });
+    await svc.update("s1", { gamePort: 3000 } as never);
+    expect(dataOf()).toMatchObject({ gamePort: 3000, queryPort: 3001, rawSocketPort: 3002 });
+  });
+});
