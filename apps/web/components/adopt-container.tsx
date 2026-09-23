@@ -1,8 +1,9 @@
 "use client";
 import { useEffect, useState } from "react";
 import { Import, Loader2 } from "lucide-react";
-import { GAME_LABELS, type Game } from "@ark/shared";
+import { ADMIN_PASSWORD_META, GAME_LABELS, JOIN_PASSWORD_META, type Game } from "@ark/shared";
 import { apiGet, apiPost } from "@/lib/api";
+import { PasswordFieldHelp, passwordTooShort } from "@/components/password-field-help";
 
 interface Candidate {
   containerId: string;
@@ -34,14 +35,20 @@ export function AdoptContainerPanel({ onDone }: { onDone: () => void }) {
       .catch((e) => setErr((e as Error).message));
   }, []);
 
+  const adminMeta = selected ? ADMIN_PASSWORD_META[selected.game] : null;
+  const joinMeta = selected ? JOIN_PASSWORD_META[selected.game] : null;
+  const adminTooShort = adminMeta ? passwordTooShort(adminMeta, adminPassword) : false;
+  const joinTooShort = joinMeta ? passwordTooShort(joinMeta, serverPassword) : false;
+  const invalid = !selected || !name.trim() || adminTooShort || joinTooShort;
+
   const adopt = async () => {
-    if (!selected) return;
+    if (!selected || invalid) return;
     setBusy(true);
     setErr(null);
     try {
       await apiPost("/adoption", {
         containerId: selected.containerId,
-        name: name || selected.containerName,
+        name: name.trim(),
         adminPassword: adminPassword || undefined,
         serverPassword: serverPassword || undefined,
       });
@@ -65,9 +72,9 @@ export function AdoptContainerPanel({ onDone }: { onDone: () => void }) {
         adopted server runs the way you expect. It may need a minute for large worlds.
       </p>
 
-      {candidates === null && !err && <p className="text-sm text-slate-400">Scanning containers…</p>}
+      {candidates === null && !err && <p className="text-xs text-slate-500">Scanning containers…</p>}
       {candidates?.length === 0 && (
-        <p className="text-sm text-slate-400">
+        <p className="text-xs text-slate-500">
           No adoptable containers found. Palisade adopts containers running the image it uses for a
           game, plus the ich777 Palworld and V Rising images it knows how to lift saves out of.
         </p>
@@ -108,23 +115,37 @@ export function AdoptContainerPanel({ onDone }: { onDone: () => void }) {
         </label>
       ))}
 
-      {selected && (
-        <div className="grid gap-3 sm:grid-cols-3">
-          <input className="input" placeholder="Server name" value={name} onChange={(e) => setName(e.target.value)} />
-          <input
-            type="password"
-            className="input"
-            placeholder="Admin/RCON password (recommended)"
-            value={adminPassword}
-            onChange={(e) => setAdminPassword(e.target.value)}
-          />
-          <input
-            type="password"
-            className="input"
-            placeholder="Join password (optional)"
-            value={serverPassword}
-            onChange={(e) => setServerPassword(e.target.value)}
-          />
+      {selected && adminMeta && joinMeta && (
+        <div className="grid gap-4 md:grid-cols-2">
+          <div>
+            <label className="label">Server name (required)</label>
+            <input className="input" required value={name} onChange={(e) => setName(e.target.value)} />
+          </div>
+          {adminMeta.show && (
+            <div>
+              <label className="label">{adminMeta.label}</label>
+              <input
+                type="password"
+                className="input"
+                value={adminPassword}
+                onChange={(e) => setAdminPassword(e.target.value)}
+              />
+              <PasswordFieldHelp meta={adminMeta} invalid={adminTooShort} />
+            </div>
+          )}
+          {joinMeta.show && (
+            <div>
+              <label className="label">{joinMeta.label}</label>
+              <input
+                type="password"
+                className="input"
+                placeholder={joinMeta.required ? "" : "Leave blank for an open server"}
+                value={serverPassword}
+                onChange={(e) => setServerPassword(e.target.value)}
+              />
+              <PasswordFieldHelp meta={joinMeta} invalid={joinTooShort} />
+            </div>
+          )}
         </div>
       )}
       {selected && (
@@ -137,10 +158,12 @@ export function AdoptContainerPanel({ onDone }: { onDone: () => void }) {
       )}
 
       {err && <p className="text-sm text-rose-300">{err}</p>}
-      <button type="button" className="btn-primary" onClick={adopt} disabled={!selected || busy}>
-        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Import className="h-4 w-4" />}
-        {busy ? "Adopting… (copying data)" : "Adopt container"}
-      </button>
+      {!!candidates?.length && (
+        <button type="button" className="btn-primary" onClick={adopt} disabled={invalid || busy}>
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Import className="h-4 w-4" />}
+          {busy ? "Adopting… (copying data)" : "Adopt container"}
+        </button>
+      )}
     </div>
   );
 }
