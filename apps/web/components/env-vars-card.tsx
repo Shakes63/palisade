@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { Terminal, Plus, Trash2, Save, Check, ChevronDown, Loader2, AlertTriangle } from "lucide-react";
-import type { ServerSummary, EnvVar } from "@ark/shared";
+import { Game, type ServerSummary, type EnvVar } from "@ark/shared";
 import { apiGet, apiPut } from "@/lib/api";
 import { useRole } from "@/lib/use-role";
 
@@ -130,9 +130,14 @@ export function EnvVarsCard({ server, onSaved }: { server: ServerSummary; onSave
         <div className="mt-3 space-y-3">
           <p className="text-[11px] leading-snug text-slate-500">
             These environment variables are appended to the container at start — they can override
-            any built-in variable set by the manager (e.g.{" "}
-            <span className="font-mono text-slate-400">TARGET_MANIFEST_ID</span> for Palworld version
-            pinning). A server restart is required after saving. Values are stored encrypted and are
+            any built-in variable set by the manager
+            {server.game === Game.PALWORLD || server.game === Game.PALWORLD_WINE ? (
+              <>
+                {" "}(e.g. <span className="font-mono text-slate-400">TARGET_MANIFEST_ID</span> to pin a
+                Palworld version)
+              </>
+            ) : null}
+            . A server restart is required after saving. Values are stored encrypted and are
             only readable by admins, so credentials such as a Steam login are safe to put here.
           </p>
 

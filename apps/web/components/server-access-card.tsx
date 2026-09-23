@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { KeyRound, Save, Check } from "lucide-react";
+import { KeyRound, Save, Check, Eye, EyeOff } from "lucide-react";
 import { ServerState, ADMIN_PASSWORD_META, JOIN_PASSWORD_META, type ServerSummary } from "@ark/shared";
 import { apiPatch } from "@/lib/api";
 
@@ -15,6 +15,7 @@ export function ServerAccessCard({
 }) {
   const [serverPw, setServerPw] = useState(server.joinPassword ?? "");
   const [adminPw, setAdminPw] = useState("");
+  const [showAdmin, setShowAdmin] = useState(false);
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
 
@@ -68,7 +69,7 @@ export function ServerAccessCard({
             {joinMeta.help
               ? joinMeta.help
               : server.joinPassword
-                ? "Players enter this at the in-game “Password Required” prompt. Clear the box to remove it."
+                ? "Players enter this when they join. Clear the box to remove it."
                 : "Leave blank for an open server."}
           </p>
         </div>
@@ -77,17 +78,30 @@ export function ServerAccessCard({
       {adminMeta.show && (
         <div>
           <label className="label">{adminMeta.label}</label>
-          <input
-            className="input font-mono"
-            placeholder={server.hasAdminPassword ? "•••••••• set — leave blank to keep" : "Not set"}
-            value={adminPw}
-            onChange={(e) => {
-              setAdminPw(e.target.value);
-              setSaved(false);
-            }}
-          />
+          <div className="relative">
+            <input
+              type={showAdmin ? "text" : "password"}
+              autoComplete="new-password"
+              className="input pr-10 font-mono"
+              placeholder={server.hasAdminPassword ? "•••••••• set — leave blank to keep" : "Not set"}
+              value={adminPw}
+              onChange={(e) => {
+                setAdminPw(e.target.value);
+                setSaved(false);
+              }}
+            />
+            <button
+              type="button"
+              className="absolute inset-y-0 right-0 flex items-center px-3 text-slate-400 hover:text-slate-200"
+              aria-label={showAdmin ? "Hide what you typed" : "Show what you typed"}
+              title={showAdmin ? "Hide" : "Show"}
+              onClick={() => setShowAdmin((v) => !v)}
+            >
+              {showAdmin ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          </div>
           <p className="mt-1 text-xs text-slate-500">
-            {adminMeta.help ?? "For RCON + in-game admin."} Never shown after saving.
+            {adminMeta.help && `${adminMeta.help} `}Never shown after saving.
           </p>
         </div>
       )}

@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Cpu, MemoryStick, HardDrive, Users } from "lucide-react";
+import { Activity, Cpu, MemoryStick, HardDrive, Users } from "lucide-react";
 import { ServerState, type ServerStatsDetail } from "@ark/shared";
 import { apiGet } from "@/lib/api";
 import { Sparkline } from "@/components/sparkline";
@@ -68,11 +68,17 @@ export function ResourcesPanel({ serverId, state }: { serverId: string; state: S
       : 0;
   const memHot = memPct >= 90;
   const diskFreePct = host && host.diskTotalMb ? (host.diskFreeMb / host.diskTotalMb) * 100 : 100;
+  // Several minutes of CPU samples and never a player count: this game doesn't report one.
+  const noPlayerCounts =
+    history.filter((s) => s.cpuPercent != null).length >= 4 && history.every((s) => s.playersOnline == null);
 
   return (
     <div className="card">
       <div className="mb-4 flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-slate-300">Resources</h3>
+        <div className="flex items-center gap-2">
+          <Activity className="h-4 w-4 text-ark-accent" />
+          <h3 className="text-sm font-semibold uppercase tracking-wide text-ark-accent2">Resources</h3>
+        </div>
         {liveState && <span className="text-xs text-slate-500">live · every {POLL_MS / 1000}s</span>}
       </div>
       <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
@@ -84,7 +90,10 @@ export function ResourcesPanel({ serverId, state }: { serverId: string; state: S
             sub={stats?.playersMax != null ? `of ${stats.playersMax} slots` : undefined}
           />
           {history.length > 1 && (
-            <Sparkline points={history.map((s) => ({ at: s.at, value: s.playersOnline }))} />
+            <Sparkline
+              points={history.map((s) => ({ at: s.at, value: s.playersOnline }))}
+              emptyLabel={noPlayerCounts ? "not available for this game" : undefined}
+            />
           )}
         </div>
         <div>
@@ -129,7 +138,9 @@ export function ResourcesPanel({ serverId, state }: { serverId: string; state: S
         />
       </div>
       {!live && (
-        <p className="mt-3 text-xs text-slate-500">CPU and memory show while the server is up.</p>
+        <p className="mt-3 text-xs text-slate-500">
+          {liveState && stats === null ? "Loading live stats…" : "CPU and memory show while the server is up."}
+        </p>
       )}
     </div>
   );

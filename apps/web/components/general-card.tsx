@@ -66,6 +66,18 @@ const MAPS_FOR: Record<Game, readonly string[]> = {
   [Game.DRAGONWILDS]: DRAGONWILDS_OFFICIAL_MAPS,
 };
 
+/** Games whose "map" is really a world type, size or preset used at world creation. */
+const GENERATED_WORLD = new Set<Game>([
+  Game.MINECRAFT,
+  Game.BEDROCK,
+  Game.SOTF,
+  Game.CORE_KEEPER,
+  Game.TERRARIA,
+  Game.FACTORIO,
+  Game.RUST,
+  Game.OPENTTD,
+]);
+
 /**
  * Edit a server's basics after creation: map, max players, and RAM/CPU limits
  * (0 / blank clears a limit). All of these bake into the launch spec, so a running
@@ -89,11 +101,22 @@ export function GeneralCard({ server, onSaved }: { server: ServerSummary; onSave
   // Icarus has no launch map (prospects are picked in-game); a single-map game has
   // nothing to switch to — hide the picker for both.
   const showMap = server.game !== Game.ICARUS && maps.length > 1;
+  const isArk = server.game === Game.ASA || server.game === Game.ASE;
+  const mapHelp = isArk || server.game === Game.SEVEN_DAYS
+    ? "Each map keeps its own world save — switching back later resumes that map's world."
+    : GENERATED_WORLD.has(server.game)
+      ? "Sets how a new world is generated; it doesn't change a world that already exists."
+      : null;
+  // Core Keeper joins through Steam's relay, so it publishes no ports to network.
+  const relayOnly = server.game === Game.CORE_KEEPER;
   const live = server.state === ServerState.Running || server.state === ServerState.Starting;
 
+  const maxPlayersN = Number(maxPlayers);
+  const maxPlayersChanged = maxPlayersN !== server.maxPlayers;
+  const maxPlayersBad = maxPlayersChanged && (!Number.isInteger(maxPlayersN) || maxPlayersN < 1 || maxPlayersN > cap);
   const dirty =
     (showMap && map !== server.map) ||
-    Number(maxPlayers) !== server.maxPlayers ||
+    maxPlayersChanged ||
     (ramLimit === "" ? 0 : Number(ramLimit)) !== (server.ramLimitMb ?? 0) ||
     (cpuLimit === "" ? 0 : Number(cpuLimit)) !== (server.cpuLimit ?? 0) ||
     hostNet !== (server.hostNetwork == null ? "" : String(server.hostNetwork));
@@ -104,8 +127,7 @@ export function GeneralCard({ server, onSaved }: { server: ServerSummary; onSave
     try {
       const body: Record<string, unknown> = {};
       if (showMap && map !== server.map) body.map = map;
-      const mp = Math.max(1, Math.min(Number(maxPlayers) || 1, cap));
-      if (mp !== server.maxPlayers) body.maxPlayers = mp;
+      if (maxPlayersChanged) body.maxPlayers = Number(maxPlayers);
       const ram = ramLimit === "" ? 0 : Math.max(0, Number(ramLimit) || 0);
       if (ram !== (server.ramLimitMb ?? 0)) body.ramLimitMb = ram; // 0 clears
       const cpu = cpuLimit === "" ? 0 : Math.max(0, Number(cpuLimit) || 0);
@@ -136,16 +158,14 @@ export function GeneralCard({ server, onSaved }: { server: ServerSummary; onSave
             <label className="label">Map</label>
             <select className="input" value={map} onChange={(e) => setMap(e.target.value)}>
               {/* keep an unknown/mod map selectable rather than silently swapping it */}
-              {!maps.includes(map) && <option value={map}>{mapLabel(map)}</option>}
+              {!maps.includes(map) && <option value={map}>{mapLabel(map)} (current)</option>}
               {maps.map((m) => (
                 <option key={m} value={m}>
                   {mapLabel(m)}
                 </option>
               ))}
             </select>
-            <p className="mt-1 text-xs text-slate-500">
-              Each map keeps its own world save — switching back later resumes that map&apos;s world.
-            </p>
+            {mapHelp && <p className="mt-1 text-xs text-slate-500">{mapHelp}</p>}
           </div>
         )}
         <div>
@@ -158,7 +178,15 @@ export function GeneralCard({ server, onSaved }: { server: ServerSummary; onSave
             value={maxPlayers}
             onChange={(e) => setMaxPlayers(e.target.value)}
           />
-          <p className="mt-1 text-xs text-slate-500">Max {cap} for this game.</p>
+          {maxPlayersBad ? (
+            <p className="mt-1 text-xs text-rose-400">Enter a whole number from 1 to {cap}.</p>
+          ) : !maxPlayersChanged && server.maxPlayers > cap ? (
+            <p className="mt-1 text-xs text-amber-400">
+              Saved as {server.maxPlayers}, above this game&apos;s max of {cap}. Set {cap} or lower and save.
+            </p>
+          ) : (
+            <p className="mt-1 text-xs text-slate-500">Max {cap} for this game.</p>
+          )}
         </div>
         <div>
           <label className="label">RAM limit (MB)</label>
@@ -187,21 +215,23 @@ export function GeneralCard({ server, onSaved }: { server: ServerSummary; onSave
           <p className="mt-1 text-xs text-slate-500">Blank or 0 = no cap.</p>
         </div>
       </div>
-      <div>
-        <label className="label">Networking</label>
-        <select className="input" value={hostNet} onChange={(e) => setHostNet(e.target.value)}>
-          <option value="">Use the manager default</option>
-          <option value="true">Host network</option>
-          <option value="false">Shared bridge</option>
-        </select>
-        <p className="mt-1 text-xs text-slate-500">
-          Host networking advertises this server on your real address, which lists more reliably
-          for ARK/EOS; the bridge keeps its ports isolated. Change it in Settings to move every
-          server at once.
-        </p>
-      </div>
+      {!relayOnly && (
+        <div>
+          <label className="label">Networking</label>
+          <select className="input" value={hostNet} onChange={(e) => setHostNet(e.target.value)}>
+            <option value="">Use the manager default</option>
+            <option value="true">Host network</option>
+            <option value="false">Shared bridge</option>
+          </select>
+          <p className="mt-1 text-xs text-slate-500">
+            Host networking advertises this server on your real address
+            {isArk ? ", which lists more reliably for ARK/EOS" : ""}; the bridge keeps its ports
+            isolated. Change it in Settings to move every server at once.
+          </p>
+        </div>
+      )}
       <div className="flex items-center gap-3">
-        <button className="btn-primary" onClick={save} disabled={!dirty || busy}>
+        <button className="btn-primary" onClick={save} disabled={!dirty || busy || maxPlayersBad}>
           {busy ? "Saving…" : saved ? (
             <>
               <Check className="h-4 w-4" /> Saved
