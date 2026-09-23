@@ -4,6 +4,7 @@ import { CalendarClock, Pencil, Plus, Save, Trash2 } from "lucide-react";
 import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/api";
 import { describePlayerCondition, RCON_SCHEDULE_ACTIONS } from "@ark/shared";
 import { buildCron, describeCron, onceCron, parseCron, fmtLocal, type Frequency } from "@/lib/cron";
+import { confirmDialog, toast } from "@/components/dialogs";
 
 interface Schedule {
   id: string;
@@ -201,16 +202,16 @@ export function ScheduleList({ serverId }: { serverId: string }) {
     let cronStr = cron;
     let runAt: string | undefined;
     if (isOnce) {
-      if (!onceAt) return alert("Pick a date and time.");
+      if (!onceAt) return toast.error("Pick a date and time.");
       const when = new Date(onceAt);
-      if (when.getTime() <= Date.now()) return alert("Pick a time in the future.");
+      if (when.getTime() <= Date.now()) return toast.error("Pick a time in the future.");
       runAt = when.toISOString();
       cronStr = onceCron(onceAt);
     } else if (frequency === "weekly" && days.length === 0) {
-      return alert("Pick at least one day.");
+      return toast.error("Pick at least one day.");
     }
     if (needsText && !command.trim()) {
-      return alert(action === "announce" ? "Type a message to announce." : "Type a command to run.");
+      return toast.error(action === "announce" ? "Type a message to announce." : "Type a command to run.");
     }
     const body = {
       name: name.trim() || summary,
@@ -229,17 +230,17 @@ export function ScheduleList({ serverId }: { serverId: string }) {
       resetForm();
       refresh();
     } catch (err) {
-      alert((err as Error).message);
+      toast.error(err);
     }
   };
 
   const toggleEnabled = async (s: Schedule) => {
-    await apiPatch(`/schedules/${s.id}`, { enabled: !s.enabled }).catch(() => undefined);
+    await apiPatch(`/schedules/${s.id}`, { enabled: !s.enabled }).catch(toast.error);
     refresh();
   };
   const remove = async (s: Schedule) => {
-    if (!confirm(`Delete the schedule "${s.name}"?`)) return;
-    await apiDelete(`/schedules/${s.id}`).catch((e) => alert((e as Error).message));
+    if (!(await confirmDialog({ title: `Delete the schedule "${s.name}"?`, confirmLabel: "Delete", danger: true }))) return;
+    await apiDelete(`/schedules/${s.id}`).catch(toast.error);
     if (editing?.id === s.id) resetForm();
     refresh();
   };

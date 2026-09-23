@@ -26,6 +26,7 @@ import {
 import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/api";
 import { ModDetailModal } from "./mod-detail-modal";
 import { fmtBytes, fmtCount, fmtDate } from "@/lib/mod-format";
+import { confirmDialog, toast } from "@/components/dialogs";
 
 interface ModInstall {
   id: string;
@@ -110,7 +111,7 @@ export function ModsTab({ serverId, game }: { serverId: string; game: Game }) {
             }),
       );
     } catch (err) {
-      alert((err as Error).message);
+      toast.error(err);
     }
   };
 
@@ -172,7 +173,7 @@ export function ModsTab({ serverId, game }: { serverId: string; game: Game }) {
       await apiPost(`/servers/${serverId}/mods`, { remoteId, name, thumbnailUrl });
       refresh();
     } catch (err) {
-      alert((err as Error).message);
+      toast.error(err);
     }
   };
 
@@ -182,16 +183,16 @@ export function ModsTab({ serverId, game }: { serverId: string; game: Game }) {
     if (target < 0 || target >= next.length) return;
     [next[index], next[target]] = [next[target], next[index]];
     setInstalled(next);
-    await apiPost(`/servers/${serverId}/mods/reorder`, { order: next.map((m) => m.id) });
+    await apiPost(`/servers/${serverId}/mods/reorder`, { order: next.map((m) => m.id) }).catch(toast.error);
     refresh();
   };
   const toggle = async (m: ModInstall) => {
-    await apiPatch(`/servers/${serverId}/mods/${m.id}/enabled`, { enabled: !m.enabled });
+    await apiPatch(`/servers/${serverId}/mods/${m.id}/enabled`, { enabled: !m.enabled }).catch(toast.error);
     refresh();
   };
   const remove = async (m: ModInstall) => {
-    if (!confirm(`Remove ${m.mod.name} from this server?`)) return;
-    await apiDelete(`/servers/${serverId}/mods/${m.id}`);
+    if (!(await confirmDialog({ title: `Remove ${m.mod.name} from this server?`, confirmLabel: "Remove", danger: true }))) return;
+    await apiDelete(`/servers/${serverId}/mods/${m.id}`).catch(toast.error);
     refresh();
   };
 

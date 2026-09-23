@@ -60,6 +60,7 @@ import { useRealtime } from "@/lib/socket";
 import { ARK_ITEMS } from "@/lib/ark-items";
 import { ARK_CREATURES } from "@/lib/ark-creatures";
 import { ARK_ENGRAMS } from "@/lib/ark-engrams";
+import { confirmDialog, toast } from "@/components/dialogs";
 
 type Values = Record<string, unknown>;
 const STRUCTURED = new Set([
@@ -358,9 +359,17 @@ export function SettingsForm({
     return JSON.stringify(v) !== JSON.stringify(def.default);
   };
 
-  const resetAll = () => {
+  const resetAll = async () => {
     if (!catalog) return;
-    if (!confirm("Reset ALL settings on this server to their defaults? You'll still need to click Save.")) return;
+    if (
+      !(await confirmDialog({
+        title: "Reset all settings to their defaults?",
+        body: "You'll still need to click Save.",
+        confirmLabel: "Reset",
+        danger: true,
+      }))
+    )
+      return;
     const defaults: Values = {};
     for (const d of catalog.settings) defaults[d.key] = d.default;
     setValues(defaults);
@@ -531,8 +540,12 @@ export function SettingsForm({
     setCustomPresets((list) => [created, ...list]);
   };
   const deleteCustomPreset = async (id: string) => {
-    await apiDelete(`/presets/${id}`);
-    setCustomPresets((list) => list.filter((p) => p.id !== id));
+    try {
+      await apiDelete(`/presets/${id}`);
+      setCustomPresets((list) => list.filter((p) => p.id !== id));
+    } catch (err) {
+      toast.error(err);
+    }
   };
 
   const save = async () => {
@@ -549,7 +562,7 @@ export function SettingsForm({
       setBaseline({ values, raw });
       setSaved(true);
     } catch (err) {
-      alert((err as Error).message);
+      toast.error(err);
     } finally {
       setBusy(false);
     }
@@ -828,7 +841,7 @@ function PresetsMenu({
       setName("");
       setDesc("");
     } catch (err) {
-      alert((err as Error).message);
+      toast.error(err);
     } finally {
       setSaving(false);
     }
@@ -888,8 +901,9 @@ function PresetsMenu({
                     type="button"
                     title="Delete preset"
                     className="mr-1 mt-2 rounded p-1 text-slate-500 hover:bg-ark-bg hover:text-red-400"
-                    onClick={() => {
-                      if (confirm(`Delete preset “${p.name}”?`)) onDelete(p.id);
+                    onClick={async () => {
+                      if (await confirmDialog({ title: `Delete preset “${p.name}”?`, confirmLabel: "Delete", danger: true }))
+                        onDelete(p.id);
                     }}
                   >
                     <Trash2 className="h-3.5 w-3.5" />

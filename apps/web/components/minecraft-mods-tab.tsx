@@ -5,6 +5,7 @@ import { Game, type ModSearchResult, type MinecraftModpack } from "@ark/shared";
 import { apiGet, apiPost, apiPut, apiDelete, ApiError } from "@/lib/api";
 import { fmtCount } from "@/lib/mod-format";
 import { ApiKeyNotice } from "./mods-tab";
+import { confirmDialog } from "@/components/dialogs";
 
 /**
  * Minecraft mods = a CurseForge modpack. Browse the Modpacks section, install one,
@@ -80,7 +81,14 @@ export function MinecraftModsTab({ serverId }: { serverId: string }) {
   };
 
   const clear = async () => {
-    if (!confirm(`Remove the ${current?.name ?? ""} modpack from this server?`)) return;
+    if (
+      !(await confirmDialog({
+        title: `Remove the ${current?.name ?? ""} modpack from this server?`,
+        confirmLabel: "Remove",
+        danger: true,
+      }))
+    )
+      return;
     setBusyId("clear");
     try {
       await apiDelete(`/servers/${serverId}/minecraft/modpack`);

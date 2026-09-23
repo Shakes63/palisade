@@ -35,6 +35,7 @@ import {
   type ServerSummary,
 } from "@ark/shared";
 import { apiPatch } from "@/lib/api";
+import { toast } from "@/components/dialogs";
 
 const MAPS_FOR: Record<Game, readonly string[]> = {
   [Game.ASA]: ASA_OFFICIAL_MAPS,
@@ -140,7 +141,7 @@ export function GeneralCard({ server, onSaved }: { server: ServerSummary; onSave
       setSaved(true);
       onSaved();
     } catch (e) {
-      alert((e as Error).message);
+      toast.error(e);
     } finally {
       setBusy(false);
     }

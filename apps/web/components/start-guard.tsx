@@ -3,6 +3,7 @@ import { useState, type ReactNode } from "react";
 import { AlertTriangle, ArrowRightLeft, Loader2, Zap, X } from "lucide-react";
 import { GAME_LABELS, type InsufficientRamInfo } from "@ark/shared";
 import { apiPost, ApiError } from "@/lib/api";
+import { toast } from "@/components/dialogs";
 
 const gb = (mb: number) => (mb / 1024).toFixed(1);
 
@@ -138,7 +139,7 @@ export function useStartGuard(onStarted?: () => void) {
       ) {
         setGuard({ info: e.body as InsufficientRamInfo, serverId, serverName });
       } else {
-        alert((e as Error).message);
+        toast.error(e);
       }
     } finally {
       setBusy(false);

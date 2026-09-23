@@ -5,6 +5,7 @@ import { apiDelete, apiDownload, apiGet, apiPatch, apiPost, apiUpload } from "@/
 import type { ServerSummary } from "@ark/shared";
 import { fmtLocal } from "@/lib/cron";
 import { fmtBytes } from "@/lib/mod-format";
+import { confirmDialog, toast } from "@/components/dialogs";
 
 /** Matches the API's own bound and the built-in default when a server sets none. */
 const KEEP_MAX = 500;
@@ -68,7 +69,7 @@ export function BackupsTab({
       setTimeout(() => setKeepSaved(false), 1500);
       onChanged();
     } catch (err) {
-      alert((err as Error).message);
+      toast.error(err);
     } finally {
       setSavingKeep(false);
     }
@@ -80,20 +81,35 @@ export function BackupsTab({
       await apiPost(`/servers/${serverId}/backups`);
       refresh();
     } catch (err) {
-      alert((err as Error).message);
+      toast.error(err);
     } finally {
       setBusy(false);
     }
   };
 
   const restore = async (id: string) => {
-    if (!confirm("Restore this backup? The server must be stopped; current saves are snapshotted first.")) return;
-    await apiPost(`/servers/${serverId}/backups/${id}/restore`).catch((e) => alert(e.message));
+    if (
+      !(await confirmDialog({
+        title: "Restore this backup?",
+        body: "The server must be stopped; current saves are snapshotted first.",
+        confirmLabel: "Restore",
+      }))
+    )
+      return;
+    await apiPost(`/servers/${serverId}/backups/${id}/restore`).catch(toast.error);
   };
 
   const remove = async (b: Snapshot) => {
-    if (!confirm(`Delete the backup from ${fmtLocal(b.createdAt)}? It can't be recovered.`)) return;
-    await apiDelete(`/backups/${b.id}`).catch((e) => alert((e as Error).message));
+    if (
+      !(await confirmDialog({
+        title: `Delete the backup from ${fmtLocal(b.createdAt)}?`,
+        body: "It can't be recovered.",
+        confirmLabel: "Delete",
+        danger: true,
+      }))
+    )
+      return;
+    await apiDelete(`/backups/${b.id}`).catch(toast.error);
     refresh();
   };
 
@@ -102,7 +118,7 @@ export function BackupsTab({
     try {
       await apiDownload(`/servers/${serverId}/backups/${b.id}/download`, `backup-${b.id}.tar.gz`);
     } catch (e) {
-      alert((e as Error).message);
+      toast.error(e);
     } finally {
       setDownloading(null);
     }
@@ -110,18 +126,21 @@ export function BackupsTab({
 
   const upload = async (f: File) => {
     if (
-      !confirm(
-        "Import this saves archive? The server must be stopped. Current saves are replaced (a pre-import snapshot is taken first).",
-      )
+      !(await confirmDialog({
+        title: "Import this saves archive?",
+        body: "The server must be stopped. Current saves are replaced (a pre-import snapshot is taken first).",
+        confirmLabel: "Import",
+        danger: true,
+      }))
     )
       return;
     setUploading(true);
     try {
       await apiUpload(`/servers/${serverId}/backups/upload`, f);
       refresh();
-      alert("Saves imported. Start the server to load them.");
+      toast.success("Saves imported. Start the server to load them.");
     } catch (e) {
-      alert((e as Error).message);
+      toast.error(e);
     } finally {
       setUploading(false);
     }

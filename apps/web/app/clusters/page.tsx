@@ -5,6 +5,7 @@ import { GAME_LABELS, clusterJoinError, mapLabel, type Game, type ServerSummary 
 import { apiDelete, apiGet, apiPost } from "@/lib/api";
 import { StateBadge } from "@/components/state-badge";
 import { useMe } from "@/lib/use-me";
+import { confirmDialog, toast } from "@/components/dialogs";
 
 interface ClusterMember {
   id: string;
@@ -46,7 +47,7 @@ export default function ClustersPage() {
     try {
       await apiPost(path);
     } catch (e) {
-      alert((e as Error).message);
+      toast.error(e);
       return;
     }
     refresh();
@@ -56,7 +57,7 @@ export default function ClustersPage() {
   const create = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
-    await apiPost("/clusters", { name }).catch((err) => alert(err.message));
+    await apiPost("/clusters", { name }).catch(toast.error);
     setName("");
     refresh();
   };
@@ -64,13 +65,14 @@ export default function ClustersPage() {
   const clusterName = (id?: string | null) => clusters.find((cl) => cl.id === id)?.name;
 
   const mutate = (p: Promise<unknown>) =>
-    p.catch((err) => alert((err as Error).message)).finally(refresh);
+    p.catch(toast.error).finally(refresh);
 
-  const removeCluster = (c: Cluster) => {
+  const removeCluster = async (c: Cluster) => {
     const members = c.servers.length
-      ? ` Its ${c.servers.length} member server${c.servers.length === 1 ? "" : "s"} will leave the cluster. Saves are kept.`
+      ? `Its ${c.servers.length} member server${c.servers.length === 1 ? "" : "s"} will leave the cluster. Saves are kept.`
       : "";
-    if (confirm(`Delete cluster "${c.name}"?${members}`)) void mutate(apiDelete(`/clusters/${c.id}`));
+    if (await confirmDialog({ title: `Delete cluster "${c.name}"?`, body: members, confirmLabel: "Delete", danger: true }))
+      void mutate(apiDelete(`/clusters/${c.id}`));
   };
 
   return (

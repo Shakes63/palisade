@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { Upload, Trash2, Package, ShieldCheck, Loader2, Save, Download, Store, ExternalLink, Settings2, X } from "lucide-react";
 import { apiGet, apiPatch, apiPost, apiPut, apiDelete, apiUpload } from "@/lib/api";
 import { useRole } from "@/lib/use-role";
+import { confirmDialog } from "@/components/dialogs";
 
 /**
  * Curated list of the established Palworld DEDICATED-SERVER mods. Palworld isn't on
@@ -152,8 +153,8 @@ export function PalworldModsTab({ serverId }: { serverId: string }) {
   // Returns whether the editor actually closed — false when the user backed out of the
   // "Discard unsaved changes?" prompt. Callers that do something destructive on close
   // (e.g. deleting the mod) must gate on this; the Escape handler can ignore it.
-  const closeCfg = (): boolean => {
-    if (cfgDirty && !confirm("Discard unsaved changes?")) return false;
+  const closeCfg = async (): Promise<boolean> => {
+    if (cfgDirty && !(await confirmDialog({ title: "Discard unsaved changes?", confirmLabel: "Discard", danger: true }))) return false;
     setCfgMod(null);
     setCfgPath(null);
     setCfgText("");
@@ -168,7 +169,7 @@ export function PalworldModsTab({ serverId }: { serverId: string }) {
   useEffect(() => {
     if (!cfgMod) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") closeCfg();
+      if (e.key === "Escape") void closeCfg();
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
@@ -267,8 +268,9 @@ export function PalworldModsTab({ serverId }: { serverId: string }) {
                   title="Remove"
                   aria-label={`Remove ${p}`}
                   disabled={busy}
-                  onClick={() => {
-                    if (!confirm(`Remove ${p} from this server?`)) return;
+                  onClick={async () => {
+                    if (!(await confirmDialog({ title: `Remove ${p} from this server?`, confirmLabel: "Remove", danger: true })))
+                      return;
                     void run(() => apiDelete(`/servers/${serverId}/palmods/paks?path=${encodeURIComponent(p)}`));
                   }}
                 >
@@ -543,11 +545,12 @@ export function PalworldModsTab({ serverId }: { serverId: string }) {
                       title="Remove"
                       aria-label={`Remove ${m}`}
                       disabled={busy}
-                      onClick={() => {
+                      onClick={async () => {
                         // If this mod's editor is open, closeCfg() may prompt about unsaved
                         // edits — respect a cancel and DON'T delete out from under it.
-                        if (cfgMod === m && !closeCfg()) return;
-                        if (!confirm(`Remove ${m} from this server?`)) return;
+                        if (cfgMod === m && !(await closeCfg())) return;
+                        if (!(await confirmDialog({ title: `Remove ${m} from this server?`, confirmLabel: "Remove", danger: true })))
+                          return;
                         void run(() => apiDelete(`/servers/${serverId}/palmods/palschema/mods/${encodeURIComponent(m)}`));
                       }}
                     >
@@ -606,9 +609,10 @@ export function PalworldModsTab({ serverId }: { serverId: string }) {
                 className="mb-2 w-full rounded-md border border-ark-border bg-ark-bg px-2 py-1 font-mono text-[11px] outline-none focus:border-ark-accent2"
                 value={cfgPath ?? ""}
                 disabled={cfgBusy}
-                onChange={(e) => {
-                  if (cfgDirty && !confirm("Discard unsaved changes?")) return;
-                  void loadCfgFile(e.target.value);
+                onChange={async (e) => {
+                  const next = e.target.value;
+                  if (cfgDirty && !(await confirmDialog({ title: "Discard unsaved changes?", confirmLabel: "Discard", danger: true }))) return;
+                  void loadCfgFile(next);
                 }}
               >
                 {cfgFiles.map((f) => (

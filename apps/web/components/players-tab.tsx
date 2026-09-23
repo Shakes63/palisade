@@ -4,6 +4,7 @@ import { Users, UserX, Gavel, ListChecks, Crown, Loader2, RefreshCw } from "luci
 import { apiGet, apiPost } from "@/lib/api";
 import { fmtLocal } from "@/lib/cron";
 import { fmtDate } from "@/lib/mod-format";
+import { confirmDialog } from "@/components/dialogs";
 
 type PlayerAction = "kick" | "ban" | "whitelist" | "admin";
 interface SeenPlayer {
@@ -100,7 +101,8 @@ export function PlayersTab({ serverId }: { serverId: string }) {
 
   const act = async (name: string, action: PlayerAction) => {
     const meta = ACTION_META[action];
-    if (meta.danger && !confirm(`${meta.label} ${name}?`)) return;
+    if (meta.danger && !(await confirmDialog({ title: `${meta.label} ${name}?`, confirmLabel: meta.label, danger: true })))
+      return;
     setBusy(`${name}:${action}`);
     setMsg(null);
     setErr(null);

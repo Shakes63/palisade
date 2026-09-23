@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { apiGet, apiPost, apiPut, apiDelete, apiDownload, apiUpload } from "@/lib/api";
 import { fmtLocal } from "@/lib/cron";
+import { confirmDialog } from "@/components/dialogs";
 
 type Entry = { name: string; type: "dir" | "file"; size: number; modifiedAt: string };
 type Listing = { path: string; entries: Entry[]; truncated: boolean };
@@ -62,7 +63,8 @@ export function FilesTab({ serverId }: { serverId: string }) {
   }, [refresh]);
 
   const openEditor = async (path: string) => {
-    if (openFile !== null && path !== openFile && content !== savedContent && !confirm("Discard unsaved changes?")) return;
+    if (openFile !== null && path !== openFile && content !== savedContent && !(await confirmDialog({ title: "Discard unsaved changes?", confirmLabel: "Discard", danger: true })))
+      return;
     setErr(null);
     setBusy(true);
     try {
@@ -245,8 +247,14 @@ export function FilesTab({ serverId }: { serverId: string }) {
                     <button
                       className="text-slate-500 hover:text-rose-400"
                       title="Delete"
-                      onClick={() => {
-                        if (confirm(`Delete "${e.name}"${e.type === "dir" ? " and everything inside it" : ""}?`))
+                      onClick={async () => {
+                        if (
+                          await confirmDialog({
+                            title: `Delete "${e.name}"${e.type === "dir" ? " and everything inside it" : ""}?`,
+                            confirmLabel: "Delete",
+                            danger: true,
+                          })
+                        )
                           void act(() =>
                             apiDelete(`/servers/${serverId}/files?path=${encodeURIComponent(joinPath(dir, e.name))}`),
                           );
@@ -280,8 +288,8 @@ export function FilesTab({ serverId }: { serverId: string }) {
               </button>
               <button
                 className="btn-secondary text-xs"
-                onClick={() => {
-                  if (!dirty || confirm("Discard unsaved changes?")) setOpenFile(null);
+                onClick={async () => {
+                  if (!dirty || (await confirmDialog({ title: "Discard unsaved changes?", confirmLabel: "Discard", danger: true }))) setOpenFile(null);
                 }}
               >
                 <X className="h-3.5 w-3.5" /> Close

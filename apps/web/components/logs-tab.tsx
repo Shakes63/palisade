@@ -4,6 +4,7 @@ import { RefreshCw, ScrollText, Filter, Download } from "lucide-react";
 import { apiGet } from "@/lib/api";
 import { useRealtime } from "@/lib/socket";
 import { isEngineNoise } from "@/lib/log-noise";
+import { toast } from "@/components/dialogs";
 
 const MAX_LINES = 6000;
 const NOISE_PREF = "ark.hideEngineNoise";
@@ -40,7 +41,7 @@ export function LogsTab({ serverId }: { serverId: string }) {
         setLines(log ? log.split("\n") : []);
         scrollToBottom();
       })
-      .catch(() => undefined)
+      .catch(toast.error)
       .finally(() => setLoading(false));
   };
   useEffect(load, [serverId]);  

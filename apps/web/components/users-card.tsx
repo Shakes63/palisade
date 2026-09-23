@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Check, Pencil, Plus, Trash2, Users, X } from "lucide-react";
 import { ROLES, type Role, type ServerSummary, type UserAccessDto, type UserDto } from "@ark/shared";
 import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/api";
+import { confirmDialog } from "@/components/dialogs";
 
 interface ClusterLite {
   id: string;
@@ -266,7 +267,15 @@ export function UsersCard() {
   };
 
   const remove = async (u: UserDto) => {
-    if (!window.confirm(`Delete user "${u.username}"? Their tokens stop working immediately.`)) return;
+    if (
+      !(await confirmDialog({
+        title: `Delete user "${u.username}"?`,
+        body: "Their tokens stop working immediately.",
+        confirmLabel: "Delete",
+        danger: true,
+      }))
+    )
+      return;
     setRowErr(null);
     try {
       await apiDelete(`/users/${u.id}`);
