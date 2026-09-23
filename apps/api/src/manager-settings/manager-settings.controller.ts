@@ -13,10 +13,11 @@ import {
 } from "class-validator";
 import { ManagerSettingsService, SettingKeys } from "./manager-settings.service";
 import { SchedulerService } from "../scheduler/scheduler.service";
+import { IsRouterHost } from "../portforwards/router";
 import { MinRole } from "../auth/min-role.decorator";
 import { LOG_LEVELS, type LogLevel } from "@ark/shared";
 
-class UpdateSettingsBody {
+export class UpdateSettingsBody {
   @IsOptional() @IsString() timezone?: string;
   @IsOptional() @IsString() curseForgeApiKey?: string;
   @IsOptional() @IsString() steamWebApiKey?: string;
@@ -32,11 +33,11 @@ class UpdateSettingsBody {
   @IsOptional() @IsString() publicBaseUrl?: string;
   @IsOptional() @IsString() @MaxLength(255) connectHost?: string;
   @IsOptional() @IsString() hostDataDir?: string;
-  @IsOptional() @IsString() pfsenseHost?: string;
+  @IsOptional() @IsRouterHost(() => "pfsense") pfsenseHost?: string;
   @IsOptional() @IsString() pfsenseApiKey?: string;
   @IsOptional() @IsString() pfsenseTargetIp?: string;
   @IsOptional() @IsIn(["pfsense", "unifi"]) portForwardRouter?: "pfsense" | "unifi";
-  @IsOptional() @IsString() unifiHost?: string;
+  @IsOptional() @IsRouterHost(() => "unifi") unifiHost?: string;
   @IsOptional() @IsString() unifiApiKey?: string;
   @IsOptional() @IsString() unifiSite?: string;
   @IsOptional() @IsString() unifiTargetIp?: string;
@@ -104,7 +105,7 @@ export class ManagerSettingsController {
       await this.settings.set(SettingKeys.LogLevel, body.logLevel);
       await this.settings.applyLogLevel();
     }
-    if (body.pfsenseHost !== undefined) await this.settings.set(SettingKeys.PfsenseHost, body.pfsenseHost);
+    if (body.pfsenseHost !== undefined) await this.settings.set(SettingKeys.PfsenseHost, body.pfsenseHost.trim());
     if (body.pfsenseApiKey) await this.settings.set(SettingKeys.PfsenseApiKey, body.pfsenseApiKey);
     if (body.pfsenseTargetIp !== undefined)
       await this.settings.set(SettingKeys.PfsenseTargetIp, body.pfsenseTargetIp);

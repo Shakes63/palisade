@@ -2,11 +2,12 @@ import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from "@nestj
 import { IsBoolean, IsIn, IsInt, IsOptional, IsString } from "class-validator";
 import { PortForwardsService } from "./portforwards.service";
 import { MinRole } from "../auth/min-role.decorator";
+import { IsRouterHost } from "./router";
 
 /** The Settings form's current (possibly unsaved) router fields. */
 class RouterTestBody {
   @IsOptional() @IsIn(["pfsense", "unifi"]) router?: "pfsense" | "unifi";
-  @IsOptional() @IsString() host?: string;
+  @IsOptional() @IsRouterHost((b) => (b as RouterTestBody).router ?? "unifi") host?: string;
   @IsOptional() @IsString() apiKey?: string;
   @IsOptional() @IsString() site?: string;
   @IsOptional() @IsString() targetIp?: string;
