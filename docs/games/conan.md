@@ -7,10 +7,7 @@
 **Admin:** RCON. The admin password field is the server admin password and also authenticates RCON (`RCON_PASSWORD` is set to it); the panel's Console tab and player counts use it.
 
 ## First boot
-- Conan's install is famously large — ~40 GB (45 GB disk preflight); expect a long first install. Plan ~7 GB RAM for a populated server. The image installs the native Linux server (app 443030) plus Steam Workshop mods via SteamCMD on boot.
-- Config is delivered as env vars — the image writes ServerSettings.ini / Engine.ini / Game.ini itself; Palisade renders no INIs. Only settings you change from the catalog default are sent, so untouched knobs keep the game's own vanilla defaults.
-- Ready is detected on the one-shot log line `Startup report. StartupTime=` — the true joinable moment; the earlier "Rcon is ready" / engine-init lines fire ~30 s too soon.
-- One map ships (ConanSandbox = Exiled Lands); the server hard-caps at 40 players.
+Conan's install is famously large — ~40 GB (45 GB disk preflight); expect a long first install. Plan ~7 GB RAM for a populated server. The image installs the native Linux server (app 443030) plus Steam Workshop mods via SteamCMD on boot. Config is delivered as env vars — the image writes ServerSettings.ini / Engine.ini / Game.ini itself; Palisade renders no INIs. Only settings you change from the catalog default are sent, so untouched knobs keep the game's own vanilla defaults. Ready is detected on the one-shot log line `Startup report. StartupTime=` — the true joinable moment; the earlier "Rcon is ready" / engine-init lines fire ~30 s too soon. One map ships (ConanSandbox = Exiled Lands); the server hard-caps at 40 players.
 
 ## Gotchas
 - Direct Connect uses the query port (27015), not 7777 — the most common join mistake.

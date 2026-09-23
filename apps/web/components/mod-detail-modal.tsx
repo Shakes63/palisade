@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { X, Download, ExternalLink, Loader2, Star } from "lucide-react";
 import { Game, type ModDetail } from "@ark/shared";
 import { apiGet } from "@/lib/api";
-import { fmtBytes, fmtDate } from "@/lib/mod-format";
+import { fmtBytes, fmtCount, fmtDate } from "@/lib/mod-format";
 
 /** Full-screen mod detail: screenshots, full description, metadata, install. */
 export function ModDetailModal({
@@ -47,7 +47,7 @@ export function ModDetailModal({
     >
       <div className="card my-4 w-full max-w-3xl" onClick={(e) => e.stopPropagation()}>
         <div className="mb-3 flex items-start justify-between gap-3">
-          <h3 className="text-lg font-semibold">{detail?.name ?? "Loading…"}</h3>
+          <h3 className="text-lg font-semibold">{detail?.name ?? (error ? "Couldn’t load mod" : "Loading…")}</h3>
           <button className="btn-secondary px-2" onClick={onClose}>
             <X className="h-4 w-4" />
           </button>
@@ -64,7 +64,7 @@ export function ModDetailModal({
           <div className="space-y-4">
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-400">
               {detail.authors.length > 0 && <span>by {detail.authors.join(", ")}</span>}
-              <span>{detail.downloadCount.toLocaleString()} downloads</span>
+              <span>{fmtCount(detail.downloadCount)} downloads</span>
               {detail.lastUpdated && <span>updated {fmtDate(detail.lastUpdated)}</span>}
               {detail.fileSize ? <span>{fmtBytes(detail.fileSize)}</span> : null}
               {detail.version && <span>{detail.version}</span>}

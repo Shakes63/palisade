@@ -7,7 +7,7 @@
 **Admin:** None — ATS has no RCON, console, or admin concept; the session host moderates in-game. The admin password field is hidden for this game.
 
 ## First boot
-SteamCMD installs the **native Linux** dedicated server (`amtrucks_server`, app 2239530, ~10 GB budget with the map DLC most servers run). The image bundles a default `server_packages` world export (base map plus the free Arizona/Nevada DLCs), sidestepping ATS's notorious requirement to export one from a game client. `server_config.sii` is seeded into the save dir on that first boot, so **your name, password, and ports apply from the second start** — restart once after the initial boot; `patchAtsServerConfig` patches the file before every start thereafter.
+SteamCMD installs the **native Linux** dedicated server (`amtrucks_server`, app 2239530, ~10 GB budget with the map DLC most servers run). The image bundles a default `server_packages` world export (base map plus the free Arizona/Nevada DLCs), sidestepping ATS's notorious requirement to export one from a game client. `server_config.sii` is seeded into the save dir on that first boot, so **your name, password, and ports apply from the second start** — restart once after the initial boot; Palisade patches the file before every start thereafter.
 
 ## Gotchas
 - **Second-start rule:** the config file can't be pre-written (the game seeds it on first boot), so the lobby name and session password only take effect after one restart.

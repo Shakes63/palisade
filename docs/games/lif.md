@@ -7,7 +7,7 @@
 **Admin:** No RCON or remote console. The admin password field sets the in-game **GM password** (`adminPassword` in `world_1.xml`) — log in with it in-game to unlock GM mode.
 
 ## First boot
-SteamCMD installs the Windows server (app 320850, ~8 GB budget) and runs it under Wine; the image also bundles the game's required **MariaDB inside the container** (datadir persisted at `serverfiles/.database`). The first boot does Wine setup, the DB schema import, and world/navmesh generation — around 10 minutes total, with long stretches of `NavMesh updating: N tiles left` that are normal. Because SteamCMD writes `config/world_1.xml` during that first install, the first boot runs with the image defaults ("LiF Docker"); **restart once after the first boot** and Palisade's `patchLifWorldXml` applies your name, passwords, and settings from then on.
+SteamCMD installs the Windows server (app 320850, ~8 GB budget) and runs it under Wine; the image also bundles the game's required **MariaDB inside the container** (datadir persisted at `serverfiles/.database`). The first boot does Wine setup, the DB schema import, and world/navmesh generation — around 10 minutes total, with long stretches of `NavMesh updating: N tiles left` that are normal. Because SteamCMD writes `config/world_1.xml` during that first install, the first boot runs with the image defaults ("LiF Docker"); **restart once after the first boot** and Palisade applies your name, passwords, and settings from then on.
 
 ## Gotchas
 - **Name, join password, and GM password apply from the second start.** The config file doesn't exist until the first install finishes, so the panel patches it before every start once present — one restart after first boot fixes everything.

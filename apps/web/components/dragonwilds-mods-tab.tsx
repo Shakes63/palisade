@@ -52,11 +52,11 @@ export function DragonwildsModsTab({ serverId }: { serverId: string }) {
       {err && <div className="card border-rose-500/40 text-sm text-rose-300">{err}</div>}
 
       <div className="card space-y-3">
-        <div className="flex items-center justify-between gap-2">
-          <h3 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-ark-accent2">
-            <Package className="h-4 w-4" /> Pak mods
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="flex items-center gap-2 whitespace-nowrap text-sm font-semibold uppercase tracking-wide text-ark-accent2">
+            <Package className="h-4 w-4" /> Installed mods
           </h3>
-          <button className="btn-secondary" disabled={busy} onClick={() => input.current?.click()}>
+          <button className="btn-secondary shrink-0 whitespace-nowrap" disabled={busy} onClick={() => input.current?.click()}>
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />} Upload mod files
           </button>
           <input
@@ -90,10 +90,12 @@ export function DragonwildsModsTab({ serverId }: { serverId: string }) {
                 <button
                   className="shrink-0 text-slate-500 hover:text-rose-400"
                   title="Remove all three files"
+                  aria-label={`Remove ${m.name}`}
                   disabled={busy}
-                  onClick={() =>
-                    run(() => apiDelete(`/servers/${serverId}/dragonwildsmods/${encodeURIComponent(m.name)}`))
-                  }
+                  onClick={() => {
+                    if (!confirm(`Remove ${m.name} from this server?`)) return;
+                    void run(() => apiDelete(`/servers/${serverId}/dragonwildsmods/${encodeURIComponent(m.name)}`));
+                  }}
                 >
                   <Trash2 className="h-4 w-4" />
                 </button>

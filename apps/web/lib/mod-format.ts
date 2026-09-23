@@ -11,6 +11,13 @@ export function fmtBytes(n: number | null | undefined): string {
   return `${v.toFixed(i > 0 && v < 10 ? 1 : 0)} ${units[i]}`;
 }
 
+const compact = new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 });
+
+/** Compact download count (e.g. 10540000 → "10.5M", 10540 → "10.5K"). */
+export function fmtCount(n: number): string {
+  return compact.format(n);
+}
+
 /** Short absolute date (e.g. "Jun 18, 2026") from an ISO string. */
 export function fmtDate(iso: string | null | undefined): string {
   if (!iso) return "";

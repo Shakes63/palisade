@@ -7,10 +7,7 @@
 **Admin:** RCON. The password field is labeled "RCON password (enables the console)" — it sets `RCON_PASSWORD` and powers the panel's Console tab, player counts, broadcast, and save-on-stop.
 
 ## First boot
-- Tiny and fast: the image downloads the server jar itself (vanilla/Paper/Forge/Fabric) into `/data`; a vanilla server has booted to Running in ~8.5 s. Ready is detected on the classic `Done (N.NNNs)! For help` line. ~3 GB disk for vanilla; modpacks pull much more.
-- The EULA is accepted automatically (`EULA=TRUE`) by creating the server through the panel.
-- The map field is not a map — it is the world-generation type (`LEVEL_TYPE`): Default, Superflat, Large Biomes, or Amplified. The world folder is always `world`.
-- The JVM heap is sized to ~80% of the server's RAM cap (minimum 1 GB), or 3 GB when no cap is set.
+Tiny and fast: the image downloads the server jar itself (vanilla/Paper/Forge/Fabric) into `/data`; a vanilla server has booted to Running in ~8.5 s. Ready is detected on the classic `Done (N.NNNs)! For help` line. ~3 GB disk for vanilla; modpacks pull much more. The EULA is accepted automatically (`EULA=TRUE`) by creating the server through the panel. The map field is not a map — it is the world-generation type (`LEVEL_TYPE`): Default, Superflat, Large Biomes, or Amplified. The world folder is always `world`. The JVM heap is sized to ~80% of the server's RAM cap (minimum 1 GB), or 3 GB when no cap is set.
 
 ## Gotchas
 - CurseForge modpacks: selecting a pack on the Mods tab switches the image to `AUTO_CURSEFORGE` (needs your CurseForge API key); the pack dictates the loader + MC version, so the catalog's TYPE/VERSION settings are suppressed while a pack is set.

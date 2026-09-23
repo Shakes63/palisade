@@ -34,6 +34,10 @@ export class CurseForgeService {
 
   constructor(private readonly settings: ManagerSettingsService) {}
 
+  async hasKey(): Promise<boolean> {
+    return Boolean(await this.settings.get(SettingKeys.CurseForgeApiKey));
+  }
+
   private async key(): Promise<string> {
     const key = await this.settings.get(SettingKeys.CurseForgeApiKey);
     if (!key) {
