@@ -2,7 +2,7 @@ import "reflect-metadata";
 import { describe, expect, it } from "vitest";
 import { plainToInstance } from "class-transformer";
 import { validateSync } from "class-validator";
-import { isPalisadeRule, isRouterHost, portSpecCovers, protoCovers, ruleName } from "./router";
+import { isPalisadeRule, isRouterHost, isTargetIp, portSpecCovers, protoCovers, ruleName } from "./router";
 import { UpdateSettingsBody } from "../manager-settings/manager-settings.controller";
 import { normalizeUnifiRule, parseUnifiHost } from "./unifi.client";
 
@@ -125,5 +125,20 @@ describe("isRouterHost", () => {
     const errors = (body: object) => validateSync(plainToInstance(UpdateSettingsBody, body)).map((e) => e.property);
     expect(errors({ unifiHost: "not a host!!", pfsenseHost: "https://pfsense" })).toEqual(["pfsenseHost", "unifiHost"]);
     expect(errors({ unifiHost: "https://unifi:8443", pfsenseHost: "" })).toEqual([]);
+  });
+});
+
+describe("isTargetIp", () => {
+  it.each(["192.168.1.50", " 10.0.0.2 ", ""])("accepts %j", (v) => expect(isTargetIp(v)).toBe(true));
+
+  it.each(["not an ip", "192.168.1.999", "192.168.1", "fd00::1", "server.lan", "192.168.1.50:80"])(
+    "rejects %j",
+    (v) => expect(isTargetIp(v)).toBe(false),
+  );
+
+  it("is enforced on the settings body", () => {
+    const errors = (body: object) => validateSync(plainToInstance(UpdateSettingsBody, body)).map((e) => e.property);
+    expect(errors({ pfsenseTargetIp: "nope", unifiTargetIp: "10.0.0.300" })).toEqual(["pfsenseTargetIp", "unifiTargetIp"]);
+    expect(errors({ pfsenseTargetIp: "192.168.1.50", unifiTargetIp: "" })).toEqual([]);
   });
 });

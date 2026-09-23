@@ -40,6 +40,25 @@ export function IsRouterHost(kindOf: (body: object) => RouterKind): PropertyDeco
     });
 }
 
+/** The LAN address a forward points at: IPv4 only, since WAN forwards are NAT.
+ *  Blank clears the setting. */
+export function isTargetIp(input: string): boolean {
+  const v = input.trim();
+  return !v || isIP(v, 4);
+}
+
+export function IsTargetIp(): PropertyDecorator {
+  return (target, propertyName) =>
+    registerDecorator({
+      target: target.constructor,
+      propertyName: String(propertyName),
+      validator: {
+        validate: (v: unknown) => typeof v === "string" && isTargetIp(v),
+        defaultMessage: () => "Forward-to address must be an IPv4 address, e.g. 192.168.1.50",
+      },
+    });
+}
+
 /** One WAN forward as the router reports it, normalised across products. */
 export interface RouterRule {
   /** The router's own id (pfSense numeric index, UniFi object id) as a string. */

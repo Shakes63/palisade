@@ -13,6 +13,8 @@ import { keepCase } from "@/lib/keep-case";
 type SettingsView = Record<string, string | boolean>;
 
 const TABS = ["General", "Integrations", "Backups", "Users", "Notifications", "About"] as const;
+const IPV4 = /^((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)$/;
+const badTargetIp = (v: string) => v.trim() !== "" && !IPV4.test(v.trim());
 type Tab = (typeof TABS)[number];
 export default function SettingsPage() {
   const uid = useId();
@@ -137,6 +139,7 @@ export default function SettingsPage() {
 
   /** Saves the router choice plus the fields of the router that's showing; the
    *  other router's saved settings stay put so switching back costs nothing. */
+  const targetIpBad = badTargetIp(portForwardRouter === "unifi" ? unifiTargetIp : pfsenseTargetIp);
   const savePortForwarding = () => {
     const body: Record<string, string> = { portForwardRouter };
     if (portForwardRouter === "unifi") {
@@ -497,11 +500,15 @@ export default function SettingsPage() {
                     <label htmlFor={`${uid}-pftarget`} className="label">Forward to (LAN IP)</label>
                     <input
                       id={`${uid}-pftarget`}
-                      className="input"
+                      className={`input ${badTargetIp(pfsenseTargetIp) ? "border-rose-500/60" : ""}`}
                       placeholder="e.g. 192.168.1.50 (this server box)"
                       value={pfsenseTargetIp}
                       onChange={(e) => setPfsenseTargetIp(e.target.value)}
+                      aria-invalid={badTargetIp(pfsenseTargetIp)}
                     />
+                    {badTargetIp(pfsenseTargetIp) && (
+                      <p className="mt-1 text-xs text-rose-400">Enter an IPv4 address, e.g. 192.168.1.50.</p>
+                    )}
                   </div>
                 </div>
                 <SecretField
@@ -535,11 +542,15 @@ export default function SettingsPage() {
                     <label htmlFor={`${uid}-untarget`} className="label">Forward to (LAN IP)</label>
                     <input
                       id={`${uid}-untarget`}
-                      className="input"
+                      className={`input ${badTargetIp(unifiTargetIp) ? "border-rose-500/60" : ""}`}
                       placeholder="e.g. 192.168.1.50 (this server box)"
                       value={unifiTargetIp}
                       onChange={(e) => setUnifiTargetIp(e.target.value)}
+                      aria-invalid={badTargetIp(unifiTargetIp)}
                     />
+                    {badTargetIp(unifiTargetIp) && (
+                      <p className="mt-1 text-xs text-rose-400">Enter an IPv4 address, e.g. 192.168.1.50.</p>
+                    )}
                   </div>
                   <div>
                     <label htmlFor={`${uid}-site`} className="label">Site</label>
@@ -581,7 +592,7 @@ export default function SettingsPage() {
               )}
               {pfTestMsg && <p className="mt-2 text-sm text-slate-400">{pfTestMsg}</p>}
             </div>
-            <CardSave card="portforwarding" onClick={savePortForwarding} />
+            <CardSave card="portforwarding" onClick={savePortForwarding} disabled={targetIpBad} />
           </div>
         </>
       )}
