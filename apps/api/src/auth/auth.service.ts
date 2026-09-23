@@ -29,13 +29,14 @@ export class AuthService {
   async firstRun(dto: FirstRunDto): Promise<{ token: string }> {
     const existing = await this.prisma.user.count();
     if (existing > 0) throw new BadRequestException("Already initialized");
-    if (!dto.username || dto.password.length < 8) {
+    const username = dto.username.trim();
+    if (!username || dto.password.length < 8) {
       throw new BadRequestException("Username required and password must be 8+ chars");
     }
 
     const passwordHash = await bcrypt.hash(dto.password, 12);
     const user = await this.prisma.user.create({
-      data: { username: dto.username, passwordHash, role: "admin" },
+      data: { username, passwordHash, role: "admin" },
     });
 
     if (dto.dataDir) await this.settings.set(SettingKeys.DataDir, dto.dataDir);
@@ -140,7 +141,8 @@ export class AuthService {
     return AuthService.toDto(row);
   }
 
-  async createUser(username: string, password: string, access: UserAccessDto = {}): Promise<UserDto> {
+  async createUser(rawUsername: string, password: string, access: UserAccessDto = {}): Promise<UserDto> {
+    const username = rawUsername.trim();
     if (!username || password.length < 8) {
       throw new BadRequestException("Username required and password must be 8+ chars");
     }

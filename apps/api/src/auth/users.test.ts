@@ -152,7 +152,24 @@ describe("AuthService.createUser", () => {
     const { svc } = makeService([admin()]);
     await expect(svc.createUser("x", "short")).rejects.toBeInstanceOf(BadRequestException);
     await expect(svc.createUser("", "password123")).rejects.toBeInstanceOf(BadRequestException);
+    await expect(svc.createUser("   ", "password123")).rejects.toBeInstanceOf(BadRequestException);
     await expect(svc.createUser("a1", "password123")).rejects.toBeInstanceOf(BadRequestException);
+    await expect(svc.createUser(" a1 ", "password123")).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it("trims the username before storing it", async () => {
+    const { svc } = makeService([admin()]);
+    const dto = await svc.createUser("  dave\t", "password123");
+    expect(dto.username).toBe("dave");
+  });
+});
+
+describe("AuthService.firstRun", () => {
+  it("rejects a whitespace-only username", async () => {
+    const { svc } = makeService();
+    await expect(svc.firstRun({ username: "  ", password: "password123" })).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
   });
 });
 
