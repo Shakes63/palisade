@@ -1,8 +1,8 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Save, KeyRound, Send, CheckCircle2, Circle } from "lucide-react";
 import { apiGet, apiPatch, apiPost } from "@/lib/api";
-import { DEFAULT_LOG_LEVEL, LOG_LEVELS, type LogLevel } from "@ark/shared";
+import { DEFAULT_LOG_LEVEL, GAME_LABELS, Game, LOG_LEVELS, type LogLevel } from "@ark/shared";
 import { TimezoneSelect, detectZone } from "@/components/timezone-select";
 import { NotificationTargetsCard } from "@/components/notification-targets";
 import { ReplicationCard } from "@/components/replication-card";
@@ -44,32 +44,41 @@ export default function SettingsPage() {
   const [busyCard, setBusyCard] = useState<string | null>(null);
   const [savedCard, setSavedCard] = useState<string | null>(null);
 
-  const load = () => {
+  /** Fetch settings and reset the fields of `card`, or of every card when omitted,
+   *  so saving one card never throws away unsaved edits in another. */
+  const load = (card?: string) => {
+    const reset = (c: string) => card === undefined || card === c;
     apiGet<SettingsView>("/settings")
       .then((v) => {
         setView(v);
-        // Pre-select the user's detected zone when nothing is saved yet, so they
-        // rarely have to touch it.
-        setTimezone(typeof v.timezone === "string" && v.timezone ? v.timezone : detectZone());
-        if (LOG_LEVELS.includes(v.log_level as LogLevel)) setLogLevel(v.log_level as LogLevel);
-        if (typeof v.manager_backup_keep === "string" && v.manager_backup_keep)
+        if (reset("general")) {
+          // Pre-select the user's detected zone when nothing is saved yet, so they
+          // rarely have to touch it.
+          setTimezone(typeof v.timezone === "string" && v.timezone ? v.timezone : detectZone());
+          if (LOG_LEVELS.includes(v.log_level as LogLevel)) setLogLevel(v.log_level as LogLevel);
+        }
+        if (reset("backups") && typeof v.manager_backup_keep === "string" && v.manager_backup_keep)
           setManagerBackupKeep(v.manager_backup_keep);
-        setAutoStop(v.auto_stop_on_start !== "false"); // default on when unset
-        if (typeof v.pfsense_host === "string") setPfsenseHost(v.pfsense_host);
-        if (typeof v.pfsense_target_ip === "string") setPfsenseTargetIp(v.pfsense_target_ip);
-        setPortForwardRouter(v.port_forward_router === "unifi" ? "unifi" : "pfsense");
-        if (typeof v.unifi_host === "string") setUnifiHost(v.unifi_host);
-        if (typeof v.unifi_site === "string" && v.unifi_site) setUnifiSite(v.unifi_site);
-        if (typeof v.unifi_target_ip === "string") setUnifiTargetIp(v.unifi_target_ip);
-        setGameHostNetwork(typeof v.game_host_network === "string" ? v.game_host_network : "");
-        setAutoCreateNetwork(typeof v.auto_create_network === "string" ? v.auto_create_network : "");
-        setPublicBaseUrl(typeof v.public_base_url === "string" ? v.public_base_url : "");
-        setConnectHost(typeof v.connect_host === "string" ? v.connect_host : "");
-        setHostDataDir(typeof v.host_data_dir === "string" ? v.host_data_dir : "");
+        if (reset("startguard")) setAutoStop(v.auto_stop_on_start !== "false"); // default on when unset
+        if (reset("portforwarding")) {
+          if (typeof v.pfsense_host === "string") setPfsenseHost(v.pfsense_host);
+          if (typeof v.pfsense_target_ip === "string") setPfsenseTargetIp(v.pfsense_target_ip);
+          setPortForwardRouter(v.port_forward_router === "unifi" ? "unifi" : "pfsense");
+          if (typeof v.unifi_host === "string") setUnifiHost(v.unifi_host);
+          if (typeof v.unifi_site === "string" && v.unifi_site) setUnifiSite(v.unifi_site);
+          if (typeof v.unifi_target_ip === "string") setUnifiTargetIp(v.unifi_target_ip);
+        }
+        if (reset("host")) {
+          setGameHostNetwork(typeof v.game_host_network === "string" ? v.game_host_network : "");
+          setAutoCreateNetwork(typeof v.auto_create_network === "string" ? v.auto_create_network : "");
+          setPublicBaseUrl(typeof v.public_base_url === "string" ? v.public_base_url : "");
+          setConnectHost(typeof v.connect_host === "string" ? v.connect_host : "");
+          setHostDataDir(typeof v.host_data_dir === "string" ? v.host_data_dir : "");
+        }
       })
       .catch(() => undefined);
   };
-  useEffect(load, []);
+  useEffect(() => load(), []);
 
   // Keep the active tab in the URL (?tab=backups) so a refresh lands back on the
   // same tab — same pattern as the server page.
@@ -78,6 +87,10 @@ export default function SettingsPage() {
     const found = p && TABS.find((t) => t.toLowerCase() === p.toLowerCase());
     if (found) setTab(found);
   }, []);
+  const tabsRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    tabsRef.current?.querySelector("[data-active]")?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [tab]);
   const changeTab = (t: Tab) => {
     setTab(t);
     const u = new URL(window.location.href);
@@ -99,7 +112,7 @@ export default function SettingsPage() {
       await apiPatch("/settings", body);
       after?.();
       setSavedCard(card);
-      load();
+      load(card);
     } catch (err) {
       alert((err as Error).message);
     } finally {
@@ -136,6 +149,7 @@ export default function SettingsPage() {
     void saveCard("portforwarding", body, () => {
       setPfsenseApiKey("");
       setUnifiApiKey("");
+      setPfTestMsg(null);
     });
   };
 
@@ -159,11 +173,11 @@ export default function SettingsPage() {
     });
   const saveStartGuard = () => void saveCard("startguard", { autoStopOnStart: autoStop });
 
-  const CardSave = ({ card, onClick }: { card: string; onClick: () => void }) => (
+  const CardSave = ({ card, onClick, disabled }: { card: string; onClick: () => void; disabled?: boolean }) => (
     <div className="pt-1">
-      <button className="btn-primary" onClick={onClick} disabled={busyCard === card}>
+      <button className="btn-primary" onClick={onClick} disabled={busyCard === card || disabled}>
         <Save className="h-4 w-4" />{" "}
-        {busyCard === card ? "Saving…" : savedCard === card ? "Saved ✓" : "Save settings"}
+        {busyCard === card ? "Saving…" : savedCard === card ? "Saved ✓" : "Save"}
       </button>
     </div>
   );
@@ -223,12 +237,13 @@ export default function SettingsPage() {
         <KeyRound className="h-5 w-5 text-ark-accent" /> Settings
       </h1>
 
-      <div className="flex flex-wrap gap-1 border-b border-ark-border">
+      <div ref={tabsRef} className="flex gap-1 overflow-x-auto border-b border-ark-border">
         {TABS.map((t) => (
           <button
             key={t}
+            data-active={tab === t || undefined}
             onClick={() => changeTab(t)}
-            className={`px-4 py-2 text-sm ${
+            className={`shrink-0 whitespace-nowrap px-4 py-2 text-sm ${
               tab === t ? "border-b-2 border-ark-accent text-slate-100" : "text-slate-400"
             }`}
           >
@@ -325,7 +340,7 @@ export default function SettingsPage() {
               <input
                 className="input"
                 value={publicBaseUrl}
-                placeholder="http://10.0.0.5:8970 — blank to use PUBLIC_BASE_URL"
+                placeholder="e.g. http://10.0.0.5:8970"
                 onChange={(e) => setPublicBaseUrl(e.target.value)}
               />
               <p className="mt-1 text-xs text-slate-500">
@@ -338,7 +353,7 @@ export default function SettingsPage() {
               <input
                 className="input"
                 value={connectHost}
-                placeholder="10.0.0.5 — blank to work it out"
+                placeholder="e.g. 10.0.0.5"
                 onChange={(e) => setConnectHost(e.target.value)}
               />
               <p className="mt-1 text-xs text-slate-500">
@@ -376,7 +391,7 @@ export default function SettingsPage() {
             </h2>
 
             <SecretField
-              label="CurseForge API key (ASA mod browser)"
+              label="CurseForge API key (ASA mods and Minecraft modpacks)"
               value={curseForgeApiKey}
               onChange={setCurseForgeApiKey}
               configured={configured("curseforge_api_key")}
@@ -413,7 +428,11 @@ export default function SettingsPage() {
                 {artMsg && <span className="text-sm text-slate-400">{artMsg}</span>}
               </div>
             </div>
-            <CardSave card="modkeys" onClick={saveModKeys} />
+            <CardSave
+              card="modkeys"
+              onClick={saveModKeys}
+              disabled={!curseForgeApiKey && !steamWebApiKey && !steamGridDbApiKey}
+            />
           </div>
           <div className="card space-y-4">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-ark-accent2">
@@ -590,33 +609,34 @@ export default function SettingsPage() {
 }
 
 /** The community images doing the actual heavy lifting — one server at a time. */
-const IMAGE_CREDITS: { game: string; maintainer: string; url: string }[] = [
-  { game: "ARK: Survival Ascended", maintainer: "Acekorneya (POK)", url: "https://github.com/Acekorneya/Ark-Survival-Ascended-Server" },
-  { game: "Conan Exiles", maintainer: "Acekorneya (POK)", url: "https://github.com/Acekorneya/POK_Conan_Enhanced_Docker_server" },
-  { game: "ARK: Survival Evolved", maintainer: "Hermsi1337", url: "https://github.com/Hermsi1337/docker-ark-server" },
-  { game: "Palworld", maintainer: "Thijs van Loef", url: "https://github.com/thijsvanloef/palworld-server-docker" },
-  { game: "Minecraft (Java)", maintainer: "itzg", url: "https://github.com/itzg/docker-minecraft-server" },
-  { game: "Minecraft Bedrock", maintainer: "itzg", url: "https://github.com/itzg/docker-minecraft-bedrock-server" },
-  { game: "Icarus", maintainer: "mornedhels", url: "https://github.com/mornedhels/icarus-server" },
-  { game: "Enshrouded", maintainer: "mornedhels", url: "https://github.com/mornedhels/enshrouded-server" },
-  { game: "Valheim", maintainer: "lloesche / community-valheim-tools", url: "https://github.com/community-valheim-tools/valheim-server-docker" },
-  { game: "7 Days to Die", maintainer: "vinanrra (LinuxGSM)", url: "https://github.com/vinanrra/Docker-7DaysToDie" },
-  { game: "Palworld (Wine)", maintainer: "ripps818", url: "https://github.com/ripps818/docker-palworld-dedicated-server-wine" },
-  { game: "Project Zomboid", maintainer: "Danixu", url: "https://github.com/danixu/project-zomboid-server-docker" },
-  { game: "V Rising", maintainer: "TrueOsiris", url: "https://github.com/TrueOsiris/docker-vrising" },
-  { game: "Sons of the Forest", maintainer: "jammsen", url: "https://github.com/jammsen/docker-sons-of-the-forest-dedicated-server" },
-  { game: "Satisfactory", maintainer: "wolveix", url: "https://github.com/wolveix/satisfactory-server" },
-  { game: "Life is Feudal: YO", maintainer: "ich777", url: "https://github.com/ich777/docker-steamcmd-server" },
-  { game: "American Truck Simulator", maintainer: "ich777", url: "https://github.com/ich777/docker-steamcmd-server" },
-  { game: "Euro Truck Simulator 2", maintainer: "ich777", url: "https://github.com/ich777/docker-steamcmd-server" },
-  { game: "OpenTTD", maintainer: "ich777", url: "https://hub.docker.com/r/ich777/openttdserver" },
-  { game: "Core Keeper", maintainer: "Escaping Network", url: "https://github.com/escapingnetwork/core-keeper-dedicated" },
-  { game: "Terraria (TShock)", maintainer: "Ryan Sheehan", url: "https://github.com/ryansheehan/terraria" },
-  { game: "Factorio", maintainer: "factoriotools", url: "https://github.com/factoriotools/factorio-docker" },
-  { game: "Rust", maintainer: "Didstopia", url: "https://github.com/Didstopia/rust-server" },
-  { game: "BeamNG.drive (BeamMP)", maintainer: "RouHim", url: "https://github.com/RouHim/beammp-container-image" },
-  { game: "Counter-Strike 2", maintainer: "joedwards32", url: "https://github.com/joedwards32/CS2" },
-  { game: "Don't Starve Together", maintainer: "Jamesits", url: "https://github.com/Jamesits/docker-dst-server" },
+const IMAGE_CREDITS: { game: Game; maintainer: string; url: string }[] = [
+  { game: Game.ASA, maintainer: "Acekorneya (POK)", url: "https://github.com/Acekorneya/Ark-Survival-Ascended-Server" },
+  { game: Game.CONAN, maintainer: "Acekorneya (POK)", url: "https://github.com/Acekorneya/POK_Conan_Enhanced_Docker_server" },
+  { game: Game.ASE, maintainer: "Hermsi1337", url: "https://github.com/Hermsi1337/docker-ark-server" },
+  { game: Game.PALWORLD, maintainer: "Thijs van Loef", url: "https://github.com/thijsvanloef/palworld-server-docker" },
+  { game: Game.MINECRAFT, maintainer: "itzg", url: "https://github.com/itzg/docker-minecraft-server" },
+  { game: Game.BEDROCK, maintainer: "itzg", url: "https://github.com/itzg/docker-minecraft-bedrock-server" },
+  { game: Game.ICARUS, maintainer: "mornedhels", url: "https://github.com/mornedhels/icarus-server" },
+  { game: Game.ENSHROUDED, maintainer: "mornedhels", url: "https://github.com/mornedhels/enshrouded-server" },
+  { game: Game.VALHEIM, maintainer: "lloesche / community-valheim-tools", url: "https://github.com/community-valheim-tools/valheim-server-docker" },
+  { game: Game.SEVEN_DAYS, maintainer: "vinanrra (LinuxGSM)", url: "https://github.com/vinanrra/Docker-7DaysToDie" },
+  { game: Game.PALWORLD_WINE, maintainer: "ripps818", url: "https://github.com/ripps818/docker-palworld-dedicated-server-wine" },
+  { game: Game.ZOMBOID, maintainer: "Danixu", url: "https://github.com/danixu/project-zomboid-server-docker" },
+  { game: Game.VRISING, maintainer: "TrueOsiris", url: "https://github.com/TrueOsiris/docker-vrising" },
+  { game: Game.SOTF, maintainer: "jammsen", url: "https://github.com/jammsen/docker-sons-of-the-forest-dedicated-server" },
+  { game: Game.SATISFACTORY, maintainer: "wolveix", url: "https://github.com/wolveix/satisfactory-server" },
+  { game: Game.LIF, maintainer: "ich777", url: "https://github.com/ich777/docker-steamcmd-server" },
+  { game: Game.ATS, maintainer: "ich777", url: "https://github.com/ich777/docker-steamcmd-server" },
+  { game: Game.ETS2, maintainer: "ich777", url: "https://github.com/ich777/docker-steamcmd-server" },
+  { game: Game.OPENTTD, maintainer: "ich777", url: "https://hub.docker.com/r/ich777/openttdserver" },
+  { game: Game.CORE_KEEPER, maintainer: "Escaping Network", url: "https://github.com/escapingnetwork/core-keeper-dedicated" },
+  { game: Game.TERRARIA, maintainer: "Ryan Sheehan", url: "https://github.com/ryansheehan/terraria" },
+  { game: Game.FACTORIO, maintainer: "factoriotools", url: "https://github.com/factoriotools/factorio-docker" },
+  { game: Game.RUST, maintainer: "Didstopia", url: "https://github.com/Didstopia/rust-server" },
+  { game: Game.BEAMMP, maintainer: "RouHim", url: "https://github.com/RouHim/beammp-container-image" },
+  { game: Game.CS2, maintainer: "joedwards32", url: "https://github.com/joedwards32/CS2" },
+  { game: Game.DST, maintainer: "Jamesits", url: "https://github.com/Jamesits/docker-dst-server" },
+  { game: Game.DRAGONWILDS, maintainer: "blckassassin", url: "https://github.com/blckassassin/unraid-game-servers" },
 ];
 
 function CreditsCard() {
@@ -631,7 +651,7 @@ function CreditsCard() {
       <ul className="grid gap-x-6 gap-y-1 text-xs sm:grid-cols-2">
         {IMAGE_CREDITS.map((c) => (
           <li key={c.url + c.game} className="flex justify-between gap-3">
-            <span className="text-slate-400">{c.game}</span>
+            <span className="text-slate-400">{GAME_LABELS[c.game]}</span>
             <a href={c.url} target="_blank" rel="noreferrer" className="text-ark-accent hover:underline">
               {c.maintainer}
             </a>
@@ -661,14 +681,14 @@ function SecretField({
 }) {
   return (
     <div>
-      <label className="label flex items-center gap-2">
-        {label}
+      <label className="label flex items-start gap-2">
+        <span>{label}</span>
         {configured ? (
-          <span className="inline-flex items-center gap-1 text-green-400">
+          <span className="inline-flex shrink-0 items-center gap-1 text-green-400">
             <CheckCircle2 className="h-3.5 w-3.5" /> configured
           </span>
         ) : (
-          <span className="inline-flex items-center gap-1 text-slate-500">
+          <span className="inline-flex shrink-0 items-center gap-1 text-slate-500">
             <Circle className="h-3.5 w-3.5" /> not set
           </span>
         )}
