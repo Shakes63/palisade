@@ -1,5 +1,5 @@
 "use client";
-import { use, useCallback, useEffect, useState } from "react";
+import { use, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Play, Square, RotateCw, Download, Loader2, Pencil, Check, X, Trash2, AlertTriangle, ArrowUpCircle, Image as ImageIcon } from "lucide-react";
@@ -8,6 +8,8 @@ import {
   Game,
   ServerState,
   GAME_LABELS,
+  ADMIN_PASSWORD_META,
+  JOIN_PASSWORD_META,
   type ServerSummary,
   type ServerConfigValues,
   type UpdateGameResult,
@@ -88,6 +90,17 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
     const found = p && TABS.find((t) => t.toLowerCase() === p.toLowerCase());
     if (found) setTab(found);
   }, []);
+  // Keep the active tab in view when the tab bar scrolls sideways on narrow screens.
+  const tabBar = useRef<HTMLDivElement>(null);
+  const loaded = server !== null;
+  useEffect(() => {
+    const bar = tabBar.current;
+    const el = bar?.querySelector<HTMLElement>('[aria-selected="true"]');
+    if (!bar || !el) return;
+    const b = bar.getBoundingClientRect();
+    const r = el.getBoundingClientRect();
+    bar.scrollLeft += r.left - b.left - (b.width - r.width) / 2;
+  }, [tab, loaded]);
   const changeTab = (t: Tab) => {
     setTab(t);
     const u = new URL(window.location.href);
@@ -245,9 +258,8 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
         ? "Ask the image to run SteamCMD once on the next boot (no need to turn on update-on-start)"
         : null;
 
-  // No-RCON games hide the Console tab. Icarus + Bedrock keep an uploader Mods tab
-  // (.pak files / add-on packs); Valheim's mods are settings toggles (BepInEx/
-  // ValheimPlus), so it hides Mods too.
+  // No-RCON games hide the Console tab. Icarus, Bedrock and Dragonwilds keep an
+  // uploader Mods tab (.pak files / add-on packs).
   const hiddenTabs =
     server.game === Game.ICARUS || server.game === Game.BEDROCK || server.game === Game.DRAGONWILDS
       ? new Set<Tab>(["Console"])
@@ -266,6 +278,8 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
   // matching the API's @MinRole guard.
   if (role === "viewer") hiddenTabs.add("Files");
   const visibleTabs = TABS.filter((t) => !hiddenTabs.has(t));
+  // ?tab= can name a tab this game or role hides.
+  const activeTab: Tab = visibleTabs.includes(tab) ? tab : "Overview";
 
   return (
     <div className="space-y-6">
@@ -403,7 +417,7 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
             {showStopping ? "Stopping…" : "Stop"}
           </button>
           <button
-            className="inline-flex items-center gap-1.5 rounded-md border border-rose-900/60 bg-rose-950/40 px-3 py-1.5 text-sm font-medium text-rose-300 transition-colors hover:bg-rose-900/50 disabled:opacity-50"
+            className="btn-danger"
             disabled={!!pending || deleting}
             onClick={() => setConfirmingDelete(true)}
             title="Delete this server permanently"
@@ -462,13 +476,15 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
         />
       )}
 
-      <div className="flex gap-1 border-b border-ark-border">
+      <div ref={tabBar} role="tablist" className="flex gap-1 overflow-x-auto border-b border-ark-border">
         {visibleTabs.map((t) => (
           <button
             key={t}
+            role="tab"
+            aria-selected={activeTab === t}
             onClick={() => changeTab(t)}
-            className={`px-4 py-2 text-sm ${
-              tab === t ? "border-b-2 border-ark-accent text-slate-100" : "text-slate-400"
+            className={`shrink-0 px-4 py-2 text-sm ${
+              activeTab === t ? "border-b-2 border-ark-accent text-slate-100" : "text-slate-400 hover:text-slate-200"
             }`}
           >
             {t}
@@ -476,14 +492,14 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
         ))}
       </div>
 
-      {tab === "Overview" && <Overview server={server} onChanged={refresh} />}
-      {tab === "Settings" &&
+      {activeTab === "Overview" && <Overview server={server} onChanged={refresh} />}
+      {activeTab === "Settings" &&
         (config ? (
           <SettingsForm key={configKey} serverId={id} game={server.game} map={server.map} initial={config} />
         ) : (
           <div className="text-slate-400">Loading settings…</div>
         ))}
-      {tab === "Mods" &&
+      {activeTab === "Mods" &&
         (server.game === Game.PALWORLD || server.game === Game.PALWORLD_WINE ? (
           <PalworldModsTab serverId={id} />
         ) : server.game === Game.MINECRAFT ? (
@@ -501,15 +517,15 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
         ) : (
           <ModsTab serverId={id} game={server.game} />
         ))}
-      {tab === "Console" && server.game !== Game.ICARUS && (
+      {activeTab === "Console" && server.game !== Game.ICARUS && (
         <RconConsole serverId={id} game={server.game} state={server.state} />
       )}
-      {tab === "Players" && <PlayersTab serverId={id} />}
-      {tab === "Logs" && <LogsTab serverId={id} />}
-      {tab === "Files" && <FilesTab serverId={id} />}
-      {tab === "Schedules" && <ScheduleList serverId={id} />}
-      {tab === "Backups" && <BackupsTab serverId={id} server={server} onChanged={refresh} />}
-      {tab === "Guide" && <GuideTab game={server.game} />}
+      {activeTab === "Players" && <PlayersTab serverId={id} />}
+      {activeTab === "Logs" && <LogsTab serverId={id} />}
+      {activeTab === "Files" && <FilesTab serverId={id} />}
+      {activeTab === "Schedules" && <ScheduleList serverId={id} />}
+      {activeTab === "Backups" && <BackupsTab serverId={id} server={server} onChanged={refresh} />}
+      {activeTab === "Guide" && <GuideTab game={server.game} />}
     </div>
   );
 }
@@ -561,7 +577,7 @@ function DeleteConfirm({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-3 flex items-center gap-2 text-rose-300">
-          <AlertTriangle className="h-5 w-5" />
+          <AlertTriangle className="h-5 w-5 shrink-0" />
           <h2 className="text-lg font-semibold">Delete “{server.name}”?</h2>
         </div>
         <p className="text-sm leading-snug text-slate-300">
@@ -675,9 +691,18 @@ function Overview({ server, onChanged }: { server: ServerSummary; onChanged: () 
   const noQuery = isMc || isBedrock || isSdtd || isZomboid || isSatisfactory || isCoreKeeper || isTerraria || isFactorio || isBeammp || isOpenttd || isCs2 || isDst || isDragonwilds; // Valheim/Enshrouded/V Rising have a real query port; Zomboid/Satisfactory/OpenTTD/CS2 answer queries on the game port; DST queries go through Klei's lobby
   const noRcon = isIcarus || isBedrock || isValheim || isSdtd || isEnshrouded || isSotf || isSatisfactory || isLif || isAts || isCoreKeeper || isTerraria || isBeammp || isOpenttd || isDst || isDragonwilds; // 7DTD's console is telnet; OpenTTD's + DST's are in-game only
   const noMods = isIcarus || isBedrock || isValheim || isSdtd || isEnshrouded || isVRising || isSotf || isSatisfactory || isLif || isAts || isCoreKeeper || isTerraria || isFactorio || isRust || isBeammp || isOpenttd || isCs2 || isDst || isDragonwilds;
+  const clusterId = isArk ? server.clusterId : null;
+  const [clusterName, setClusterName] = useState<string | null>(null);
+  useEffect(() => {
+    setClusterName(null);
+    if (!clusterId) return;
+    apiGet<{ name: string }>(`/clusters/${clusterId}`)
+      .then((c) => setClusterName(c.name))
+      .catch(() => setClusterName(clusterId));
+  }, [clusterId]);
   const row = (k: string, v: string): [string, string] => [k, v];
   const rows: [string, string][] = [
-    row("Game", server.game),
+    row("Game", GAME_LABELS[server.game]),
     row("Map", mapLabel(server.map)),
     ...(isCoreKeeper
       ? [row("Connection", "Steam relay (Game ID)")]
@@ -688,7 +713,7 @@ function Overview({ server, onChanged }: { server: ServerSummary; onChanged: () 
     ...(noMods ? [] : [row("Mods", server.modIds.length ? server.modIds.join(", ") : "none")]),
     // Transfer clusters are an ARK concept (shared upload dir between ARK
     // servers) — every other game just shows a confusing empty field.
-    ...(isArk ? [row("Cluster", server.clusterId ?? "—")] : []),
+    ...(isArk ? [row("Cluster", clusterId ? (clusterName ?? "…") : "—")] : []),
     row("RAM limit", server.ramLimitMb ? `${server.ramLimitMb} MB` : "unset"),
   ];
   return (
@@ -733,7 +758,9 @@ function Overview({ server, onChanged }: { server: ServerSummary; onChanged: () 
         )}
       </div>
       <GeneralCard server={server} onSaved={onChanged} />
-      <ServerAccessCard server={server} onSaved={onChanged} />
+      {(JOIN_PASSWORD_META[server.game].show || ADMIN_PASSWORD_META[server.game].show) && (
+        <ServerAccessCard server={server} onSaved={onChanged} />
+      )}
       {!isCoreKeeper && <PortsCard server={server} onSaved={onChanged} />}
       <ImageVersionCard server={server} onSaved={onChanged} />
       <EnvVarsCard server={server} onSaved={onChanged} />

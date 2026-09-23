@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { Copy, ChevronDown, ArrowDownToLine, ArrowUpFromLine, ArrowLeft } from "lucide-react";
-import { mapLabel, type ServerSummary } from "@ark/shared";
+import { mapLabel, GAME_LABELS, type ServerSummary } from "@ark/shared";
 import { apiGet, apiPost } from "@/lib/api";
 
 /**
@@ -103,7 +103,7 @@ export function CopyMenu({
         <ChevronDown className="h-3.5 w-3.5" />
       </button>
       {open && (
-        <div className="absolute right-0 z-40 mt-1 w-80 rounded-md border border-ark-border bg-ark-panel p-3 shadow-xl">
+        <div className="absolute left-0 z-40 mt-1 w-80 max-w-[calc(100vw-2rem)] rounded-md border border-ark-border bg-ark-panel p-3 shadow-xl">
           {!mode ? (
             <div className="space-y-1">
               <button
@@ -153,7 +153,7 @@ export function CopyMenu({
               <div className="max-h-56 space-y-0.5 overflow-auto">
                 {others.length === 0 ? (
                   <p className="px-1 py-2 text-[12px] text-slate-500">
-                    No other {server.game} servers to copy {mode === "from" ? "from" : "to"}.
+                    No other {GAME_LABELS[server.game]} servers to copy {mode === "from" ? "from" : "to"}.
                   </p>
                 ) : (
                   others.map((s) => (
