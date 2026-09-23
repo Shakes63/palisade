@@ -635,7 +635,7 @@ export const COMMON_SETTINGS: SettingDef[] = [
   gameBool("bDisableHexagonStore", "Disable Hexagon store", "Hexagon store", { advanced: true, help: "Turn off the Hexagon/Club ARK store." }),
   gameFloat("HexagonCostMultiplier", "Hexagon store cost", "Hexagon store", { advanced: true, max: 100, help: "Scales item costs in the Hexagon/Club ARK store." }),
   gameFloat("BaseHexagonRewardMultiplier", "Hexagon reward", "Hexagon store", { advanced: true, max: 100, help: "Scales mission Hexagon/token rewards." }),
-  gusInt("MaxHexagonsPerCharacter", "Max Hexagons per character", "Hexagon store", { advanced: true, max: 2000000000, def: 2000000000, help: "Cap on Hexagons a character can hold." }),
+  gusInt("MaxHexagonsPerCharacter", "Max Hexagons per character", "Hexagon store", { advanced: true, max: 1000000, step: 1000, def: 2000000000, help: "Cap on Hexagons a character can hold. The default, 2000000000, is effectively no cap." }),
 
   // Ragnarok ([Ragnarok] section) — only shown on Ragnarok servers
   ragBool("EnableVolcano", "Enable volcano", "Ragnarok", { def: true, help: "Whether the Ragnarok volcano becomes active." }),
@@ -658,7 +658,7 @@ export const COMMON_SETTINGS: SettingDef[] = [
   gameFloat("ResourceNoReplenishRadiusPlayers", "Resource regrow radius (players)", "Rates", { advanced: true, max: 10, help: "How far from players resources refuse to regrow. >1 widens it, <1 shrinks it." }),
   gameFloat("ResourceNoReplenishRadiusStructures", "Resource regrow radius (structures)", "Rates", { advanced: true, max: 10, help: "How far from structures resources refuse to regrow. >1 widens it, <1 shrinks it." }),
   gusBool("UseFjordurTraversalBuff", "Fjordur biome teleport", "Fjordur", { advanced: true, help: "Enable the hold-to-teleport biome travel on Fjordur." }),
-  gusInt("ExtinctionEventTimeInterval", "ARKpocalypse interval", "Server", { unit: "s", advanced: true, max: 100000000, help: "Enables extinction/ARKpocalypse mode; server wipes on this interval (e.g. 2592000 = 30 days)." }),
+  gusInt("ExtinctionEventTimeInterval", "ARKpocalypse interval", "Server", { unit: "s", advanced: true, max: 7776000, step: 3600, help: "Enables extinction/ARKpocalypse mode; server wipes on this interval (e.g. 2592000 = 30 days)." }),
 
   // Chat filtering
   gusBool("bFilterChat", "Filter chat", "Chat", { advanced: true, help: "Filter chat messages against the bad/good word lists." }),

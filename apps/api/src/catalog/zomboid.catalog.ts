@@ -888,13 +888,13 @@ const settings: SettingDef[] = [
   zsand("WaterShutModifier", "Water shutoff", "World", "int", 14, {
     unit: "days",
     min: -1,
-    max: 2147483647,
+    max: 365,
     help: "Days until tap water shuts off. -1 = instant, 2147483647 = never.",
   }),
   zsand("ElecShutModifier", "Electricity shutoff", "World", "int", 14, {
     unit: "days",
     min: -1,
-    max: 2147483647,
+    max: 365,
     help: "Days until the power grid shuts off. -1 = instant, 2147483647 = never.",
   }),
   zsand("NightDarkness", "Night darkness", "World", "enum", "3", {
