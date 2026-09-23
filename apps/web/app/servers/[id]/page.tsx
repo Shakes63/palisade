@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, Play, Square, RotateCw, Download, Loader2, Pencil, Check, X, Trash2, AlertTriangle, ArrowUpCircle, Image as ImageIcon } from "lucide-react";
 import {
   mapLabel,
+  portRows,
   Game,
   ServerState,
   GAME_LABELS,
@@ -666,13 +667,11 @@ function DeleteConfirm({
 function Overview({ server, onChanged }: { server: ServerSummary; onChanged: () => void }) {
   // Minecraft Java's game port is TCP + has no Steam query; Bedrock is UDP with no
   // query either; Icarus + Bedrock have no RCON and no numeric mod list.
-  const isMc = server.game === Game.MINECRAFT;
   const isIcarus = server.game === Game.ICARUS;
   const isBedrock = server.game === Game.BEDROCK;
   const isValheim = server.game === Game.VALHEIM;
   const isSdtd = server.game === Game.SEVEN_DAYS;
   const isEnshrouded = server.game === Game.ENSHROUDED;
-  const isZomboid = server.game === Game.ZOMBOID;
   const isVRising = server.game === Game.VRISING;
   const isSotf = server.game === Game.SOTF;
   const isSatisfactory = server.game === Game.SATISFACTORY;
@@ -688,8 +687,6 @@ function Overview({ server, onChanged }: { server: ServerSummary; onChanged: () 
   const isDst = server.game === Game.DST;
   const isDragonwilds = server.game === Game.DRAGONWILDS;
   const isArk = server.game === Game.ASE || server.game === Game.ASA;
-  const noQuery = isMc || isBedrock || isSdtd || isZomboid || isSatisfactory || isCoreKeeper || isTerraria || isFactorio || isBeammp || isOpenttd || isCs2 || isDst || isDragonwilds; // Valheim/Enshrouded/V Rising have a real query port; Zomboid/Satisfactory/OpenTTD/CS2 answer queries on the game port; DST queries go through Klei's lobby
-  const noRcon = isIcarus || isBedrock || isValheim || isSdtd || isEnshrouded || isSotf || isSatisfactory || isLif || isAts || isCoreKeeper || isTerraria || isBeammp || isOpenttd || isDst || isDragonwilds; // 7DTD's console is telnet; OpenTTD's + DST's are in-game only
   const noMods = isIcarus || isBedrock || isValheim || isSdtd || isEnshrouded || isVRising || isSotf || isSatisfactory || isLif || isAts || isCoreKeeper || isTerraria || isFactorio || isRust || isBeammp || isOpenttd || isCs2 || isDst || isDragonwilds;
   const clusterId = isArk ? server.clusterId : null;
   const [clusterName, setClusterName] = useState<string | null>(null);
@@ -706,9 +703,7 @@ function Overview({ server, onChanged }: { server: ServerSummary; onChanged: () 
     row("Map", mapLabel(server.map)),
     ...(isCoreKeeper
       ? [row("Connection", "Steam relay (Game ID)")]
-      : [row("Game port", `${server.ports.game}/${isMc || isTerraria ? "tcp" : isCs2 ? "tcp+udp" : "udp"}`)]),
-    ...(noQuery ? [] : [row("Query port", `${server.ports.query}/udp`)]),
-    ...(noRcon ? [] : [row("RCON port", `${server.ports.rcon}/tcp`)]),
+      : portRows(server.game, server.ports).map((p) => row(p.label, p.value))),
     row("Max players", String(server.maxPlayers)),
     ...(noMods ? [] : [row("Mods", server.modIds.length ? server.modIds.join(", ") : "none")]),
     // Transfer clusters are an ARK concept (shared upload dir between ARK
