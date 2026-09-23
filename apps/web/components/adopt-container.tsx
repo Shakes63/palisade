@@ -4,6 +4,7 @@ import { Import, Loader2 } from "lucide-react";
 import { ADMIN_PASSWORD_META, GAME_LABELS, JOIN_PASSWORD_META, type Game } from "@ark/shared";
 import { apiGet, apiPost } from "@/lib/api";
 import { PasswordFieldHelp, passwordTooShort } from "@/components/password-field-help";
+import { keepCase } from "@/lib/keep-case";
 
 interface Candidate {
   containerId: string;
@@ -124,7 +125,7 @@ export function AdoptContainerPanel({ onDone }: { onDone: () => void }) {
           </div>
           {adminMeta.show && (
             <div>
-              <label htmlFor={`${uid}-admin`} className="label">{adminMeta.label}</label>
+              <label htmlFor={`${uid}-admin`} className="label">{keepCase(adminMeta.label)}</label>
               <input
                 id={`${uid}-admin`}
                 type="password"
@@ -137,7 +138,7 @@ export function AdoptContainerPanel({ onDone }: { onDone: () => void }) {
           )}
           {joinMeta.show && (
             <div>
-              <label htmlFor={`${uid}-join`} className="label">{joinMeta.label}</label>
+              <label htmlFor={`${uid}-join`} className="label">{keepCase(joinMeta.label)}</label>
               <input
                 id={`${uid}-join`}
                 type="password"

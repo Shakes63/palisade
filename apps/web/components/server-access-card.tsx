@@ -4,6 +4,7 @@ import { KeyRound, Save, Check, Eye, EyeOff } from "lucide-react";
 import { ServerState, ADMIN_PASSWORD_META, JOIN_PASSWORD_META, type ServerSummary } from "@ark/shared";
 import { apiPatch } from "@/lib/api";
 import { toast } from "@/components/dialogs";
+import { keepCase } from "@/lib/keep-case";
 
 /** Set / change / remove a server's join + admin passwords. Works for every game
  *  (the API stores them encrypted and delivers them to the container on start). */
@@ -57,7 +58,7 @@ export function ServerAccessCard({
 
       {joinMeta.show && (
         <div>
-          <label htmlFor={`${uid}-join`} className="label">{joinMeta.label}</label>
+          <label htmlFor={`${uid}-join`} className="label">{keepCase(joinMeta.label)}</label>
           <input
             id={`${uid}-join`}
             className="input font-mono"
@@ -80,7 +81,7 @@ export function ServerAccessCard({
 
       {adminMeta.show && (
         <div>
-          <label htmlFor={`${uid}-admin`} className="label">{adminMeta.label}</label>
+          <label htmlFor={`${uid}-admin`} className="label">{keepCase(adminMeta.label)}</label>
           <div className="relative">
             <input
               id={`${uid}-admin`}

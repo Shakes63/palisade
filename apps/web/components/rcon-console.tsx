@@ -255,10 +255,10 @@ export function RconConsole({
       </div>
 
       <div className="card">
-        <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold">
+        <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-ark-accent2">
           <Users className="h-4 w-4" /> Players
           {state === ServerState.Running && (
-            <span className="ml-auto text-xs font-normal text-slate-500">
+            <span className="ml-auto text-xs font-normal normal-case tracking-normal text-slate-500">
               live · every {PLAYER_POLL_MS / 1000}s
             </span>
           )}

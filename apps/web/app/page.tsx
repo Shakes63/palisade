@@ -33,6 +33,7 @@ import { useStartGuard } from "@/components/start-guard";
 import { useArtwork } from "@/lib/use-artwork";
 import { useMe } from "@/lib/use-me";
 import { toast } from "@/components/dialogs";
+import { keepCase } from "@/lib/keep-case";
 
 interface ClusterLite {
   id: string;
@@ -431,7 +432,7 @@ function CreateServerForm({ onDone }: { onDone: () => void }) {
         </div>
         {adminMeta.show && (
           <div>
-            <label htmlFor={`${uid}-admin`} className="label">{adminMeta.label}</label>
+            <label htmlFor={`${uid}-admin`} className="label">{keepCase(adminMeta.label)}</label>
             <input
               id={`${uid}-admin`}
               className="input"
@@ -443,7 +444,7 @@ function CreateServerForm({ onDone }: { onDone: () => void }) {
         )}
         {joinMeta.show && (
           <div>
-            <label htmlFor={`${uid}-join`} className="label">{joinMeta.label}</label>
+            <label htmlFor={`${uid}-join`} className="label">{keepCase(joinMeta.label)}</label>
             <input
               id={`${uid}-join`}
               className="input"

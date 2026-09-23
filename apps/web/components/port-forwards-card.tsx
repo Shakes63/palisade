@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Globe, Check, X, Loader2, ArrowUpRight, Power, Trash2, TriangleAlert } from "lucide-react";
 import type { PortSet } from "@ark/shared";
 import { apiGet, apiPost, apiPatch, apiDelete } from "@/lib/api";
+import { keepCase } from "@/lib/keep-case";
 
 type ForwardState = "ok" | "disabled" | "mismatched" | "missing";
 interface ForwardStatus {
@@ -97,7 +98,7 @@ export function PortForwardsCard({ serverId, ports }: { serverId: string; ports:
         <div className="flex items-center gap-2">
           <Globe className="h-4 w-4 text-ark-accent" />
           <h3 className="text-sm font-semibold uppercase tracking-wide text-ark-accent2">
-            Port forwarding ({routerLabel})
+            Port forwarding ({keepCase(routerLabel)})
           </h3>
         </div>
         {view.configured && fixable > 0 && (

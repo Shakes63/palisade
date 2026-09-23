@@ -8,6 +8,7 @@ import { NotificationTargetsCard } from "@/components/notification-targets";
 import { ReplicationCard } from "@/components/replication-card";
 import { UsersCard } from "@/components/users-card";
 import { toast } from "@/components/dialogs";
+import { keepCase } from "@/lib/keep-case";
 
 type SettingsView = Record<string, string | boolean>;
 
@@ -483,7 +484,7 @@ export default function SettingsPage() {
                 </p>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div>
-                    <label htmlFor={`${uid}-pfhost`} className="label">pfSense host / IP</label>
+                    <label htmlFor={`${uid}-pfhost`} className="label">{keepCase("pfSense host / IP")}</label>
                     <input
                       id={`${uid}-pfhost`}
                       className="input"
@@ -699,7 +700,7 @@ function SecretField({
   return (
     <div>
       <label htmlFor={`${uid}-secret`} className="label flex items-start gap-2">
-        <span>{label}</span>
+        <span>{keepCase(label)}</span>
         {configured ? (
           <span className="inline-flex shrink-0 items-center gap-1 text-green-400">
             <CheckCircle2 className="h-3.5 w-3.5" /> configured
