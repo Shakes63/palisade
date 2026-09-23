@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { CloudUpload, RefreshCw, Save, Send } from "lucide-react";
 import { apiGet, apiPost, apiPut } from "@/lib/api";
 import { toast } from "@/components/dialogs";
@@ -20,6 +20,7 @@ interface ReplicationView {
 
 /** Settings card: mirror every backup to an SFTP server or another mounted path. */
 export function ReplicationCard() {
+  const uid = useId();
   const [enabled, setEnabled] = useState(false);
   const [kind, setKind] = useState<"sftp" | "local">("sftp");
   const [dir, setDir] = useState("");
@@ -149,31 +150,31 @@ export function ReplicationCard() {
       {kind === "sftp" && (
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
-            <label className="label">Host</label>
-            <input className="input" placeholder="e.g. nas.local or 192.168.1.20" value={host} onChange={(e) => { setHost(e.target.value); edited(); }} />
+            <label htmlFor={`${uid}-host`} className="label">Host</label>
+            <input id={`${uid}-host`} className="input" placeholder="e.g. nas.local or 192.168.1.20" value={host} onChange={(e) => { setHost(e.target.value); edited(); }} />
           </div>
           <div>
-            <label className="label">Port</label>
-            <input className="input w-28" value={port} onChange={(e) => { setPort(e.target.value); edited(); }} />
+            <label htmlFor={`${uid}-port`} className="label">Port</label>
+            <input id={`${uid}-port`} className="input w-28" value={port} onChange={(e) => { setPort(e.target.value); edited(); }} />
           </div>
           <div>
-            <label className="label">Username</label>
-            <input className="input" value={username} onChange={(e) => { setUsername(e.target.value); edited(); }} />
+            <label htmlFor={`${uid}-user`} className="label">Username</label>
+            <input id={`${uid}-user`} className="input" value={username} onChange={(e) => { setUsername(e.target.value); edited(); }} />
           </div>
           <div>
-            <label className="label">Password {hasPassword && <span className="text-green-400">(set)</span>}</label>
-            <input type="password" className="input" placeholder={hasPassword ? "•••••••• (leave blank to keep)" : "Password"} value={password} onChange={(e) => { setPassword(e.target.value); edited(); }} />
+            <label htmlFor={`${uid}-pass`} className="label">Password {hasPassword && <span className="text-green-400">(set)</span>}</label>
+            <input id={`${uid}-pass`} type="password" className="input" placeholder={hasPassword ? "•••••••• (leave blank to keep)" : "Password"} value={password} onChange={(e) => { setPassword(e.target.value); edited(); }} />
           </div>
           <div className="sm:col-span-2">
-            <label className="label">Private key (optional, instead of password) {hasPrivateKey && <span className="text-green-400">(set)</span>}</label>
-            <textarea className="input h-20 font-mono text-xs" placeholder={hasPrivateKey ? "(leave blank to keep the stored key)" : "-----BEGIN OPENSSH PRIVATE KEY-----"} value={privateKey} onChange={(e) => { setPrivateKey(e.target.value); edited(); }} />
+            <label htmlFor={`${uid}-key`} className="label">Private key (optional, instead of password) {hasPrivateKey && <span className="text-green-400">(set)</span>}</label>
+            <textarea id={`${uid}-key`} className="input h-20 font-mono text-xs" placeholder={hasPrivateKey ? "(leave blank to keep the stored key)" : "-----BEGIN OPENSSH PRIVATE KEY-----"} value={privateKey} onChange={(e) => { setPrivateKey(e.target.value); edited(); }} />
           </div>
         </div>
       )}
 
       <div>
-        <label className="label">{kind === "sftp" ? "Remote directory" : "Destination path (inside the container)"}</label>
-        <input className="input" placeholder={kind === "sftp" ? "e.g. /backups/palisade" : "e.g. /replica"} value={dir} onChange={(e) => { setDir(e.target.value); edited(); }} />
+        <label htmlFor={`${uid}-dir`} className="label">{kind === "sftp" ? "Remote directory" : "Destination path (inside the container)"}</label>
+        <input id={`${uid}-dir`} className="input" placeholder={kind === "sftp" ? "e.g. /backups/palisade" : "e.g. /replica"} value={dir} onChange={(e) => { setDir(e.target.value); edited(); }} />
         {kind === "local" && (
           <p className="mt-1 text-xs text-slate-500">Add a container path mapping for it in your Docker template.</p>
         )}

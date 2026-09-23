@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Upload, Trash2, Package, ShieldCheck, Loader2, Save, Download, Store, ExternalLink, Settings2, X } from "lucide-react";
 import { apiGet, apiPatch, apiPost, apiPut, apiDelete, apiUpload } from "@/lib/api";
 import { useRole } from "@/lib/use-role";
@@ -45,6 +45,7 @@ const UE4SS_WINDOWS_RELEASE = "https://github.com/UE4SS-RE/RE-UE4SS/releases/tag
  *    dwmapi.dll proxy (no toggle, no LD_PRELOAD). DLL mods (PalGuard, PalDefender) work.
  */
 export function PalworldModsTab({ serverId }: { serverId: string }) {
+  const uid = useId();
   // Config editing goes through the file-manager endpoints, which are operator-only —
   // the Files tab is hidden from viewers for the same reason, so the gear is too.
   const canEditFiles = useRole() !== "viewer";
@@ -264,7 +265,7 @@ export function PalworldModsTab({ serverId }: { serverId: string }) {
               <li key={p} className="flex items-center justify-between gap-3 py-1.5">
                 <span className="truncate font-mono text-slate-200">{p}</span>
                 <button
-                  className="shrink-0 text-slate-500 hover:text-rose-400"
+                  className="btn-remove"
                   title="Remove"
                   aria-label={`Remove ${p}`}
                   disabled={busy}
@@ -280,7 +281,7 @@ export function PalworldModsTab({ serverId }: { serverId: string }) {
             ))}
           </ul>
         ) : (
-          <p className="text-xs text-slate-500">
+          <p className="text-sm text-slate-400">
             No pak mods yet. Upload <span className="font-mono">.pak</span> /{" "}
             <span className="font-mono">.ucas</span> / <span className="font-mono">.utoc</span> files (or a{" "}
             <span className="font-mono">.zip</span> of them) — they go into{" "}
@@ -384,9 +385,10 @@ export function PalworldModsTab({ serverId }: { serverId: string }) {
 
         {!wine && (
           <div>
-            <label className="label">Preload library (relative to the install dir)</label>
+            <label htmlFor={`${uid}-preload`} className="label">Preload library (relative to the install dir)</label>
             <div className="flex gap-2">
               <input
+                id={`${uid}-preload`}
                 className="input font-mono"
                 value={preload}
                 onChange={(e) => setPreload(e.target.value)}
@@ -534,6 +536,7 @@ export function PalworldModsTab({ serverId }: { serverId: string }) {
                           : "text-slate-500 hover:text-ark-accent2"
                       }
                       title="Edit this mod's JSON config"
+                      aria-label={`Edit ${m} config`}
                       disabled={busy || cfgBusy}
                       onClick={() => void (cfgMod === m ? closeCfg() : openCfg(m))}
                     >
@@ -541,7 +544,7 @@ export function PalworldModsTab({ serverId }: { serverId: string }) {
                     </button>
                     )}
                     <button
-                      className="text-slate-500 hover:text-rose-400"
+                      className="btn-remove"
                       title="Remove"
                       aria-label={`Remove ${m}`}
                       disabled={busy}
@@ -597,7 +600,7 @@ export function PalworldModsTab({ serverId }: { serverId: string }) {
                 >
                   {cfgBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />} Save
                 </button>
-                <button className="btn-secondary px-2" onClick={closeCfg}>
+                <button className="btn-secondary px-2" onClick={closeCfg} title="Close" aria-label="Close">
                   <X className="h-4 w-4" />
                 </button>
               </span>
@@ -606,7 +609,7 @@ export function PalworldModsTab({ serverId }: { serverId: string }) {
             {/* One file is the common case; a mod with translations has a dozen. */}
             {cfgFiles.length > 1 && (
               <select
-                className="mb-2 w-full rounded-md border border-ark-border bg-ark-bg px-2 py-1 font-mono text-[11px] outline-none focus:border-ark-accent2"
+                className="mb-2 w-full rounded-md border border-ark-border bg-ark-bg px-2 py-1 font-mono text-[11px] outline-none focus:border-ark-accent2 focus:ring-2 focus:ring-ark-accent2/50"
                 value={cfgPath ?? ""}
                 disabled={cfgBusy}
                 onChange={async (e) => {
@@ -631,7 +634,7 @@ export function PalworldModsTab({ serverId }: { serverId: string }) {
 
             {cfgPath ? (
               <textarea
-                className="h-[60vh] w-full resize-y rounded-lg border border-ark-border bg-ark-bg p-3 font-mono text-xs leading-relaxed outline-none focus:border-ark-accent2"
+                className="h-[60vh] w-full resize-y rounded-lg border border-ark-border bg-ark-bg p-3 font-mono text-xs leading-relaxed outline-none focus:border-ark-accent2 focus:ring-2 focus:ring-ark-accent2/50"
                 value={cfgText}
                 onChange={(e) => setCfgText(e.target.value)}
                 spellCheck={false}

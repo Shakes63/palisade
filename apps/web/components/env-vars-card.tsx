@@ -1,9 +1,10 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Terminal, Plus, Trash2, Save, Check, ChevronDown, Loader2, AlertTriangle } from "lucide-react";
+import { Terminal, Plus, Trash2, Save, Check, ChevronDown, AlertTriangle } from "lucide-react";
 import { Game, type ServerSummary, type EnvVar } from "@ark/shared";
 import { apiGet, apiPut } from "@/lib/api";
 import { useRole } from "@/lib/use-role";
+import { Loading } from "@/components/loading";
 
 const KEY_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
@@ -156,9 +157,7 @@ export function EnvVarsCard({ server, onSaved }: { server: ServerSummary; onSave
           )}
 
           {isAdmin && loading && (
-            <p className="flex items-center gap-1.5 text-[11px] text-slate-500">
-              <Loader2 className="h-3 w-3 animate-spin" /> Loading values…
-            </p>
+            <Loading label="Loading values…" />
           )}
 
           {overridden.length > 0 && (
@@ -203,9 +202,10 @@ export function EnvVarsCard({ server, onSaved }: { server: ServerSummary; onSave
                       />
                     </div>
                     <button
-                      className="mt-1 text-slate-500 hover:text-rose-400 transition-colors"
+                      className="btn-remove mt-1"
                       onClick={() => removeRow(i)}
                       title="Remove"
+                      aria-label={`Remove ${row.key || "variable"}`}
                       type="button"
                     >
                       <Trash2 className="h-4 w-4" />

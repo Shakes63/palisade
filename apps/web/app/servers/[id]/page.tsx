@@ -1,5 +1,5 @@
 "use client";
-import { use, useCallback, useEffect, useRef, useState } from "react";
+import { use, useCallback, useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Play, Square, RotateCw, Download, Loader2, Pencil, Check, X, Trash2, AlertTriangle, ArrowUpCircle, Image as ImageIcon } from "lucide-react";
@@ -54,6 +54,7 @@ import { BackupsTab } from "@/components/backups-tab";
 import { PlayersTab } from "@/components/players-tab";
 import { EnvVarsCard } from "@/components/env-vars-card";
 import { confirmDialog, toast } from "@/components/dialogs";
+import { Loading } from "@/components/loading";
 
 const TABS = ["Overview", "Settings", "Mods", "Players", "Console", "Logs", "Files", "Schedules", "Backups", "Guide"] as const;
 type Tab = (typeof TABS)[number];
@@ -78,6 +79,7 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
   const [nameDraft, setNameDraft] = useState("");
   const [savingName, setSavingName] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const deleteButton = useRef<HTMLButtonElement>(null);
   const [deleting, setDeleting] = useState(false);
   const [updating, setUpdating] = useState(false);
   // What the last "Update game" actually did — the update happens during the next
@@ -227,7 +229,7 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
       </div>
     );
   }
-  if (!server) return <div className="text-slate-400">Loading…</div>;
+  if (!server) return <Loading />;
 
   // Onscreen art = per-server override winning over the game-wide default.
   const def = artwork[server.game];
@@ -345,10 +347,10 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
                 }}
                 disabled={savingName}
               />
-              <button className="btn-primary" onClick={() => void saveName()} disabled={savingName} title="Save name">
+              <button className="btn-primary" onClick={() => void saveName()} disabled={savingName} title="Save name" aria-label="Save name">
                 {savingName ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
               </button>
-              <button className="btn-secondary" onClick={() => setRenaming(false)} disabled={savingName} title="Cancel">
+              <button className="btn-secondary" onClick={() => setRenaming(false)} disabled={savingName} title="Cancel" aria-label="Cancel rename">
                 <X className="h-4 w-4" />
               </button>
             </div>
@@ -359,6 +361,7 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
                 onClick={startRename}
                 className="text-slate-400 hover:text-slate-200"
                 title="Rename server"
+                aria-label="Rename server"
               >
                 <Pencil className="h-4 w-4" />
               </button>
@@ -367,6 +370,7 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
                   onClick={() => setPickingArt(true)}
                   className="text-slate-400 hover:text-slate-200"
                   title="Choose artwork"
+                  aria-label="Choose artwork"
                 >
                   <ImageIcon className="h-4 w-4" />
                 </button>
@@ -434,6 +438,7 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
             {showStopping ? "Stopping…" : "Stop"}
           </button>
           <button
+            ref={deleteButton}
             className="btn-danger"
             disabled={!!pending || deleting}
             onClick={() => setConfirmingDelete(true)}
@@ -448,7 +453,7 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
         <div className="flex items-start gap-2 rounded-md border border-sky-900/40 bg-sky-950/20 px-3 py-2 text-sm text-sky-200/90">
           <ArrowUpCircle className="mt-0.5 h-4 w-4 shrink-0" />
           <span className="flex-1">{updateNote}</span>
-          <button onClick={() => setUpdateNote(null)} className="text-slate-400 hover:text-slate-200" title="Dismiss">
+          <button onClick={() => setUpdateNote(null)} className="text-slate-400 hover:text-slate-200" title="Dismiss" aria-label="Dismiss">
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -458,7 +463,10 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
         <DeleteConfirm
           server={server}
           deleting={deleting}
-          onCancel={() => setConfirmingDelete(false)}
+          onCancel={() => {
+            setConfirmingDelete(false);
+            deleteButton.current?.focus();
+          }}
           onConfirm={doDelete}
         />
       )}
@@ -484,7 +492,7 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
         (config ? (
           <SettingsForm key={configKey} serverId={id} game={server.game} map={server.map} initial={config} onSaved={refetchConfig} />
         ) : (
-          <div className="text-slate-400">Loading settings…</div>
+          <Loading label="Loading settings…" />
         ))}
       {activeTab === "Mods" &&
         (server.game === Game.PALWORLD || server.game === Game.PALWORLD_WINE ? (
@@ -534,6 +542,7 @@ function DeleteConfirm({
   onCancel: () => void;
   onConfirm: (wipeFiles: boolean) => void;
 }) {
+  const uid = useId();
   const [typed, setTyped] = useState("");
   const [wipeFiles, setWipeFiles] = useState(true);
   const [downloading, setDownloading] = useState(false);
@@ -560,12 +569,15 @@ function DeleteConfirm({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onCancel}>
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={`${uid}-title`}
         className="w-full max-w-md rounded-lg border border-rose-900/60 bg-ark-panel p-5 shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-3 flex items-center gap-2 text-rose-300">
           <AlertTriangle className="h-5 w-5 shrink-0" />
-          <h2 className="text-lg font-semibold">Delete “{server.name}”?</h2>
+          <h2 id={`${uid}-title`} className="text-lg font-semibold">Delete “{server.name}”?</h2>
         </div>
         <p className="text-sm leading-snug text-slate-300">
           This permanently removes the server{isLive ? " (it will be force-stopped first)" : ""}. Router port
@@ -617,11 +629,12 @@ function DeleteConfirm({
         </div>
         {dlError && <p className="mt-1.5 text-xs text-rose-400">{dlError}</p>}
 
-        <label className="label mt-4">
+        <label htmlFor={`${uid}-confirm`} className="label mt-4">
           {/* normal-case: .label is uppercase, which would render the name wrong */}
           Type <span className="font-mono normal-case text-slate-200">{server.name}</span> to confirm
         </label>
         <input
+          id={`${uid}-confirm`}
           autoFocus
           className="input"
           value={typed}
@@ -637,7 +650,7 @@ function DeleteConfirm({
             Cancel
           </button>
           <button
-            className="inline-flex items-center gap-1.5 rounded-md bg-rose-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-rose-500 disabled:opacity-40"
+            className="btn-danger"
             disabled={!armed || deleting}
             onClick={() => onConfirm(wipeFiles)}
           >

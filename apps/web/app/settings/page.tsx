@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Save, Settings, Send, CheckCircle2, Circle } from "lucide-react";
 import { apiGet, apiPatch, apiPost } from "@/lib/api";
 import { DEFAULT_LOG_LEVEL, GAME_LABELS, Game, LOG_LEVELS, type LogLevel } from "@ark/shared";
@@ -8,12 +8,16 @@ import { NotificationTargetsCard } from "@/components/notification-targets";
 import { ReplicationCard } from "@/components/replication-card";
 import { UsersCard } from "@/components/users-card";
 import { toast } from "@/components/dialogs";
+import { keepCase } from "@/lib/keep-case";
 
 type SettingsView = Record<string, string | boolean>;
 
 const TABS = ["General", "Integrations", "Backups", "Users", "Notifications", "About"] as const;
+const IPV4 = /^((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)$/;
+const badTargetIp = (v: string) => v.trim() !== "" && !IPV4.test(v.trim());
 type Tab = (typeof TABS)[number];
 export default function SettingsPage() {
+  const uid = useId();
   const [tab, setTab] = useState<Tab>("General");
   const [view, setView] = useState<SettingsView>({});
   const [timezone, setTimezone] = useState("");
@@ -135,6 +139,7 @@ export default function SettingsPage() {
 
   /** Saves the router choice plus the fields of the router that's showing; the
    *  other router's saved settings stay put so switching back costs nothing. */
+  const targetIpBad = badTargetIp(portForwardRouter === "unifi" ? unifiTargetIp : pfsenseTargetIp);
   const savePortForwarding = () => {
     const body: Record<string, string> = { portForwardRouter };
     if (portForwardRouter === "unifi") {
@@ -238,14 +243,16 @@ export default function SettingsPage() {
         <Settings className="h-5 w-5 text-ark-accent" /> Settings
       </h1>
 
-      <div ref={tabsRef} className="flex gap-1 overflow-x-auto border-b border-ark-border">
+      <div ref={tabsRef} role="tablist" className="flex gap-1 overflow-x-auto border-b border-ark-border">
         {TABS.map((t) => (
           <button
             key={t}
+            role="tab"
+            aria-selected={tab === t}
             data-active={tab === t || undefined}
             onClick={() => changeTab(t)}
             className={`shrink-0 whitespace-nowrap px-4 py-2 text-sm ${
-              tab === t ? "border-b-2 border-ark-accent text-slate-100" : "text-slate-400"
+              tab === t ? "border-b-2 border-ark-accent text-slate-100" : "text-slate-400 hover:text-slate-200"
             }`}
           >
             {t}
@@ -258,15 +265,15 @@ export default function SettingsPage() {
           <div className="card space-y-4">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-ark-accent2">General</h2>
             <div>
-              <label className="label">Timezone (scheduler)</label>
-              <TimezoneSelect value={timezone} onChange={setTimezone} />
+              <label htmlFor={`${uid}-tz`} className="label">Timezone (scheduler)</label>
+              <TimezoneSelect id={`${uid}-tz`} value={timezone} onChange={setTimezone} />
               <p className="mt-1 text-xs text-slate-500">
                 Used for schedule times. Defaults to this device&apos;s timezone.
               </p>
             </div>
             <div>
-              <label className="label">Log level</label>
-              <select className="input" value={logLevel} onChange={(e) => setLogLevel(e.target.value as LogLevel)}>
+              <label htmlFor={`${uid}-log`} className="label">Log level</label>
+              <select id={`${uid}-log`} className="input" value={logLevel} onChange={(e) => setLogLevel(e.target.value as LogLevel)}>
                 <option value="error">Errors only</option>
                 <option value="warn">Warnings and errors</option>
                 <option value="log">Info</option>
@@ -308,8 +315,9 @@ export default function SettingsPage() {
               from your Docker template. Changes apply to each game server the next time it starts.
             </p>
             <div>
-              <label className="label">Game server networking</label>
+              <label htmlFor={`${uid}-hostnet`} className="label">Game server networking</label>
               <select
+                id={`${uid}-hostnet`}
                 className="input"
                 value={gameHostNetwork}
                 onChange={(e) => setGameHostNetwork(e.target.value)}
@@ -325,8 +333,9 @@ export default function SettingsPage() {
               </p>
             </div>
             <div>
-              <label className="label">Manage the Docker network automatically</label>
+              <label htmlFor={`${uid}-autonet`} className="label">Manage the Docker network automatically</label>
               <select
+                id={`${uid}-autonet`}
                 className="input"
                 value={autoCreateNetwork}
                 onChange={(e) => setAutoCreateNetwork(e.target.value)}
@@ -337,8 +346,9 @@ export default function SettingsPage() {
               </select>
             </div>
             <div>
-              <label className="label">Public base URL</label>
+              <label htmlFor={`${uid}-baseurl`} className="label">Public base URL</label>
               <input
+                id={`${uid}-baseurl`}
                 className="input"
                 value={publicBaseUrl}
                 placeholder="e.g. http://10.0.0.5:8970"
@@ -350,8 +360,9 @@ export default function SettingsPage() {
               </p>
             </div>
             <div>
-              <label className="label">Address players connect to</label>
+              <label htmlFor={`${uid}-connect`} className="label">Address players connect to</label>
               <input
+                id={`${uid}-connect`}
                 className="input"
                 value={connectHost}
                 placeholder="e.g. 10.0.0.5"
@@ -366,8 +377,9 @@ export default function SettingsPage() {
               </p>
             </div>
             <div>
-              <label className="label">App data path on the host</label>
+              <label htmlFor={`${uid}-datadir`} className="label">App data path on the host</label>
               <input
+                id={`${uid}-datadir`}
                 className="input"
                 value={hostDataDir}
                 placeholder="Blank — auto-detected from this container's /data mount"
@@ -445,8 +457,9 @@ export default function SettingsPage() {
               is tied to a specific network.
             </p>
             <div>
-              <label className="label">Router</label>
+              <label htmlFor={`${uid}-router`} className="label">Router</label>
               <select
+                id={`${uid}-router`}
                 className="input"
                 value={portForwardRouter}
                 onChange={(e) => {
@@ -474,8 +487,9 @@ export default function SettingsPage() {
                 </p>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div>
-                    <label className="label">pfSense host / IP</label>
+                    <label htmlFor={`${uid}-pfhost`} className="label">{keepCase("pfSense host / IP")}</label>
                     <input
+                      id={`${uid}-pfhost`}
                       className="input"
                       placeholder="e.g. 192.168.1.1 (your router)"
                       value={pfsenseHost}
@@ -483,13 +497,18 @@ export default function SettingsPage() {
                     />
                   </div>
                   <div>
-                    <label className="label">Forward to (LAN IP)</label>
+                    <label htmlFor={`${uid}-pftarget`} className="label">Forward to (LAN IP)</label>
                     <input
-                      className="input"
+                      id={`${uid}-pftarget`}
+                      className={`input ${badTargetIp(pfsenseTargetIp) ? "border-rose-500/60" : ""}`}
                       placeholder="e.g. 192.168.1.50 (this server box)"
                       value={pfsenseTargetIp}
                       onChange={(e) => setPfsenseTargetIp(e.target.value)}
+                      aria-invalid={badTargetIp(pfsenseTargetIp)}
                     />
+                    {badTargetIp(pfsenseTargetIp) && (
+                      <p className="mt-1 text-xs text-rose-400">Enter an IPv4 address, e.g. 192.168.1.50.</p>
+                    )}
                   </div>
                 </div>
                 <SecretField
@@ -510,8 +529,9 @@ export default function SettingsPage() {
                 </p>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div>
-                    <label className="label">Console host / IP</label>
+                    <label htmlFor={`${uid}-unhost`} className="label">Console host / IP</label>
                     <input
+                      id={`${uid}-unhost`}
                       className="input"
                       placeholder="e.g. 192.168.1.1 (your gateway)"
                       value={unifiHost}
@@ -519,17 +539,23 @@ export default function SettingsPage() {
                     />
                   </div>
                   <div>
-                    <label className="label">Forward to (LAN IP)</label>
+                    <label htmlFor={`${uid}-untarget`} className="label">Forward to (LAN IP)</label>
                     <input
-                      className="input"
+                      id={`${uid}-untarget`}
+                      className={`input ${badTargetIp(unifiTargetIp) ? "border-rose-500/60" : ""}`}
                       placeholder="e.g. 192.168.1.50 (this server box)"
                       value={unifiTargetIp}
                       onChange={(e) => setUnifiTargetIp(e.target.value)}
+                      aria-invalid={badTargetIp(unifiTargetIp)}
                     />
+                    {badTargetIp(unifiTargetIp) && (
+                      <p className="mt-1 text-xs text-rose-400">Enter an IPv4 address, e.g. 192.168.1.50.</p>
+                    )}
                   </div>
                   <div>
-                    <label className="label">Site</label>
+                    <label htmlFor={`${uid}-site`} className="label">Site</label>
                     <input
+                      id={`${uid}-site`}
                       className="input"
                       placeholder="default"
                       value={unifiSite}
@@ -566,7 +592,7 @@ export default function SettingsPage() {
               )}
               {pfTestMsg && <p className="mt-2 text-sm text-slate-400">{pfTestMsg}</p>}
             </div>
-            <CardSave card="portforwarding" onClick={savePortForwarding} />
+            <CardSave card="portforwarding" onClick={savePortForwarding} disabled={targetIpBad} />
           </div>
         </>
       )}
@@ -576,8 +602,9 @@ export default function SettingsPage() {
           <div className="card space-y-4">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-ark-accent2">Backups</h2>
             <div>
-              <label className="label">Keep last N Palisade database backups</label>
+              <label htmlFor={`${uid}-dbkeep`} className="label">Keep last N Palisade database backups</label>
               <input
+                id={`${uid}-dbkeep`}
                 type="number"
                 min={1}
                 max={500}
@@ -680,10 +707,11 @@ function SecretField({
   onChange: (v: string) => void;
   configured: boolean;
 }) {
+  const uid = useId();
   return (
     <div>
-      <label className="label flex items-start gap-2">
-        <span>{label}</span>
+      <label htmlFor={`${uid}-secret`} className="label flex items-start gap-2">
+        <span>{keepCase(label)}</span>
         {configured ? (
           <span className="inline-flex shrink-0 items-center gap-1 text-green-400">
             <CheckCircle2 className="h-3.5 w-3.5" /> configured
@@ -695,6 +723,7 @@ function SecretField({
         )}
       </label>
       <input
+        id={`${uid}-secret`}
         type="password"
         className="input"
         placeholder={configured ? "•••••••• (leave blank to keep)" : "Paste key…"}

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Globe, Check, X, Loader2, ArrowUpRight, Power, Trash2, TriangleAlert } from "lucide-react";
 import type { PortSet } from "@ark/shared";
 import { apiGet, apiPost, apiPatch, apiDelete } from "@/lib/api";
+import { keepCase } from "@/lib/keep-case";
 
 type ForwardState = "ok" | "disabled" | "mismatched" | "missing";
 interface ForwardStatus {
@@ -97,7 +98,7 @@ export function PortForwardsCard({ serverId, ports }: { serverId: string; ports:
         <div className="flex items-center gap-2">
           <Globe className="h-4 w-4 text-ark-accent" />
           <h3 className="text-sm font-semibold uppercase tracking-wide text-ark-accent2">
-            Port forwarding ({routerLabel})
+            Port forwarding ({keepCase(routerLabel)})
           </h3>
         </div>
         {view.configured && fixable > 0 && (
@@ -135,6 +136,7 @@ export function PortForwardsCard({ serverId, ports }: { serverId: string; ports:
                         <button
                           className="text-slate-500 hover:text-slate-200"
                           title={f.state === "disabled" ? "Enable this forward" : "Disable this forward (rule kept)"}
+                          aria-label={`${f.state === "disabled" ? "Enable" : "Disable"} forward ${f.port}/${f.proto}`}
                           disabled={busy !== null}
                           onClick={() =>
                             run(key, () =>
@@ -149,8 +151,9 @@ export function PortForwardsCard({ serverId, ports }: { serverId: string; ports:
                           <Power className="h-4 w-4" />
                         </button>
                         <button
-                          className="text-slate-500 hover:text-rose-400"
+                          className="btn-remove"
                           title={`Delete this forward from ${routerLabel}`}
+                          aria-label={`Delete forward ${f.port}/${f.proto}`}
                           disabled={busy !== null}
                           onClick={() =>
                             run(key, () =>

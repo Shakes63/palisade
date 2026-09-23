@@ -95,7 +95,7 @@ export default function ClustersPage() {
         </form>
       )}
 
-      {clusters.length === 0 && <div className="card text-slate-400">No clusters yet.</div>}
+      {clusters.length === 0 && <div className="card text-sm text-slate-400">No clusters yet.</div>}
 
       {clusters.map((c) => (
         <div key={c.id} className="card space-y-4">
@@ -116,7 +116,7 @@ export default function ClustersPage() {
               </button>
               {canEdit && (
                 <button
-                  className="btn-danger"
+                  className="btn-remove"
                   title="Delete cluster"
                   aria-label={`Delete cluster ${c.name}`}
                   onClick={() => removeCluster(c)}
@@ -129,7 +129,7 @@ export default function ClustersPage() {
 
           <div className="space-y-2">
             {c.servers.length === 0 ? (
-              <p className="text-sm text-slate-500">No members yet.</p>
+              <p className="text-sm text-slate-400">No members yet.</p>
             ) : (
               c.servers.map((m) => (
                 <div
@@ -145,7 +145,7 @@ export default function ClustersPage() {
                   </div>
                   {canEdit && (
                     <button
-                      className="btn-secondary shrink-0 px-2"
+                      className="btn-remove"
                       title="Remove from cluster (restarts the server if it's running)"
                       aria-label={`Remove ${m.name} from the cluster`}
                       onClick={() => void mutate(apiDelete(`/clusters/${c.id}/members/${m.id}`))}

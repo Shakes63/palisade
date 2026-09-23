@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { SlidersHorizontal, Save, Check } from "lucide-react";
 import {
   Game,
@@ -86,6 +86,7 @@ const GENERATED_WORLD = new Set<Game>([
  * surfacing that).
  */
 export function GeneralCard({ server, onSaved }: { server: ServerSummary; onSaved: () => void }) {
+  const uid = useId();
   const [map, setMap] = useState(server.map);
   const [maxPlayers, setMaxPlayers] = useState(String(server.maxPlayers));
   const [ramLimit, setRamLimit] = useState(server.ramLimitMb ? String(server.ramLimitMb) : "");
@@ -156,8 +157,8 @@ export function GeneralCard({ server, onSaved }: { server: ServerSummary; onSave
       <div className="grid gap-3 sm:grid-cols-2">
         {showMap && (
           <div>
-            <label className="label">Map</label>
-            <select className="input" value={map} onChange={(e) => setMap(e.target.value)}>
+            <label htmlFor={`${uid}-map`} className="label">Map</label>
+            <select id={`${uid}-map`} className="input" value={map} onChange={(e) => setMap(e.target.value)}>
               {/* keep an unknown/mod map selectable rather than silently swapping it */}
               {!maps.includes(map) && <option value={map}>{mapLabel(map)} (current)</option>}
               {maps.map((m) => (
@@ -170,8 +171,9 @@ export function GeneralCard({ server, onSaved }: { server: ServerSummary; onSave
           </div>
         )}
         <div>
-          <label className="label">Max players</label>
+          <label htmlFor={`${uid}-max`} className="label">Max players</label>
           <input
+            id={`${uid}-max`}
             type="number"
             min={1}
             max={cap}
@@ -190,8 +192,9 @@ export function GeneralCard({ server, onSaved }: { server: ServerSummary; onSave
           )}
         </div>
         <div>
-          <label className="label">RAM limit (MB)</label>
+          <label htmlFor={`${uid}-ram`} className="label">RAM limit (MB)</label>
           <input
+            id={`${uid}-ram`}
             type="number"
             min={0}
             step={512}
@@ -203,8 +206,9 @@ export function GeneralCard({ server, onSaved }: { server: ServerSummary; onSave
           <p className="mt-1 text-xs text-slate-500">Blank or 0 = no cap. Also feeds the start RAM guard.</p>
         </div>
         <div>
-          <label className="label">CPU limit (cores)</label>
+          <label htmlFor={`${uid}-cpu`} className="label">CPU limit (cores)</label>
           <input
+            id={`${uid}-cpu`}
             type="number"
             min={0}
             step={0.5}
@@ -218,8 +222,8 @@ export function GeneralCard({ server, onSaved }: { server: ServerSummary; onSave
       </div>
       {!relayOnly && (
         <div>
-          <label className="label">Networking</label>
-          <select className="input" value={hostNet} onChange={(e) => setHostNet(e.target.value)}>
+          <label htmlFor={`${uid}-net`} className="label">Networking</label>
+          <select id={`${uid}-net`} className="input" value={hostNet} onChange={(e) => setHostNet(e.target.value)}>
             <option value="">Use the manager default</option>
             <option value="true">Host network</option>
             <option value="false">Shared bridge</option>

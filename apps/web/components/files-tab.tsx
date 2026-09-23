@@ -218,6 +218,7 @@ export function FilesTab({ serverId }: { serverId: string }) {
                       <button
                         className="text-slate-500 hover:text-ark-accent"
                         title="Download"
+                        aria-label={`Download ${e.name}`}
                         onClick={() =>
                           void apiDownload(
                             `/servers/${serverId}/files/download?path=${encodeURIComponent(joinPath(dir, e.name))}`,
@@ -231,6 +232,7 @@ export function FilesTab({ serverId }: { serverId: string }) {
                     <button
                       className="text-slate-500 hover:text-ark-accent"
                       title="Rename"
+                      aria-label={`Rename ${e.name}`}
                       onClick={() => {
                         const to = prompt(`Rename "${e.name}" to:`, e.name);
                         if (to && to !== e.name)
@@ -245,8 +247,9 @@ export function FilesTab({ serverId }: { serverId: string }) {
                       <Pencil className="h-4 w-4" />
                     </button>
                     <button
-                      className="text-slate-500 hover:text-rose-400"
+                      className="btn-remove"
                       title="Delete"
+                      aria-label={`Delete ${e.name}`}
                       onClick={async () => {
                         if (
                           await confirmDialog({
@@ -297,7 +300,7 @@ export function FilesTab({ serverId }: { serverId: string }) {
             </span>
           </div>
           <textarea
-            className="h-96 w-full resize-y rounded-lg border border-ark-border bg-ark-bg p-3 font-mono text-xs leading-relaxed outline-none focus:border-ark-accent2"
+            className="h-96 w-full resize-y rounded-lg border border-ark-border bg-ark-bg p-3 font-mono text-xs leading-relaxed outline-none focus:border-ark-accent2 focus:ring-2 focus:ring-ark-accent2/50"
             value={content}
             onChange={(e) => setContent(e.target.value)}
             spellCheck={false}

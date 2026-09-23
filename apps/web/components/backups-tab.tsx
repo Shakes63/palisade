@@ -96,7 +96,13 @@ export function BackupsTab({
       }))
     )
       return;
-    await apiPost(`/servers/${serverId}/backups/${id}/restore`).catch(toast.error);
+    try {
+      await apiPost(`/servers/${serverId}/backups/${id}/restore`);
+      toast.success("Backup restored. Your previous saves were kept as a pre-restore backup.");
+    } catch (e) {
+      toast.error(e);
+    }
+    refresh();
   };
 
   const remove = async (b: Snapshot) => {
@@ -250,7 +256,7 @@ export function BackupsTab({
                 <button className="btn-secondary" onClick={() => restore(b.id)}>
                   <RotateCcw className="h-4 w-4" /> Restore
                 </button>
-                <button className="btn-danger px-2" title="Delete this backup" aria-label="Delete backup" onClick={() => remove(b)}>
+                <button className="btn-remove" title="Delete this backup" aria-label="Delete backup" onClick={() => remove(b)}>
                   <Trash2 className="h-4 w-4" />
                 </button>
               </div>

@@ -85,7 +85,7 @@ export function BedrockModsTab({ serverId }: { serverId: string }) {
                   <span className="truncate text-slate-200">{p.name}</span>
                 </div>
                 <button
-                  className="shrink-0 text-slate-500 hover:text-rose-400"
+                  className="btn-remove"
                   title="Remove"
                   aria-label={`Remove ${p.name}`}
                   disabled={busy}
@@ -101,7 +101,7 @@ export function BedrockModsTab({ serverId }: { serverId: string }) {
             ))}
           </ul>
         ) : (
-          <p className="text-xs text-slate-500">
+          <p className="text-sm text-slate-400">
             No add-ons yet. Upload a <span className="font-mono">.mcpack</span> (one pack) or{" "}
             <span className="font-mono">.mcaddon</span> (a bundle) — behavior + resource packs are installed and
             activated in the world automatically.

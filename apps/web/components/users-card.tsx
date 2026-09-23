@@ -96,7 +96,7 @@ function AccessFields({
             decides what they can do on those servers.
           </p>
           {servers.length === 0 && clusters.length === 0 && (
-            <p className="text-xs text-slate-500">No servers or clusters yet.</p>
+            <p className="text-sm text-slate-400">No servers or clusters yet.</p>
           )}
           {draft.serverIds.length === 0 && draft.clusterIds.length === 0 && (
             <p className="text-xs text-amber-400">
@@ -125,7 +125,7 @@ function AccessFields({
                     <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Not in a cluster</div>
                   )}
                   {g.servers.length === 0 && g.cluster && (
-                    <p className="pl-6 text-xs text-slate-500">No members yet.</p>
+                    <p className="pl-6 text-sm text-slate-400">No members yet.</p>
                   )}
                   {g.servers.map((s) => (
                     <label
@@ -321,13 +321,15 @@ export function UsersCard() {
                     setEditing(editing === u.id ? null : u.id);
                   }}
                   title="Edit role and access"
+                  aria-label={`Edit ${u.username}`}
                 >
                   <Pencil className="h-4 w-4" />
                 </button>
                 <button
                   type="button"
-                  className="btn-secondary shrink-0"
+                  className="btn-remove"
                   onClick={() => remove(u)}
+                  aria-label={`Delete ${u.username}`}
                   disabled={users.length <= 1 || lastAdmin}
                   title={
                     users.length <= 1

@@ -6,6 +6,7 @@ import { apiGet, apiPost, apiPut, apiDelete, ApiError } from "@/lib/api";
 import { fmtCount } from "@/lib/mod-format";
 import { ApiKeyNotice } from "./mods-tab";
 import { confirmDialog } from "@/components/dialogs";
+import { Loading } from "@/components/loading";
 
 /**
  * Minecraft mods = a CurseForge modpack. Browse the Modpacks section, install one,
@@ -154,7 +155,7 @@ export function MinecraftModsTab({ serverId }: { serverId: string }) {
               </button>
             )}
             <button
-              className="shrink-0 px-1.5 text-slate-500 hover:text-rose-400"
+              className="btn-remove"
               title="Remove"
               aria-label={`Remove ${current.name}`}
               onClick={clear}
@@ -205,9 +206,7 @@ export function MinecraftModsTab({ serverId }: { serverId: string }) {
           )}
     
           {loading && results.length === 0 ? (
-            <div className="flex items-center gap-2 text-sm text-slate-500">
-              <Loader2 className="h-4 w-4 animate-spin" /> Searching…
-            </div>
+            <Loading label="Searching…" />
           ) : (
             <div className="grid gap-3 sm:grid-cols-2">
               {results.map((m) => {
@@ -259,7 +258,7 @@ export function MinecraftModsTab({ serverId }: { serverId: string }) {
                 );
               })}
               {!loading && results.length === 0 && !error && (
-                <p className="text-xs text-slate-500">No modpacks found. Try a different search.</p>
+                <p className="text-sm text-slate-400">No modpacks found. Try a different search.</p>
               )}
             </div>
           )}

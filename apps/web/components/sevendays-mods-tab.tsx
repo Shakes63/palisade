@@ -68,7 +68,7 @@ export function SevenDaysModsTab({ serverId }: { serverId: string }) {
               <li key={m} className="flex items-center justify-between gap-3 py-1.5">
                 <span className="truncate font-mono text-slate-200">{m}</span>
                 <button
-                  className="shrink-0 text-slate-500 hover:text-rose-400"
+                  className="btn-remove"
                   title="Remove"
                   aria-label={`Remove ${m}`}
                   disabled={busy}
@@ -84,7 +84,7 @@ export function SevenDaysModsTab({ serverId }: { serverId: string }) {
             ))}
           </ul>
         ) : (
-          <p className="text-xs text-slate-500">
+          <p className="text-sm text-slate-400">
             No mods yet. Upload a <span className="font-mono">.zip</span> containing the mod folder (with its{" "}
             <span className="font-mono">ModInfo.xml</span>) — it unpacks into{" "}
             <span className="font-mono">Mods/</span>.

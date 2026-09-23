@@ -18,7 +18,7 @@ body {
   }
 
   .btn {
-    @apply inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium transition disabled:opacity-50;
+    @apply inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ark-accent2 focus-visible:ring-offset-2 focus-visible:ring-offset-ark-bg disabled:opacity-50;
   }
   .btn-primary {
     @apply btn bg-ark-accent text-black hover:brightness-110;
@@ -27,11 +27,14 @@ body {
     @apply btn border border-ark-border bg-ark-bg hover:bg-ark-border;
   }
   .btn-danger {
-    @apply btn bg-red-600 text-white hover:bg-red-500;
+    @apply btn bg-rose-600 text-white hover:bg-rose-500;
+  }
+  .btn-remove {
+    @apply inline-flex shrink-0 items-center justify-center rounded-md p-1.5 text-slate-500 transition enabled:hover:bg-rose-950/40 enabled:hover:text-rose-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ark-accent2 focus-visible:ring-offset-2 focus-visible:ring-offset-ark-bg disabled:opacity-50;
   }
 
   .input {
-    @apply w-full rounded-lg border border-ark-border bg-ark-bg px-3 py-2 text-sm outline-none placeholder:text-slate-600 focus:border-ark-accent2;
+    @apply w-full rounded-lg border border-ark-border bg-ark-bg px-3 py-2 text-sm outline-none placeholder:text-slate-600 focus:border-ark-accent2 focus:ring-2 focus:ring-ark-accent2/50;
   }
   /* Replace the cramped native select arrow with a custom chevron that has
      proper padding from the right edge. Applies to every dropdown. */

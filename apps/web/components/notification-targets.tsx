@@ -154,13 +154,14 @@ export function NotificationTargetsCard() {
                 </label>
                 <button
                   type="button"
-                  className="btn-secondary"
+                  className="btn-remove"
                   onClick={() => {
                     setSaved(false);
                     setDirty(true);
                     setTargets((ts) => ts.filter((x) => x.id !== t.id));
                   }}
                   title="Remove destination"
+                  aria-label="Remove destination"
                 >
                   <Trash2 className="h-4 w-4" />
                 </button>

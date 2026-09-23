@@ -1,9 +1,10 @@
 "use client";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { KeyRound, Save, Check, Eye, EyeOff } from "lucide-react";
 import { ServerState, ADMIN_PASSWORD_META, JOIN_PASSWORD_META, type ServerSummary } from "@ark/shared";
 import { apiPatch } from "@/lib/api";
 import { toast } from "@/components/dialogs";
+import { keepCase } from "@/lib/keep-case";
 
 /** Set / change / remove a server's join + admin passwords. Works for every game
  *  (the API stores them encrypted and delivers them to the container on start). */
@@ -14,6 +15,7 @@ export function ServerAccessCard({
   server: ServerSummary;
   onSaved: () => void;
 }) {
+  const uid = useId();
   const [serverPw, setServerPw] = useState(server.joinPassword ?? "");
   const [adminPw, setAdminPw] = useState("");
   const [showAdmin, setShowAdmin] = useState(false);
@@ -56,8 +58,9 @@ export function ServerAccessCard({
 
       {joinMeta.show && (
         <div>
-          <label className="label">{joinMeta.label}</label>
+          <label htmlFor={`${uid}-join`} className="label">{keepCase(joinMeta.label)}</label>
           <input
+            id={`${uid}-join`}
             className="input font-mono"
             placeholder={joinMeta.required ? "" : "Open server — anyone can join"}
             value={serverPw}
@@ -78,9 +81,10 @@ export function ServerAccessCard({
 
       {adminMeta.show && (
         <div>
-          <label className="label">{adminMeta.label}</label>
+          <label htmlFor={`${uid}-admin`} className="label">{keepCase(adminMeta.label)}</label>
           <div className="relative">
             <input
+              id={`${uid}-admin`}
               type={showAdmin ? "text" : "password"}
               autoComplete="new-password"
               className="input pr-10 font-mono"

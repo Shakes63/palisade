@@ -83,8 +83,9 @@ export function AccessListsCard({ serverId }: { serverId: string }) {
               >
                 {e}
                 <button
-                  className="text-slate-500 hover:text-rose-400"
+                  className="btn-remove p-0.5"
                   title="Remove"
+                  aria-label={`Remove ${e}`}
                   disabled={saving !== null}
                   onClick={() => void save(list.key, list.entries.filter((x) => x !== e))}
                 >
@@ -105,7 +106,7 @@ export function AccessListsCard({ serverId }: { serverId: string }) {
                 value={drafts[list.key] ?? ""}
                 onChange={(e) => setDrafts((d) => ({ ...d, [list.key]: e.target.value }))}
               />
-              <button className="btn-secondary h-7 px-2 py-0" disabled={saving !== null}>
+              <button className="btn-secondary h-7 px-2 py-0" disabled={saving !== null} title="Add" aria-label="Add">
                 <Plus className="h-3.5 w-3.5" />
               </button>
             </form>

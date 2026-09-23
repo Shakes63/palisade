@@ -2,7 +2,7 @@ import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from "@nestj
 import { IsBoolean, IsIn, IsInt, IsOptional, IsString } from "class-validator";
 import { PortForwardsService } from "./portforwards.service";
 import { MinRole } from "../auth/min-role.decorator";
-import { IsRouterHost } from "./router";
+import { IsRouterHost, IsTargetIp } from "./router";
 
 /** The Settings form's current (possibly unsaved) router fields. */
 class RouterTestBody {
@@ -10,7 +10,7 @@ class RouterTestBody {
   @IsOptional() @IsRouterHost((b) => (b as RouterTestBody).router ?? "unifi") host?: string;
   @IsOptional() @IsString() apiKey?: string;
   @IsOptional() @IsString() site?: string;
-  @IsOptional() @IsString() targetIp?: string;
+  @IsOptional() @IsTargetIp() targetIp?: string;
 }
 
 /** Settings-scoped router utilities (not tied to a server). */

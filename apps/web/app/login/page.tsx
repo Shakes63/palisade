@@ -1,9 +1,10 @@
 "use client";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { LogIn } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 
 export default function LoginPage() {
+  const uid = useId();
   const { login } = useAuth();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -28,8 +29,9 @@ export default function LoginPage() {
       <h1 className="mb-6 text-center text-2xl font-semibold">Sign in</h1>
       <form onSubmit={submit} className="card space-y-4">
         <div>
-          <label className="label">Username</label>
+          <label htmlFor={`${uid}-username`} className="label">Username</label>
           <input
+            id={`${uid}-username`}
             className="input"
             autoComplete="username"
             value={username}
@@ -37,8 +39,9 @@ export default function LoginPage() {
           />
         </div>
         <div>
-          <label className="label">Password</label>
+          <label htmlFor={`${uid}-password`} className="label">Password</label>
           <input
+            id={`${uid}-password`}
             type="password"
             className="input"
             autoComplete="current-password"

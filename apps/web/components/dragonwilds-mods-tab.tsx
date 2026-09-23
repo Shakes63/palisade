@@ -89,7 +89,7 @@ export function DragonwildsModsTab({ serverId }: { serverId: string }) {
                   </span>
                 </span>
                 <button
-                  className="shrink-0 text-slate-500 hover:text-rose-400"
+                  className="btn-remove"
                   title="Remove all three files"
                   aria-label={`Remove ${m.name}`}
                   disabled={busy}
@@ -105,7 +105,7 @@ export function DragonwildsModsTab({ serverId }: { serverId: string }) {
             ))}
           </ul>
         ) : (
-          <p className="text-xs text-slate-500">
+          <p className="text-sm text-slate-400">
             No mods yet. Select a mod&apos;s <span className="font-mono">.pak</span>,{" "}
             <span className="font-mono">.utoc</span> and <span className="font-mono">.ucas</span> together (or a{" "}
             <span className="font-mono">.zip</span> of them) — they go into{" "}

@@ -13,7 +13,7 @@ import {
 } from "class-validator";
 import { ManagerSettingsService, SettingKeys } from "./manager-settings.service";
 import { SchedulerService } from "../scheduler/scheduler.service";
-import { IsRouterHost } from "../portforwards/router";
+import { IsRouterHost, IsTargetIp } from "../portforwards/router";
 import { MinRole } from "../auth/min-role.decorator";
 import { LOG_LEVELS, type LogLevel } from "@ark/shared";
 
@@ -35,12 +35,12 @@ export class UpdateSettingsBody {
   @IsOptional() @IsString() hostDataDir?: string;
   @IsOptional() @IsRouterHost(() => "pfsense") pfsenseHost?: string;
   @IsOptional() @IsString() pfsenseApiKey?: string;
-  @IsOptional() @IsString() pfsenseTargetIp?: string;
+  @IsOptional() @IsTargetIp() pfsenseTargetIp?: string;
   @IsOptional() @IsIn(["pfsense", "unifi"]) portForwardRouter?: "pfsense" | "unifi";
   @IsOptional() @IsRouterHost(() => "unifi") unifiHost?: string;
   @IsOptional() @IsString() unifiApiKey?: string;
   @IsOptional() @IsString() unifiSite?: string;
-  @IsOptional() @IsString() unifiTargetIp?: string;
+  @IsOptional() @IsTargetIp() unifiTargetIp?: string;
 }
 
 /** "" for null so the row exists but reads back as unset — the tri-state the
@@ -108,7 +108,7 @@ export class ManagerSettingsController {
     if (body.pfsenseHost !== undefined) await this.settings.set(SettingKeys.PfsenseHost, body.pfsenseHost.trim());
     if (body.pfsenseApiKey) await this.settings.set(SettingKeys.PfsenseApiKey, body.pfsenseApiKey);
     if (body.pfsenseTargetIp !== undefined)
-      await this.settings.set(SettingKeys.PfsenseTargetIp, body.pfsenseTargetIp);
+      await this.settings.set(SettingKeys.PfsenseTargetIp, body.pfsenseTargetIp.trim());
     if (body.portForwardRouter !== undefined)
       await this.settings.set(SettingKeys.PortForwardRouter, body.portForwardRouter);
     if (body.unifiHost !== undefined) await this.settings.set(SettingKeys.UnifiHost, body.unifiHost.trim());

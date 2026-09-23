@@ -202,9 +202,11 @@ export function ModsTab({ serverId, game }: { serverId: string; game: Game }) {
   return (
     <div className="space-y-4">
       {/* Sub-tabs */}
-      <div className="flex gap-1 overflow-x-auto border-b border-ark-border">
+      <div role="tablist" className="flex gap-1 overflow-x-auto border-b border-ark-border">
         <button
           type="button"
+          role="tab"
+          aria-selected={view === "installed"}
           onClick={() => changeView("installed")}
           className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap px-3 py-2 text-sm sm:px-4 ${
             view === "installed"
@@ -219,6 +221,8 @@ export function ModsTab({ serverId, game }: { serverId: string; game: Game }) {
         </button>
         <button
           type="button"
+          role="tab"
+          aria-selected={view === "browse"}
           onClick={() => changeView("browse")}
           className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap px-3 py-2 text-sm sm:px-4 ${
             view === "browse"
@@ -231,6 +235,8 @@ export function ModsTab({ serverId, game }: { serverId: string; game: Game }) {
         </button>
         <button
           type="button"
+          role="tab"
+          aria-selected={view === "favorites"}
           onClick={() => changeView("favorites")}
           className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap px-3 py-2 text-sm sm:px-4 ${
             view === "favorites"
@@ -254,7 +260,7 @@ export function ModsTab({ serverId, game }: { serverId: string; game: Game }) {
             image downloads/updates every listed mod to its latest release on each server start.
           </p>
           {installed.length === 0 && (
-            <div className="card text-xs text-slate-500">
+            <div className="card text-sm text-slate-400">
               No mods installed yet — add some from the {browserName} browser, or by ID below.
             </div>
           )}
@@ -268,13 +274,21 @@ export function ModsTab({ serverId, game }: { serverId: string; game: Game }) {
                 </div>
               </div>
               <div className="flex items-center gap-1">
-                <button className="btn-secondary px-2" onClick={() => move(i, -1)} disabled={i === 0}>
+                <button
+                  className="btn-secondary px-2"
+                  onClick={() => move(i, -1)}
+                  disabled={i === 0}
+                  title="Move up"
+                  aria-label={`Move ${m.mod.name} up`}
+                >
                   <ArrowUp className="h-4 w-4" />
                 </button>
                 <button
                   className="btn-secondary px-2"
                   onClick={() => move(i, 1)}
                   disabled={i === installed.length - 1}
+                  title="Move down"
+                  aria-label={`Move ${m.mod.name} down`}
                 >
                   <ArrowDown className="h-4 w-4" />
                 </button>
@@ -282,7 +296,7 @@ export function ModsTab({ serverId, game }: { serverId: string; game: Game }) {
                   {m.enabled ? "On" : "Off"}
                 </button>
                 <button
-                  className="px-1.5 text-slate-500 hover:text-rose-400"
+                  className="btn-remove"
                   title="Remove"
                   aria-label={`Remove ${m.mod.name}`}
                   onClick={() => remove(m)}
@@ -330,7 +344,7 @@ export function ModsTab({ serverId, game }: { serverId: string; game: Game }) {
       {view === "favorites" && (
         <div className="space-y-3">
           {favorites.length === 0 ? (
-            <div className="card text-xs text-slate-500">
+            <div className="card text-sm text-slate-400">
               No favorites yet — tap the ★ on a mod in the {browserName} browser to save it here.
             </div>
           ) : (
@@ -359,6 +373,7 @@ export function ModsTab({ serverId, game }: { serverId: string; game: Game }) {
                       type="button"
                       className="rounded p-1.5 hover:bg-ark-border"
                       title="Unfavorite"
+                      aria-label={`Unfavorite ${f.name}`}
                       onClick={() => toggleFavorite(f)}
                     >
                       <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
@@ -502,6 +517,7 @@ export function ModsTab({ serverId, game }: { serverId: string; game: Game }) {
                     type="button"
                     className="rounded p-1.5 hover:bg-ark-border"
                     title={favIds.has(r.remoteId) ? "Unfavorite" : "Favorite"}
+                    aria-label={`${favIds.has(r.remoteId) ? "Unfavorite" : "Favorite"} ${r.name}`}
                     onClick={(e) => {
                       e.stopPropagation();
                       toggleFavorite({ remoteId: r.remoteId, name: r.name, thumbnailUrl: r.thumbnailUrl });
@@ -538,7 +554,7 @@ export function ModsTab({ serverId, game }: { serverId: string; game: Game }) {
           )}
 
           {hasSearched && displayed.length === 0 && !searching && !browseError && (
-            <p className="text-xs text-slate-500">No mods match.</p>
+            <p className="text-sm text-slate-400">No mods match.</p>
           )}
           {!hasSearched && !browseError && (
             <p className="text-xs text-slate-500">Search above to browse {browserName} mods.</p>

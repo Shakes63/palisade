@@ -68,7 +68,7 @@ export function IcarusModsTab({ serverId }: { serverId: string }) {
               <li key={p} className="flex items-center justify-between gap-3 py-1.5">
                 <span className="truncate font-mono text-slate-200">{p}</span>
                 <button
-                  className="shrink-0 text-slate-500 hover:text-rose-400"
+                  className="btn-remove"
                   title="Remove"
                   aria-label={`Remove ${p}`}
                   disabled={busy}
@@ -84,7 +84,7 @@ export function IcarusModsTab({ serverId }: { serverId: string }) {
             ))}
           </ul>
         ) : (
-          <p className="text-xs text-slate-500">
+          <p className="text-sm text-slate-400">
             No pak mods yet. Upload <span className="font-mono">.pak</span> files (or a{" "}
             <span className="font-mono">.zip</span> of them) — they go into{" "}
             <span className="font-mono">Icarus/Content/Paks/mods</span>.
