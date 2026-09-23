@@ -234,6 +234,7 @@ const settings: SettingDef[] = [
     advanced: true,
   }),
   pset("ADDITIONAL_DROP_ITEM_WHEN_PLAYER_KILLING_IN_PVP_MODE_NUM", "PvP kill bonus item count", "PvP & Rules", "int", 1, {
+    emitAs: "ADDITIONAL_DROP_ITEM_NUM_WHEN_PLAYER_KILLING_IN_PVP_MODE",
     min: 0,
     max: 100,
     help: "How many of the bonus item drop.",
