@@ -5,6 +5,7 @@ import { ADMIN_PASSWORD_META, GAME_LABELS, JOIN_PASSWORD_META, type Game } from 
 import { apiGet, apiPost } from "@/lib/api";
 import { PasswordFieldHelp, passwordTooShort } from "@/components/password-field-help";
 import { keepCase } from "@/lib/keep-case";
+import { Loading } from "@/components/loading";
 
 interface Candidate {
   containerId: string;
@@ -74,9 +75,9 @@ export function AdoptContainerPanel({ onDone }: { onDone: () => void }) {
         adopted server runs the way you expect. It may need a minute for large worlds.
       </p>
 
-      {candidates === null && !err && <p className="text-xs text-slate-500">Scanning containers…</p>}
+      {candidates === null && !err && <Loading label="Scanning containers…" />}
       {candidates?.length === 0 && (
-        <p className="text-xs text-slate-500">
+        <p className="text-sm text-slate-400">
           No adoptable containers found. Palisade adopts containers running the image it uses for a
           game, plus the ich777 Palworld and V Rising images it knows how to lift saves out of.
         </p>

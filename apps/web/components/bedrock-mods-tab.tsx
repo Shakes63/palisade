@@ -101,7 +101,7 @@ export function BedrockModsTab({ serverId }: { serverId: string }) {
             ))}
           </ul>
         ) : (
-          <p className="text-xs text-slate-500">
+          <p className="text-sm text-slate-400">
             No add-ons yet. Upload a <span className="font-mono">.mcpack</span> (one pack) or{" "}
             <span className="font-mono">.mcaddon</span> (a bundle) — behavior + resource packs are installed and
             activated in the world automatically.

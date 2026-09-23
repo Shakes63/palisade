@@ -158,7 +158,7 @@ export default function DashboardPage() {
       {adopting && <AdoptContainerPanel onDone={() => { setAdopting(false); refresh(); }} />}
 
       {servers.length === 0 && !creating && (
-        <div className="card text-center text-slate-400">
+        <div className="card text-sm text-slate-400">
           {canCreate ? (
             <>
               No servers yet. Click <span className="text-slate-200">New server</span> to create one.

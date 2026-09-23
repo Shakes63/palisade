@@ -5,6 +5,7 @@ import { apiGet, apiPost } from "@/lib/api";
 import { fmtLocal } from "@/lib/cron";
 import { fmtDate } from "@/lib/mod-format";
 import { confirmDialog } from "@/components/dialogs";
+import { Loading } from "@/components/loading";
 
 type PlayerAction = "kick" | "ban" | "whitelist" | "admin";
 interface SeenPlayer {
@@ -117,7 +118,7 @@ export function PlayersTab({ serverId }: { serverId: string }) {
     }
   };
 
-  if (!view) return <div className="text-sm text-slate-400">Loading…</div>;
+  if (!view) return <Loading />;
 
   const unavailable = (p: SeenPlayer, a: PlayerAction): string | null => {
     if (view.liveActions.includes(a) && !view.running) return "The server isn't running";

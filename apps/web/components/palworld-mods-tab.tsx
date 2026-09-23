@@ -281,7 +281,7 @@ export function PalworldModsTab({ serverId }: { serverId: string }) {
             ))}
           </ul>
         ) : (
-          <p className="text-xs text-slate-500">
+          <p className="text-sm text-slate-400">
             No pak mods yet. Upload <span className="font-mono">.pak</span> /{" "}
             <span className="font-mono">.ucas</span> / <span className="font-mono">.utoc</span> files (or a{" "}
             <span className="font-mono">.zip</span> of them) — they go into{" "}

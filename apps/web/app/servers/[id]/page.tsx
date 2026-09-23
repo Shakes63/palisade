@@ -54,6 +54,7 @@ import { BackupsTab } from "@/components/backups-tab";
 import { PlayersTab } from "@/components/players-tab";
 import { EnvVarsCard } from "@/components/env-vars-card";
 import { confirmDialog, toast } from "@/components/dialogs";
+import { Loading } from "@/components/loading";
 
 const TABS = ["Overview", "Settings", "Mods", "Players", "Console", "Logs", "Files", "Schedules", "Backups", "Guide"] as const;
 type Tab = (typeof TABS)[number];
@@ -228,7 +229,7 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
       </div>
     );
   }
-  if (!server) return <div className="text-slate-400">Loading…</div>;
+  if (!server) return <Loading />;
 
   // Onscreen art = per-server override winning over the game-wide default.
   const def = artwork[server.game];
@@ -491,7 +492,7 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
         (config ? (
           <SettingsForm key={configKey} serverId={id} game={server.game} map={server.map} initial={config} onSaved={refetchConfig} />
         ) : (
-          <div className="text-slate-400">Loading settings…</div>
+          <Loading label="Loading settings…" />
         ))}
       {activeTab === "Mods" &&
         (server.game === Game.PALWORLD || server.game === Game.PALWORLD_WINE ? (

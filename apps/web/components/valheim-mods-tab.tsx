@@ -4,6 +4,7 @@ import { Search, Download, Trash2, Package, Loader2, TriangleAlert, ExternalLink
 import { apiGet, apiPost, apiDelete } from "@/lib/api";
 import { fmtCount } from "@/lib/mod-format";
 import { confirmDialog } from "@/components/dialogs";
+import { Loading } from "@/components/loading";
 
 interface TsResult {
   name: string;
@@ -175,7 +176,7 @@ export function ValheimModsTab({ serverId }: { serverId: string }) {
             ))}
           </ul>
         ) : (
-          <p className="text-xs text-slate-500">
+          <p className="text-sm text-slate-400">
             No mods installed. Search Thunderstore below — installing auto-enables BepInEx and pulls in each
             mod&apos;s dependencies. Restart the server to load changes.
           </p>
@@ -194,9 +195,7 @@ export function ValheimModsTab({ serverId }: { serverId: string }) {
       </div>
 
       {loading && !resp ? (
-        <div className="flex items-center gap-2 text-sm text-slate-400">
-          <Loader2 className="h-4 w-4 animate-spin" /> Loading Thunderstore…
-        </div>
+        <Loading label="Loading Thunderstore…" />
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
           {resp?.results.map((m) => {
@@ -247,7 +246,7 @@ export function ValheimModsTab({ serverId }: { serverId: string }) {
             );
           })}
           {resp && resp.results.length === 0 && (
-            <p className="text-xs text-slate-500">No mods match “{query}”.</p>
+            <p className="text-sm text-slate-400">No mods match “{query}”.</p>
           )}
         </div>
       )}

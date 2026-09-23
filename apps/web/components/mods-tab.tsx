@@ -260,7 +260,7 @@ export function ModsTab({ serverId, game }: { serverId: string; game: Game }) {
             image downloads/updates every listed mod to its latest release on each server start.
           </p>
           {installed.length === 0 && (
-            <div className="card text-xs text-slate-500">
+            <div className="card text-sm text-slate-400">
               No mods installed yet — add some from the {browserName} browser, or by ID below.
             </div>
           )}
@@ -344,7 +344,7 @@ export function ModsTab({ serverId, game }: { serverId: string; game: Game }) {
       {view === "favorites" && (
         <div className="space-y-3">
           {favorites.length === 0 ? (
-            <div className="card text-xs text-slate-500">
+            <div className="card text-sm text-slate-400">
               No favorites yet — tap the ★ on a mod in the {browserName} browser to save it here.
             </div>
           ) : (
@@ -554,7 +554,7 @@ export function ModsTab({ serverId, game }: { serverId: string; game: Game }) {
           )}
 
           {hasSearched && displayed.length === 0 && !searching && !browseError && (
-            <p className="text-xs text-slate-500">No mods match.</p>
+            <p className="text-sm text-slate-400">No mods match.</p>
           )}
           {!hasSearched && !browseError && (
             <p className="text-xs text-slate-500">Search above to browse {browserName} mods.</p>

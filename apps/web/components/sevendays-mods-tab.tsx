@@ -84,7 +84,7 @@ export function SevenDaysModsTab({ serverId }: { serverId: string }) {
             ))}
           </ul>
         ) : (
-          <p className="text-xs text-slate-500">
+          <p className="text-sm text-slate-400">
             No mods yet. Upload a <span className="font-mono">.zip</span> containing the mod folder (with its{" "}
             <span className="font-mono">ModInfo.xml</span>) — it unpacks into{" "}
             <span className="font-mono">Mods/</span>.

@@ -12,7 +12,7 @@ import { MarkdownLite } from "@/components/markdown-lite";
 export function GuideTab({ game }: { game: Game }) {
   const doc = GAME_DOCS[game];
   if (!doc) {
-    return <p className="text-sm text-slate-400">No guide for this game yet.</p>;
+    return <p className="card text-sm text-slate-400">No guide for this game yet.</p>;
   }
   return (
     <div className="card max-w-3xl">

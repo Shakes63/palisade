@@ -95,7 +95,7 @@ export default function ClustersPage() {
         </form>
       )}
 
-      {clusters.length === 0 && <div className="card text-slate-400">No clusters yet.</div>}
+      {clusters.length === 0 && <div className="card text-sm text-slate-400">No clusters yet.</div>}
 
       {clusters.map((c) => (
         <div key={c.id} className="card space-y-4">
@@ -129,7 +129,7 @@ export default function ClustersPage() {
 
           <div className="space-y-2">
             {c.servers.length === 0 ? (
-              <p className="text-sm text-slate-500">No members yet.</p>
+              <p className="text-sm text-slate-400">No members yet.</p>
             ) : (
               c.servers.map((m) => (
                 <div

@@ -61,6 +61,7 @@ import { ARK_ITEMS } from "@/lib/ark-items";
 import { ARK_CREATURES } from "@/lib/ark-creatures";
 import { ARK_ENGRAMS } from "@/lib/ark-engrams";
 import { confirmDialog, toast } from "@/components/dialogs";
+import { Loading } from "@/components/loading";
 
 type Values = Record<string, unknown>;
 const STRUCTURED = new Set([
@@ -572,7 +573,7 @@ export function SettingsForm({
     }
   };
 
-  if (!catalog) return <div className="text-slate-400">Loading settings…</div>;
+  if (!catalog) return <Loading label="Loading settings…" />;
 
   const totalChanged = catalog.settings.filter(isOverridden).length;
   const dirty =

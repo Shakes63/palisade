@@ -84,7 +84,7 @@ export function IcarusModsTab({ serverId }: { serverId: string }) {
             ))}
           </ul>
         ) : (
-          <p className="text-xs text-slate-500">
+          <p className="text-sm text-slate-400">
             No pak mods yet. Upload <span className="font-mono">.pak</span> files (or a{" "}
             <span className="font-mono">.zip</span> of them) — they go into{" "}
             <span className="font-mono">Icarus/Content/Paks/mods</span>.

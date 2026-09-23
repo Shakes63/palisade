@@ -264,7 +264,7 @@ export function RconConsole({
           )}
         </h3>
         {players.length === 0 ? (
-          <p className="text-sm text-slate-500">
+          <p className="text-sm text-slate-400">
             {state === ServerState.Running ? "No players connected." : "Server isn’t running."}
           </p>
         ) : (
