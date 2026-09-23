@@ -65,16 +65,21 @@ export function RconConsole({
   const visible = hideNoise ? lines.filter((l) => !isEngineNoise(l)) : lines;
   const hidden = lines.length - visible.length;
 
+  const running = state === ServerState.Running;
+  const scrollToBottom = () => requestAnimationFrame(() => boxRef.current?.scrollTo(0, boxRef.current.scrollHeight));
   const append = (line: string) => {
     setLines((prev) => [...prev.slice(-(MAX_LINES - 1)), line]);
-    requestAnimationFrame(() => boxRef.current?.scrollTo(0, boxRef.current.scrollHeight));
+    scrollToBottom();
   };
 
   // Load the captured console (log + RCON I/O of the current run) on mount — kept
   // across refreshes/tab switches, wiped on the next Start.
   useEffect(() => {
     apiGet<{ log: string }>(`/servers/${serverId}/console`)
-      .then(({ log }) => setLines(log ? log.split("\n") : []))
+      .then(({ log }) => {
+        setLines(log ? log.split("\n") : []);
+        scrollToBottom();
+      })
       .catch(() => undefined);
   }, [serverId]);
 
@@ -90,7 +95,7 @@ export function RconConsole({
 
   const send = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!command.trim()) return;
+    if (!command.trim() || !running) return;
     // Record in history (dedupe consecutive repeats) before sending.
     const next = [...history.filter((h) => h !== command), command].slice(-HISTORY_MAX);
     setHistory(next);
@@ -136,6 +141,9 @@ export function RconConsole({
     }
   };
 
+  const saveWorld = () =>
+    apiPost(`/servers/${serverId}/rcon/save`).catch((err) => append(`! ${(err as Error).message}`));
+
   // Auto-refresh: load on open, then poll while the server is Running and the tab
   // is visible (and re-poll the moment it's refocused). Silent — auto-poll errors
   // don't spam the console. Clears the list when the server isn't Running.
@@ -170,25 +178,28 @@ export function RconConsole({
   return (
     <div className="grid gap-4 lg:grid-cols-3">
       <div className="lg:col-span-2 space-y-3">
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {/* Conan has no manual-save command — it persists continuously to its DB. */}
           {game !== Game.CONAN && (
-            <button className="btn-secondary" onClick={() => apiPost(`/servers/${serverId}/rcon/save`)}>
-              <Save className="h-4 w-4" /> Save world
+            <button className="btn-secondary whitespace-nowrap" onClick={saveWorld} disabled={!running}>
+              <Save className="h-4 w-4 shrink-0" /> Save world
             </button>
           )}
-          <button className="btn-secondary" onClick={refreshPlayers}>
-            <RefreshCw className="h-4 w-4" /> Refresh players
+          <button className="btn-secondary whitespace-nowrap" onClick={refreshPlayers} disabled={!running}>
+            <RefreshCw className="h-4 w-4 shrink-0" /> Refresh players
           </button>
           <button
-            className={`btn-secondary ${hideNoise ? "border-ark-accent text-ark-accent" : ""}`}
+            className={`btn-secondary whitespace-nowrap ${hideNoise ? "border-ark-accent text-ark-accent" : ""}`}
             onClick={toggleNoise}
-            title="Hide known-benign Conan/Unreal engine log spam"
+            title="Hide known harmless engine and startup log lines"
           >
-            <Filter className="h-4 w-4" />
+            <Filter className="h-4 w-4 shrink-0" />
             {hideNoise ? `Engine noise hidden${hidden ? ` (${hidden})` : ""}` : "Hide engine noise"}
           </button>
         </div>
+        {!running && (
+          <p className="text-sm text-slate-400">The server isn&apos;t running. Start it to send commands.</p>
+        )}
         <div
           ref={boxRef}
           className="h-80 overflow-y-auto whitespace-pre-wrap break-words rounded-lg border border-ark-border bg-black/40 p-3 font-mono text-xs leading-relaxed"
@@ -209,7 +220,8 @@ export function RconConsole({
               <button
                 key={c}
                 type="button"
-                className="rounded-full border border-ark-border bg-ark-bg px-2 py-0.5 font-mono text-xs text-slate-400 hover:border-slate-500 hover:text-slate-200"
+                disabled={!running}
+                className="rounded-full border border-ark-border bg-ark-bg px-2 py-0.5 font-mono text-xs text-slate-400 hover:border-slate-500 hover:text-slate-200 disabled:opacity-50"
                 title={c.endsWith(" ") ? "Inserts the command — finish typing the arguments" : "Insert this command"}
                 onClick={() => {
                   setCommand(c);
@@ -234,8 +246,9 @@ export function RconConsole({
               setHistIdx(-1);
             }}
             onKeyDown={onKeyDown}
+            disabled={!running}
           />
-          <button className="btn-primary">
+          <button className="btn-primary" disabled={!running} title="Send" aria-label="Send">
             <SendHorizontal className="h-4 w-4" />
           </button>
         </form>

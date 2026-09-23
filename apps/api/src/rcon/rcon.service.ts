@@ -1,6 +1,6 @@
 import { Injectable, Logger, BadRequestException } from "@nestjs/common";
 import { Rcon } from "rcon-client";
-import { EventType, RealtimeTopic, Game } from "@ark/shared";
+import { EventType, RealtimeTopic, Game, ServerState } from "@ark/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { CryptoService } from "../crypto/crypto.service";
 import { EventsService } from "../events/events.service";
@@ -21,6 +21,22 @@ interface RconConn {
   end(): Promise<unknown>;
   on(event: "error" | "end", listener: (...args: unknown[]) => void): unknown;
 }
+
+/** Games with a console the manager can reach: Source RCON, or telnet for 7DTD. */
+export const RCON_GAMES: ReadonlySet<Game> = new Set([
+  Game.ASA,
+  Game.ASE,
+  Game.CONAN,
+  Game.PALWORLD,
+  Game.PALWORLD_WINE,
+  Game.MINECRAFT,
+  Game.SEVEN_DAYS,
+  Game.ZOMBOID,
+  Game.VRISING,
+  Game.FACTORIO,
+  Game.RUST,
+  Game.CS2,
+]);
 
 /**
  * RCON access to running servers. Connections are pooled per server and reused;
@@ -49,6 +65,7 @@ export class RconService {
 
     const server = await this.prisma.server.findUnique({ where: { id: serverId } });
     if (!server) throw new BadRequestException("Server not found");
+    if (!RCON_GAMES.has(server.game as Game)) throw new BadRequestException("This game has no remote console");
     if (!server.adminPasswordEnc)
       throw new BadRequestException("Server has no admin password set");
 
@@ -122,6 +139,14 @@ export class RconService {
       return response;
     } catch (err) {
       this.pool.delete(serverId);
+      if (err instanceof BadRequestException) throw err;
+      // A stopped container has no address, so the raw error was a DNS failure.
+      const state = await this.prisma.server
+        .findUnique({ where: { id: serverId }, select: { state: true } })
+        .then((s) => s?.state)
+        .catch(() => undefined);
+      if (state === ServerState.Starting) throw new BadRequestException("The server is still starting");
+      if (state !== undefined && state !== ServerState.Running) throw new BadRequestException("The server isn't running");
       throw new BadRequestException(`RCON failed: ${await this.describeFailure(serverId, err as Error)}`);
     }
   }
