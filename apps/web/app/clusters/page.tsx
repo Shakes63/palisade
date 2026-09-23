@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { Boxes, Plus, Play, Square, Trash2, UserPlus, X } from "lucide-react";
-import { mapLabel, type ServerSummary } from "@ark/shared";
+import { GAME_LABELS, clusterJoinError, mapLabel, type Game, type ServerSummary } from "@ark/shared";
 import { apiDelete, apiGet, apiPost } from "@/lib/api";
 import { StateBadge } from "@/components/state-badge";
 import { useMe } from "@/lib/use-me";
@@ -11,7 +11,7 @@ interface ClusterMember {
   name: string;
   map: string;
   state: ServerSummary["state"];
-  game: string;
+  game: Game;
 }
 interface Cluster {
   id: string;
@@ -63,6 +63,16 @@ export default function ClustersPage() {
 
   const clusterName = (id?: string | null) => clusters.find((cl) => cl.id === id)?.name;
 
+  const mutate = (p: Promise<unknown>) =>
+    p.catch((err) => alert((err as Error).message)).finally(refresh);
+
+  const removeCluster = (c: Cluster) => {
+    const members = c.servers.length
+      ? ` Its ${c.servers.length} member server${c.servers.length === 1 ? "" : "s"} will leave the cluster. Saves are kept.`
+      : "";
+    if (confirm(`Delete cluster "${c.name}"?${members}`)) void mutate(apiDelete(`/clusters/${c.id}`));
+  };
+
   return (
     <div className="space-y-6">
       <h1 className="flex items-center gap-2 text-xl font-semibold">
@@ -72,12 +82,12 @@ export default function ClustersPage() {
       {canEdit && (
         <form onSubmit={create} className="card flex gap-2">
           <input
-            className="input"
-            placeholder="New cluster name (e.g. The Archipelago)"
+            className="input min-w-0"
+            placeholder="New cluster name"
             value={name}
             onChange={(e) => setName(e.target.value)}
           />
-          <button className="btn-primary">
+          <button className="btn-primary shrink-0">
             <Plus className="h-4 w-4" /> Create
           </button>
         </form>
@@ -88,9 +98,9 @@ export default function ClustersPage() {
       {clusters.map((c) => (
         <div key={c.id} className="card space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <div className="text-lg font-medium">{c.name}</div>
-              <div className="text-xs text-slate-500">
+            <div className="min-w-0">
+              <div className="break-words text-lg font-medium">{c.name}</div>
+              <div className="break-all text-xs text-slate-500">
                 id <span className="font-mono">{c.clusterId}</span> · transfer{" "}
                 <span className="font-mono">{c.transferDir}</span>
               </div>
@@ -105,7 +115,9 @@ export default function ClustersPage() {
               {canEdit && (
                 <button
                   className="btn-danger"
-                  onClick={() => apiDelete(`/clusters/${c.id}`).then(refresh)}
+                  title="Delete cluster"
+                  aria-label={`Delete cluster ${c.name}`}
+                  onClick={() => removeCluster(c)}
                 >
                   <Trash2 className="h-4 w-4" />
                 </button>
@@ -120,20 +132,21 @@ export default function ClustersPage() {
               c.servers.map((m) => (
                 <div
                   key={m.id}
-                  className="flex items-center justify-between rounded-lg border border-ark-border bg-ark-bg px-3 py-2"
+                  className="flex items-center justify-between gap-2 rounded-lg border border-ark-border bg-ark-bg px-3 py-2"
                 >
-                  <div className="flex items-center gap-3">
+                  <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
                     <StateBadge state={m.state} />
-                    <span>{m.name}</span>
+                    <span className="min-w-0 break-words">{m.name}</span>
                     <span className="text-xs text-slate-500">
-                      {m.game} · {mapLabel(m.map)}
+                      {GAME_LABELS[m.game] ?? m.game} · {mapLabel(m.map)}
                     </span>
                   </div>
                   {canEdit && (
                     <button
-                      className="btn-secondary px-2"
+                      className="btn-secondary shrink-0 px-2"
                       title="Remove from cluster (restarts the server if it's running)"
-                      onClick={() => apiDelete(`/clusters/${c.id}/members/${m.id}`).then(refresh)}
+                      aria-label={`Remove ${m.name} from the cluster`}
+                      onClick={() => void mutate(apiDelete(`/clusters/${c.id}/members/${m.id}`))}
                     >
                       <X className="h-4 w-4" />
                     </button>
@@ -145,17 +158,20 @@ export default function ClustersPage() {
 
           {(() => {
             if (!canEdit) return null;
-            const addable = servers.filter((s) => s.clusterId !== c.id);
+            const memberGames = c.servers.map((m) => m.game);
+            const addable = servers.filter(
+              (s) => s.clusterId !== c.id && !clusterJoinError(s.game, memberGames),
+            );
             if (addable.length === 0) return null;
             return (
               <div className="flex flex-wrap items-center gap-2">
                 <UserPlus className="h-4 w-4 text-slate-400" />
                 <select
-                  className="input max-w-xs"
+                  className="input min-w-0 max-w-xs flex-1"
                   value=""
                   onChange={(e) => {
                     if (e.target.value)
-                      apiPost(`/clusters/${c.id}/members`, { serverId: e.target.value }).then(refresh);
+                      void mutate(apiPost(`/clusters/${c.id}/members`, { serverId: e.target.value }));
                   }}
                 >
                   <option value="">Add or move a server here…</option>

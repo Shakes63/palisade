@@ -23,6 +23,7 @@ import {
   RAM_ESTIMATE_MB,
   DISK_INSTALL_MB,
   GAME_LABELS,
+  clusterJoinError,
   type UpdateGameResult,
   type RunningServerRam,
   type InsufficientRamInfo,
@@ -629,6 +630,16 @@ export class ServersService implements OnApplicationBootstrap, OnApplicationShut
     return JSON.parse(row.configJson) as ServerConfigValues;
   }
 
+  /** Rejects a `game` server joining cluster `clusterId` (a Cluster row id) that can't use it. */
+  async assertClusterFits(game: Game, clusterId: string, serverId?: string): Promise<void> {
+    const others = await this.prisma.server.findMany({
+      where: { clusterId, ...(serverId ? { NOT: { id: serverId } } : {}) },
+      select: { game: true },
+    });
+    const err = clusterJoinError(game, others.map((o) => o.game));
+    if (err) throw new BadRequestException(err);
+  }
+
   async create(dto: CreateServerDto): Promise<ServerSummary> {
     if (!Object.values(Game).includes(dto.game)) throw new BadRequestException("Invalid game");
     // Valheim's server refuses to boot without a join password of >= 5 characters.
@@ -645,6 +656,7 @@ export class ServersService implements OnApplicationBootstrap, OnApplicationShut
       throw new BadRequestException("Project Zomboid requires an admin password of at least 5 characters.");
     }
     if (dto.game === Game.DRAGONWILDS) assertDragonwildsOwnerId(dto.adminPassword);
+    if (dto.clusterId) await this.assertClusterFits(dto.game, dto.clusterId);
     // Every server of a given family shares one fixed port block so a single set of
     // port-forwards covers whichever is running — only one runs at a time, so the
     // shared ports never actually collide. Minecraft uses its own TCP block (25565).
@@ -785,6 +797,7 @@ export class ServersService implements OnApplicationBootstrap, OnApplicationShut
       }
     }
     if (dto.clusterId !== undefined && dto.clusterId !== existing.clusterId) {
+      if (dto.clusterId) await this.assertClusterFits(existing.game as Game, dto.clusterId, id);
       data.clusterId = dto.clusterId;
       launchChanged = true;
     }
