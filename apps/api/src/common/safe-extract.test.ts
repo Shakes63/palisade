@@ -10,6 +10,11 @@ const { isUnsafeEntry } = __test;
 // arbitrary entry names). EVIL has a `../ESCAPED.txt` entry; SAFE is a normal nested tree.
 const EVIL_B64 =
   "UEsDBBQAAAAAACZy61x6zT+3BQAAAAUAAAAOAAAALi4vRVNDQVBFRC50eHRldmlsClBLAwQUAAAAAAAmcutcr11oLAUAAAAFAAAABgAAAG9rLnR4dGZpbmUKUEsBAhQDFAAAAAAAJnLrXHrNP7cFAAAABQAAAA4AAAAAAAAAAAAAAIABAAAAAC4uL0VTQ0FQRUQudHh0UEsBAhQDFAAAAAAAJnLrXK9daCwFAAAABQAAAAYAAAAAAAAAAAAAAIABMQAAAG9rLnR4dFBLBQYAAAAAAgACAHAAAABaAAAAAAA=";
+// Windows-built entries (MS-DOS flagged, `\` separators) like the Jotunn zip in GH #129.
+const DOS_B64 =
+  "UEsDBBQAAAAAAAAANl3mLllCBwAAAAcAAAASAAAAcGx1Z2luc1xKb3R1bm4uZGxsam90dW5uClBLAQIUABQAAAAAAAAANl3mLllCBwAAAAcAAAASAAAAAAAAAAAAAACAAQAAAABwbHVnaW5zXEpvdHVubi5kbGxQSwUGAAAAAAEAAQBAAAAANwAAAAAA";
+const DOS_EVIL_B64 =
+  "UEsDBBQAAAAAAAAANl16zT+3BQAAAAUAAAAOAAAALi5cRVNDQVBFRC50eHRldmlsClBLAQIUABQAAAAAAAAANl16zT+3BQAAAAUAAAAOAAAAAAAAAAAAAACAAQAAAAAuLlxFU0NBUEVELnR4dFBLBQYAAAAAAQABADwAAAAxAAAAAAA=";
 const SAFE_B64 =
   "UEsDBBQAAAAAACZy61z7pH4CGgAAABoAAAANAAAAbWFuaWZlc3QuanNvbnsidmVyc2lvbl9udW1iZXIiOiIxLjAuMCJ9UEsDBBQAAAAAACZy61x6em/tAwAAAAMAAAAMAAAAc3ViL2ZpbGUudHh0aGkKUEsBAhQDFAAAAAAAJnLrXPukfgIaAAAAGgAAAA0AAAAAAAAAAAAAAIABAAAAAG1hbmlmZXN0Lmpzb25QSwECFAMUAAAAAAAmcutcenpv7QMAAAADAAAADAAAAAAAAAAAAAAAgAFFAAAAc3ViL2ZpbGUudHh0UEsFBgAAAAACAAIAdQAAAHIAAAAAAA==";
 
@@ -47,6 +52,16 @@ describe("extractZipSafe (real unzip)", () => {
   it("REJECTS an archive containing a ../ traversal entry (nothing extracted)", async () => {
     await expect(extractZipSafe(Buffer.from(EVIL_B64, "base64"), dir)).rejects.toThrow(/unsafe path/i);
     // vetting happens before extraction → the destination stays empty.
+    expect(await readdir(dir)).toEqual([]);
+  });
+
+  it("extracts a Windows-built archive with backslash separators", async () => {
+    await extractZipSafe(Buffer.from(DOS_B64, "base64"), dir);
+    expect(await readFile(join(dir, "plugins", "Jotunn.dll"), "utf8")).toBe("jotunn\n");
+  });
+
+  it("REJECTS a backslash ..\\ traversal entry (nothing extracted)", async () => {
+    await expect(extractZipSafe(Buffer.from(DOS_EVIL_B64, "base64"), dir)).rejects.toThrow(/unsafe path/i);
     expect(await readdir(dir)).toEqual([]);
   });
 
