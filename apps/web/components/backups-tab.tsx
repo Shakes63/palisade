@@ -96,7 +96,13 @@ export function BackupsTab({
       }))
     )
       return;
-    await apiPost(`/servers/${serverId}/backups/${id}/restore`).catch(toast.error);
+    try {
+      await apiPost(`/servers/${serverId}/backups/${id}/restore`);
+      toast.success("Backup restored. Your previous saves were kept as a pre-restore backup.");
+    } catch (e) {
+      toast.error(e);
+    }
+    refresh();
   };
 
   const remove = async (b: Snapshot) => {

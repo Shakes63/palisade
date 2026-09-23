@@ -58,8 +58,7 @@ export function CopyMenu({
 
   // POST /servers/:source/copy replaces (not merges) the targets' settings/mods.
   const run = async () => {
-    if (!settings && !mods) return toast.error("Choose settings, mods, or both.");
-    if (sel.size === 0) return;
+    if ((!settings && !mods) || sel.size === 0) return;
     setBusy(true);
     try {
       if (mode === "from") {
