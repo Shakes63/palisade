@@ -183,6 +183,9 @@ function DragonwildsJoinCard({
   );
 }
 
+// Shared while in flight so a dashboard of cards makes one request, not one per card.
+let connectHostRequest: Promise<{ host: string | null }> | null = null;
+
 /**
  * The address to show players. The browser's own hostname is a last resort, not
  * an answer: the manager and the game servers only share an address when they
@@ -197,7 +200,10 @@ function useConnectHost(): string {
     // Resolve after mount (not during render) so SSR and the first client render
     // agree — avoids a hydration mismatch.
     setHost(window.location.hostname);
-    apiGet<{ host: string | null }>("/settings/connect-host")
+    connectHostRequest ??= apiGet<{ host: string | null }>("/settings/connect-host").finally(() => {
+      connectHostRequest = null;
+    });
+    connectHostRequest
       .then((r) => {
         if (live && r.host) setHost(r.host);
       })
