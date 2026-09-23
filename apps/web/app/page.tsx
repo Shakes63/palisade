@@ -9,32 +9,7 @@ import { SetupWarnings } from "@/components/setup-warnings";
 import {
   Game,
   ServerState,
-  ASA_OFFICIAL_MAPS,
-  ASE_OFFICIAL_MAPS,
-  CONAN_OFFICIAL_MAPS,
-  PALWORLD_OFFICIAL_MAPS,
-  MINECRAFT_OFFICIAL_MAPS,
-  ICARUS_OFFICIAL_MAPS,
-  BEDROCK_OFFICIAL_MAPS,
-  VALHEIM_OFFICIAL_MAPS,
-  SEVEN_DAYS_OFFICIAL_MAPS,
-  ENSHROUDED_OFFICIAL_MAPS,
-  ZOMBOID_OFFICIAL_MAPS,
-  VRISING_OFFICIAL_MAPS,
-  SOTF_OFFICIAL_MAPS,
-  SATISFACTORY_OFFICIAL_MAPS,
-  LIF_OFFICIAL_MAPS,
-  ATS_OFFICIAL_MAPS,
-  ETS2_OFFICIAL_MAPS,
-  CORE_KEEPER_OFFICIAL_MAPS,
-  TERRARIA_OFFICIAL_MAPS,
-  FACTORIO_OFFICIAL_MAPS,
-  RUST_OFFICIAL_MAPS,
-  BEAMMP_OFFICIAL_MAPS,
-  OPENTTD_OFFICIAL_MAPS,
-  CS2_OFFICIAL_MAPS,
-  DST_OFFICIAL_MAPS,
-  DRAGONWILDS_OFFICIAL_MAPS,
+  MAPS_BY_GAME,
   GAME_LABELS,
   MAX_PLAYERS_BY_GAME,
   DEFAULT_MAX_PLAYERS_BY_GAME,
@@ -53,6 +28,7 @@ import { UpdateBadge } from "@/components/update-badge";
 import { ModUpdateBadge } from "@/components/mod-update-badge";
 import { ConnectCommand } from "@/components/connect-command";
 import { UnofficialListHelp } from "@/components/unofficial-list-help";
+import { PasswordFieldHelp, passwordTooShort } from "@/components/password-field-help";
 import { useStartGuard } from "@/components/start-guard";
 import { useArtwork } from "@/lib/use-artwork";
 import { useMe } from "@/lib/use-me";
@@ -162,14 +138,14 @@ export default function DashboardPage() {
       )}
       {/* Host-setup problems Palisade can see but can't fix itself (GH #21/#29/#31). */}
       <SetupWarnings />
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-xl font-semibold">Servers</h1>
         {canCreate && (
           <div className="flex gap-2">
-            <button className="btn-secondary" onClick={() => { setAdopting((v) => !v); setCreating(false); }}>
+            <button className="btn-secondary whitespace-nowrap" onClick={() => { setAdopting((v) => !v); setCreating(false); }}>
               <Import className="h-4 w-4" /> Adopt existing
             </button>
-            <button className="btn-primary" onClick={() => { setCreating((v) => !v); setAdopting(false); }}>
+            <button className="btn-primary whitespace-nowrap" onClick={() => { setCreating((v) => !v); setAdopting(false); }}>
               <Plus className="h-4 w-4" /> New server
             </button>
           </div>
@@ -193,8 +169,8 @@ export default function DashboardPage() {
 
       <div className="grid gap-4 md:grid-cols-2">
         {servers.map((s) => (
-          <div key={s.id} className="card space-y-3">
-            <div className="flex items-start justify-between">
+          <div key={s.id} className="card min-w-0 space-y-3">
+            <div className="flex items-start justify-between gap-3">
               <div className="flex min-w-0 items-start gap-3">
                 {(s.artwork?.grid ?? artwork[s.game]?.grid) && (
                   <Link href={`/servers/${s.id}`} className="shrink-0">
@@ -208,11 +184,12 @@ export default function DashboardPage() {
                   </Link>
                 )}
                 <div className="min-w-0">
-                  <Link href={`/servers/${s.id}`} className="text-lg font-medium hover:underline">
+                  <Link href={`/servers/${s.id}`} className="break-words text-lg font-medium hover:underline">
                     {s.name}
                   </Link>
                   <div className="text-sm text-slate-400">
-                    {s.game} · {mapLabel(s.map)} · :{s.ports.game}
+                    {GAME_LABELS[s.game]} · {mapLabel(s.map)}
+                    {s.ports.game > 0 && ` · :${s.ports.game}`}
                   </div>
                   <MiniStats s={stats[s.id]} />
                 {s.clusterId && (
@@ -226,7 +203,7 @@ export default function DashboardPage() {
                 )}
                 </div>
               </div>
-              <div className="flex flex-col items-end gap-1.5">
+              <div className="flex shrink-0 flex-col items-end gap-1.5">
                 <StateBadge state={s.state} healthNote={s.healthNote} />
                 {s.updateAvailable && <UpdateBadge />}
                 {s.modUpdateAvailable && <ModUpdateBadge />}
@@ -249,7 +226,8 @@ export default function DashboardPage() {
               >
                 {pending[s.id] === "install" || s.state === ServerState.Installing || s.state === ServerState.Updating ? (
                   <>
-                    <Loader2 className="h-4 w-4 animate-spin" /> Installing…
+                    <Loader2 className="h-4 w-4 animate-spin" />{" "}
+                    {s.state === ServerState.Updating ? "Updating…" : "Installing…"}
                   </>
                 ) : (
                   <>
@@ -312,17 +290,21 @@ export default function DashboardPage() {
             </div>
             <ConnectCommand
               game={s.game}
+              serverId={s.id}
               gamePort={s.ports.game}
               queryPort={s.ports.query}
               joinPassword={s.joinPassword}
             />
-            <UnofficialListHelp
-              game={s.game}
-              serverName={s.name}
-              mapName={mapLabel(s.map)}
-              queryPort={s.ports.query}
-              hasJoinPassword={Boolean(s.joinPassword)}
-            />
+            {s.game !== Game.CORE_KEEPER && (
+              <UnofficialListHelp
+                game={s.game}
+                serverId={s.id}
+                serverName={s.name}
+                mapName={mapLabel(s.map)}
+                queryPort={s.ports.query}
+                hasJoinPassword={Boolean(s.joinPassword)}
+              />
+            )}
           </div>
         ))}
       </div>
@@ -330,39 +312,9 @@ export default function DashboardPage() {
   );
 }
 
-const MAPS_FOR: Record<Game, readonly string[]> = {
-  [Game.ASA]: ASA_OFFICIAL_MAPS,
-  [Game.ASE]: ASE_OFFICIAL_MAPS,
-  [Game.CONAN]: CONAN_OFFICIAL_MAPS,
-  [Game.PALWORLD]: PALWORLD_OFFICIAL_MAPS,
-  [Game.PALWORLD_WINE]: PALWORLD_OFFICIAL_MAPS,
-  [Game.MINECRAFT]: MINECRAFT_OFFICIAL_MAPS,
-  [Game.ICARUS]: ICARUS_OFFICIAL_MAPS,
-  [Game.BEDROCK]: BEDROCK_OFFICIAL_MAPS,
-  [Game.VALHEIM]: VALHEIM_OFFICIAL_MAPS,
-  [Game.SEVEN_DAYS]: SEVEN_DAYS_OFFICIAL_MAPS,
-  [Game.ENSHROUDED]: ENSHROUDED_OFFICIAL_MAPS,
-  [Game.ZOMBOID]: ZOMBOID_OFFICIAL_MAPS,
-  [Game.VRISING]: VRISING_OFFICIAL_MAPS,
-  [Game.SOTF]: SOTF_OFFICIAL_MAPS,
-  [Game.SATISFACTORY]: SATISFACTORY_OFFICIAL_MAPS,
-  [Game.LIF]: LIF_OFFICIAL_MAPS,
-  [Game.ATS]: ATS_OFFICIAL_MAPS,
-  [Game.ETS2]: ETS2_OFFICIAL_MAPS,
-  [Game.CORE_KEEPER]: CORE_KEEPER_OFFICIAL_MAPS,
-  [Game.TERRARIA]: TERRARIA_OFFICIAL_MAPS,
-  [Game.FACTORIO]: FACTORIO_OFFICIAL_MAPS,
-  [Game.RUST]: RUST_OFFICIAL_MAPS,
-  [Game.BEAMMP]: BEAMMP_OFFICIAL_MAPS,
-  [Game.OPENTTD]: OPENTTD_OFFICIAL_MAPS,
-  [Game.CS2]: CS2_OFFICIAL_MAPS,
-  [Game.DST]: DST_OFFICIAL_MAPS,
-  [Game.DRAGONWILDS]: DRAGONWILDS_OFFICIAL_MAPS,
-};
-
 function CreateServerForm({ onDone }: { onDone: () => void }) {
   const [game, setGame] = useState<Game>(Game.ASA);
-  const maps = MAPS_FOR[game];
+  const maps = MAPS_BY_GAME[game];
   const [form, setForm] = useState<{
     name: string;
     map: string;
@@ -381,21 +333,19 @@ function CreateServerForm({ onDone }: { onDone: () => void }) {
   const maxPlayersCap = MAX_PLAYERS_BY_GAME[game];
   const adminMeta = ADMIN_PASSWORD_META[game];
   const joinMeta = JOIN_PASSWORD_META[game];
-  // Block submit when a required join password is missing/too short (mirrors the API).
-  const joinTooShort =
-    joinMeta.required && (form.serverPassword ?? "").length < (joinMeta.minLength ?? 1);
+  // Block submit on what the API would reject.
+  const nameBlank = !form.name.trim();
+  const adminTooShort = passwordTooShort(adminMeta, form.adminPassword);
+  const joinTooShort = passwordTooShort(joinMeta, form.serverPassword);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (joinTooShort) {
-      alert(joinMeta.help ?? "This game requires a server password.");
-      return;
-    }
+    if (nameBlank || adminTooShort || joinTooShort) return;
     // Clamp to the game's real ceiling so we never send e.g. 70 for a 20-slot game.
     const clamped = Math.max(1, Math.min(Number(form.maxPlayers) || 1, maxPlayersCap));
     setBusy(true);
     try {
-      await apiPost("/servers", { ...form, game, maxPlayers: clamped });
+      await apiPost("/servers", { ...form, name: form.name.trim(), game, maxPlayers: clamped });
       onDone();
     } catch (err) {
       alert((err as Error).message);
@@ -408,9 +358,10 @@ function CreateServerForm({ onDone }: { onDone: () => void }) {
     <form onSubmit={submit} className="card space-y-4">
       <div className="grid gap-4 md:grid-cols-2">
         <div>
-          <label className="label">Server name</label>
+          <label className="label">Server name (required)</label>
           <input
             className="input"
+            required
             value={form.name}
             onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
           />
@@ -426,16 +377,18 @@ function CreateServerForm({ onDone }: { onDone: () => void }) {
               // Reset the map AND clamp the player count to the new game's default/cap.
               setForm((f) => ({
                 ...f,
-                map: MAPS_FOR[g][0],
+                map: MAPS_BY_GAME[g][0],
                 maxPlayers: DEFAULT_MAX_PLAYERS_BY_GAME[g],
               }));
             }}
           >
-            {Object.values(Game).map((g) => (
-              <option key={g} value={g}>
-                {GAME_LABELS[g]}
-              </option>
-            ))}
+            {Object.values(Game)
+              .sort((a, b) => GAME_LABELS[a].localeCompare(GAME_LABELS[b]))
+              .map((g) => (
+                <option key={g} value={g}>
+                  {GAME_LABELS[g]}
+                </option>
+              ))}
           </select>
         </div>
         <div>
@@ -443,9 +396,7 @@ function CreateServerForm({ onDone }: { onDone: () => void }) {
           {game === Game.ICARUS ? (
             // Icarus has no launch map — the world is a "prospect" (map + game mode +
             // difficulty) players create in the in-game lobby. Show why, not an empty picker.
-            <p className="input flex items-center text-sm text-slate-400">
-              Chosen in-game (players pick the map + mode)
-            </p>
+            <p className="py-2 text-sm text-slate-400">Chosen in-game (players pick the map + mode)</p>
           ) : (
             <select
               className="input"
@@ -480,7 +431,7 @@ function CreateServerForm({ onDone }: { onDone: () => void }) {
               value={form.adminPassword}
               onChange={(e) => setForm((f) => ({ ...f, adminPassword: e.target.value }))}
             />
-            {adminMeta.help && <p className="mt-1 text-xs text-slate-500">{adminMeta.help}</p>}
+            <PasswordFieldHelp meta={adminMeta} invalid={adminTooShort} />
           </div>
         )}
         {joinMeta.show && (
@@ -492,13 +443,11 @@ function CreateServerForm({ onDone }: { onDone: () => void }) {
               value={form.serverPassword}
               onChange={(e) => setForm((f) => ({ ...f, serverPassword: e.target.value }))}
             />
-            {joinMeta.help && (
-              <p className={`mt-1 text-xs ${joinTooShort ? "text-rose-400" : "text-slate-500"}`}>{joinMeta.help}</p>
-            )}
+            <PasswordFieldHelp meta={joinMeta} invalid={joinTooShort} />
           </div>
         )}
       </div>
-      <button className="btn-primary" disabled={busy || joinTooShort}>
+      <button className="btn-primary" disabled={busy || nameBlank || adminTooShort || joinTooShort}>
         {busy ? "Creating…" : "Create server"}
       </button>
     </form>

@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { randomBytes } from "node:crypto";
-import { EventType, ServerState } from "@ark/shared";
+import { EventType, Game, ServerState } from "@ark/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { EventsService } from "../events/events.service";
 import { ServersService } from "../servers/servers.service";
@@ -75,6 +75,7 @@ export class ClustersService {
     const server = await this.prisma.server.findUnique({ where: { id: serverId } });
     if (!server) throw new NotFoundException("Server not found");
     if (server.clusterId === clusterId) return this.get(clusterId);
+    await this.servers.assertClusterFits(server.game as Game, clusterId, serverId);
 
     await this.prisma.server.update({ where: { id: serverId }, data: { clusterId } });
     const restarted = await this.applyMembershipChange(serverId);

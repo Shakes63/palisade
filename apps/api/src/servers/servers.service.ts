@@ -23,6 +23,12 @@ import {
   RAM_ESTIMATE_MB,
   DISK_INSTALL_MB,
   GAME_LABELS,
+  ADMIN_PASSWORD_META,
+  JOIN_PASSWORD_META,
+  MAX_PLAYERS_BY_GAME,
+  DEFAULT_MAX_PLAYERS_BY_GAME,
+  clusterJoinError,
+  type PasswordFieldMeta,
   type UpdateGameResult,
   type RunningServerRam,
   type InsufficientRamInfo,
@@ -629,22 +635,26 @@ export class ServersService implements OnApplicationBootstrap, OnApplicationShut
     return JSON.parse(row.configJson) as ServerConfigValues;
   }
 
+  /** Rejects a `game` server joining cluster `clusterId` (a Cluster row id) that can't use it. */
+  async assertClusterFits(game: Game, clusterId: string, serverId?: string): Promise<void> {
+    const others = await this.prisma.server.findMany({
+      where: { clusterId, ...(serverId ? { NOT: { id: serverId } } : {}) },
+      select: { game: true },
+    });
+    const err = clusterJoinError(game, others.map((o) => o.game));
+    if (err) throw new BadRequestException(err);
+  }
+
   async create(dto: CreateServerDto): Promise<ServerSummary> {
     if (!Object.values(Game).includes(dto.game)) throw new BadRequestException("Invalid game");
-    // Valheim's server refuses to boot without a join password of >= 5 characters.
-    if (dto.game === Game.VALHEIM && (dto.serverPassword ?? "").length < 5) {
-      throw new BadRequestException("Valheim requires a server password of at least 5 characters.");
-    }
-    // Enshrouded's join password is role-based; we derive the roles from it and it
-    // must be present + non-trivial (>= 5 chars, matching Valheim's rule).
-    if (dto.game === Game.ENSHROUDED && (dto.serverPassword ?? "").length < 5) {
-      throw new BadRequestException("Enshrouded requires a server password of at least 5 characters.");
-    }
-    // Project Zomboid refuses first boot without an admin password (it also gates RCON).
-    if (dto.game === Game.ZOMBOID && (dto.adminPassword ?? "").length < 5) {
-      throw new BadRequestException("Project Zomboid requires an admin password of at least 5 characters.");
-    }
+    const name = dto.name?.trim();
+    if (!name) throw new BadRequestException("Server name is required.");
     if (dto.game === Game.DRAGONWILDS) assertDragonwildsOwnerId(dto.adminPassword);
+    assertRequiredField(dto.game, ADMIN_PASSWORD_META[dto.game], dto.adminPassword);
+    assertRequiredField(dto.game, JOIN_PASSWORD_META[dto.game], dto.serverPassword);
+    const maxPlayers = dto.maxPlayers ?? DEFAULT_MAX_PLAYERS_BY_GAME[dto.game];
+    assertMaxPlayers(dto.game, maxPlayers);
+    if (dto.clusterId) await this.assertClusterFits(dto.game, dto.clusterId);
     // Every server of a given family shares one fixed port block so a single set of
     // port-forwards covers whichever is running — only one runs at a time, so the
     // shared ports never actually collide. Minecraft uses its own TCP block (25565).
@@ -660,10 +670,10 @@ export class ServersService implements OnApplicationBootstrap, OnApplicationShut
     const server = await this.prisma.$transaction(async (tx) => {
       const created = await tx.server.create({
         data: {
-          name: dto.name,
+          name,
           game: dto.game,
           map: dto.map,
-          maxPlayers: dto.maxPlayers ?? 70,
+          maxPlayers,
           clusterId: dto.clusterId ?? null,
           gamePort: ports.game,
           rawSocketPort: ports.rawSocket,
@@ -735,6 +745,7 @@ export class ServersService implements OnApplicationBootstrap, OnApplicationShut
       launchChanged = true;
     }
     if (dto.maxPlayers !== undefined && dto.maxPlayers !== existing.maxPlayers) {
+      assertMaxPlayers(existing.game as Game, dto.maxPlayers);
       data.maxPlayers = dto.maxPlayers;
       launchChanged = true;
     }
@@ -785,6 +796,7 @@ export class ServersService implements OnApplicationBootstrap, OnApplicationShut
       }
     }
     if (dto.clusterId !== undefined && dto.clusterId !== existing.clusterId) {
+      if (dto.clusterId) await this.assertClusterFits(existing.game as Game, dto.clusterId, id);
       data.clusterId = dto.clusterId;
       launchChanged = true;
     }
@@ -2245,6 +2257,23 @@ export class ServersService implements OnApplicationBootstrap, OnApplicationShut
       data: { artworkJson: Object.keys(clean).length ? JSON.stringify(clean) : null },
     });
     return this.toSummary(updated as ServerRow, await this.docker.imageExists(IMAGES[server.game as Game]).catch(() => false));
+  }
+}
+
+function assertRequiredField(game: Game, meta: PasswordFieldMeta, value: string | undefined): void {
+  const min = meta.minLength ?? 1;
+  if (meta.required && (value ?? "").length < min) {
+    const field = meta.label.replace(/\s*\(required\)$/, "");
+    throw new BadRequestException(
+      `${field} is required for ${GAME_LABELS[game]}${min > 1 ? ` (at least ${min} characters)` : ""}.`,
+    );
+  }
+}
+
+function assertMaxPlayers(game: Game, maxPlayers: number): void {
+  const cap = MAX_PLAYERS_BY_GAME[game];
+  if (maxPlayers > cap) {
+    throw new BadRequestException(`${GAME_LABELS[game]} allows at most ${cap} players.`);
   }
 }
 

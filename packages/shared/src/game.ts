@@ -822,14 +822,17 @@ export const MAP_LABELS: Record<string, string> = {
 
 /**
  * Human-readable label for a map level name. Falls back gracefully for unknown
- * or modded maps by dropping the _WP/_P suffix and spacing out CamelCase, so
- * e.g. "TheIsland_WP" → "The Island" and "MyCoolMap_WP" → "My Cool Map".
+ * or modded maps by dropping the _WP/_P suffix, spacing out CamelCase and
+ * capitalising, so e.g. "MyCoolMap_WP" → "My Cool Map" and "arctic" → "Arctic".
+ * Ids with underscores ("de_dust2") are kept as they are: players know them by that name.
  */
 export function mapLabel(raw: string | null | undefined): string {
   if (!raw) return "";
   if (MAP_LABELS[raw]) return MAP_LABELS[raw];
   const base = raw.replace(/_WP$|_P$/i, "");
-  return base.replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/_/g, " ").trim();
+  if (base.includes("_")) return base;
+  const spaced = base.replace(/([a-z0-9])([A-Z])/g, "$1 $2").trim();
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
 }
 
 /** Official/selectable maps per game (single source for web pickers and the

@@ -9,3 +9,4 @@ export * from "./events";
 export * from "./dto";
 export * from "./notifications";
 export * from "./image-version";
+export * from "./clusters";
