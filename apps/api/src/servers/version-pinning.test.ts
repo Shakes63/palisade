@@ -242,6 +242,25 @@ describe("7DTD VERSION pin", () => {
     });
     expect(xml).not.toMatch(/name="VERSION"/);
   });
+
+  it("writes EACEnabled, on unless the user turns it off", async () => {
+    const { renderSdtdServerXml } = await import("./runtime-spec");
+    const { SEVEN_DAYS_CATALOG } = await import("../catalog/seven-days.catalog");
+    const render = (values: Record<string, unknown>) =>
+      renderSdtdServerXml({
+        sessionName: "7DTD",
+        serverPassword: "pw",
+        adminPassword: "secret",
+        maxPlayers: 8,
+        map: "Navezgane",
+        gamePort: 26900,
+        telnetPort: 8081,
+        catalog: SEVEN_DAYS_CATALOG,
+        config: { values },
+      });
+    expect(render({})).toContain('<property name="EACEnabled" value="true"/>');
+    expect(render({ EACEnabled: false })).toContain('<property name="EACEnabled" value="false"/>');
+  });
 });
 
 describe("Enshrouded GAME_BRANCH pin", () => {

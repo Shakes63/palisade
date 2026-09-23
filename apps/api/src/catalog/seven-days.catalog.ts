@@ -330,6 +330,9 @@ const settings: SettingDef[] = [
   // configfile property X: Unknown config option" → shutdown), so names here must
   // match the game's GamePref names exactly. This one is QuestProgression…, not
   // QuestProgress… (caught live).
+  sset("EACEnabled", "Easy Anti-Cheat", "Players", "bool", true, {
+    help: "Turn off to run mods that ship a .dll. Players then have to start 7 Days to Die with EAC off to join.",
+  }),
   sset("QuestProgressionDailyLimit", "Daily quest limit", "Players", "int", 8, {
     min: 0,
     max: 64,

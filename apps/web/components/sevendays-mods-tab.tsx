@@ -11,7 +11,7 @@ type SdtdModStatus = { mods: string[] };
  * the official forums / NexusMods) dropped into the server's Mods/ directory. Upload
  * a mod .zip here; it unpacks into serverfiles/Mods and loads on the next restart.
  * Two 7DTD quirks are called out: every player usually needs the same mods, and mods
- * that ship code (DLLs) need EAC (Easy Anti-Cheat) off, which Palisade doesn't expose.
+ * that ship code (DLLs) need EAC (Easy Anti-Cheat) off, a setting on the Settings tab.
  */
 export function SevenDaysModsTab({ serverId }: { serverId: string }) {
   const [status, setStatus] = useState<SdtdModStatus | null>(null);
@@ -104,9 +104,10 @@ export function SevenDaysModsTab({ serverId }: { serverId: string }) {
             Pure server-side mods don&apos;t need the client.
           </li>
           <li>
-            <span className="text-slate-200">XML mods only.</span> Mods made of XML and assets (modlets) run with
-            Easy Anti-Cheat on. Mods that ship a <span className="font-mono">.dll</span> need EAC off, which
-            Palisade can&apos;t turn off yet, so they won&apos;t load.
+            <span className="text-slate-200">DLL mods need Easy Anti-Cheat off.</span> Mods made of XML and assets
+            (modlets) run with EAC on. Mods that ship a <span className="font-mono">.dll</span> only load after you
+            turn off Easy Anti-Cheat under Settings → Players, and players then have to start the game with EAC off
+            to join.
           </li>
         </ul>
         <p className="text-[11px] text-slate-500">
