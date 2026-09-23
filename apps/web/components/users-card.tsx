@@ -23,6 +23,8 @@ interface AccessDraft {
   clusterIds: string[];
 }
 
+const roleLabel = (r: Role) => r.charAt(0).toUpperCase() + r.slice(1);
+
 const toggle = (list: string[], id: string, on: boolean) =>
   on ? (list.includes(id) ? list : [...list, id]) : list.filter((x) => x !== id);
 
@@ -69,7 +71,7 @@ function AccessFields({
         >
           {ROLES.map((r) => (
             <option key={r} value={r}>
-              {r}
+              {roleLabel(r)}
             </option>
           ))}
         </select>
@@ -94,6 +96,11 @@ function AccessFields({
           </p>
           {servers.length === 0 && clusters.length === 0 && (
             <p className="text-xs text-slate-500">No servers or clusters yet.</p>
+          )}
+          {draft.serverIds.length === 0 && draft.clusterIds.length === 0 && (
+            <p className="text-xs text-amber-400">
+              Nothing is ticked, so this user will not see any servers.
+            </p>
           )}
           <div className="max-h-64 space-y-2 overflow-auto">
             {groups.map((g) => {
@@ -194,8 +201,16 @@ function UserEditor({
 
   return (
     <div className="space-y-3 border-t border-slate-700/60 pt-3">
-      <AccessFields draft={draft} onChange={setDraft} servers={servers} clusters={clusters} />
-      <div className="flex items-center gap-2">
+      <AccessFields
+        draft={draft}
+        onChange={(d) => {
+          setDraft(d);
+          setErr(null);
+        }}
+        servers={servers}
+        clusters={clusters}
+      />
+      <div className="flex flex-wrap items-center gap-2">
         <button type="button" className="btn-primary" onClick={save} disabled={busy}>
           <Check className="h-4 w-4" /> Save
         </button>
@@ -220,7 +235,8 @@ export function UsersCard() {
   const [draft, setDraft] = useState<AccessDraft>(NEW_USER);
   const [editing, setEditing] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
+  const [addErr, setAddErr] = useState<string | null>(null);
+  const [rowErr, setRowErr] = useState<{ id: string; msg: string } | null>(null);
 
   const load = () => {
     apiGet<UserDto[]>("/users")
@@ -235,15 +251,15 @@ export function UsersCard() {
 
   const add = async () => {
     setBusy(true);
-    setMsg(null);
+    setAddErr(null);
     try {
-      await apiPost("/users", { username, password, ...toAccessBody(draft) });
+      await apiPost("/users", { username: username.trim(), password, ...toAccessBody(draft) });
       setUsername("");
       setPassword("");
       setDraft(NEW_USER);
       load();
     } catch (err) {
-      setMsg((err as Error).message);
+      setAddErr((err as Error).message);
     } finally {
       setBusy(false);
     }
@@ -251,13 +267,16 @@ export function UsersCard() {
 
   const remove = async (u: UserDto) => {
     if (!window.confirm(`Delete user "${u.username}"? Their tokens stop working immediately.`)) return;
+    setRowErr(null);
     try {
       await apiDelete(`/users/${u.id}`);
       load();
     } catch (err) {
-      setMsg((err as Error).message);
+      setRowErr({ id: u.id, msg: (err as Error).message });
     }
   };
+
+  const adminCount = users.filter((u) => u.role === "admin").length;
 
   return (
     <div className="card space-y-4">
@@ -274,32 +293,45 @@ export function UsersCard() {
       <ul className="space-y-1">
         {users.map((u) => {
           const access = accessLabel(u);
+          const lastAdmin = u.role === "admin" && adminCount <= 1;
           return (
             <li key={u.id} className="rounded border border-slate-700/60 px-3 py-2 text-sm">
               <div className="flex items-center gap-3">
-                <span className="font-medium text-slate-200">{u.username}</span>
-                <span className="rounded bg-slate-700/60 px-2 py-0.5 text-xs uppercase tracking-wide text-slate-300">
-                  {u.role}
-                </span>
-                {access && <span className="text-xs text-slate-500">{access}</span>}
+                <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1">
+                  <span className="min-w-0 font-medium text-slate-200 [overflow-wrap:anywhere]">{u.username}</span>
+                  <span className="rounded bg-slate-700/60 px-2 py-0.5 text-xs text-slate-300">
+                    {roleLabel(u.role)}
+                  </span>
+                  {access && <span className="whitespace-nowrap text-xs text-slate-500">{access}</span>}
+                </div>
                 <button
                   type="button"
-                  className="btn-secondary ml-auto"
-                  onClick={() => setEditing(editing === u.id ? null : u.id)}
+                  className="btn-secondary shrink-0"
+                  onClick={() => {
+                    setRowErr(null);
+                    setEditing(editing === u.id ? null : u.id);
+                  }}
                   title="Edit role and access"
                 >
                   <Pencil className="h-4 w-4" />
                 </button>
                 <button
                   type="button"
-                  className="btn-secondary"
+                  className="btn-secondary shrink-0"
                   onClick={() => remove(u)}
-                  disabled={users.length <= 1}
-                  title={users.length <= 1 ? "The last user can't be deleted" : "Delete user"}
+                  disabled={users.length <= 1 || lastAdmin}
+                  title={
+                    users.length <= 1
+                      ? "The last user can't be deleted"
+                      : lastAdmin
+                        ? "The only admin can't be deleted"
+                        : "Delete user"
+                  }
                 >
                   <Trash2 className="h-4 w-4" />
                 </button>
               </div>
+              {rowErr?.id === u.id && <p className="mt-2 text-sm text-amber-400">{rowErr.msg}</p>}
               {editing === u.id && (
                 <div className="mt-3">
                   <UserEditor
@@ -322,15 +354,17 @@ export function UsersCard() {
       <div className="space-y-3 border-t border-slate-700/60 pt-4">
         <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400">Add user</h3>
         <div className="grid gap-3 sm:grid-cols-2">
-          <input className="input" placeholder="Username" value={username} onChange={(e) => setUsername(e.target.value)} />
-          <input type="password" className="input" placeholder="Password (8+ chars)" value={password} onChange={(e) => setPassword(e.target.value)} />
+          <input className="input" placeholder="Username" autoComplete="off" value={username} onChange={(e) => { setUsername(e.target.value); setAddErr(null); }} />
+          <input type="password" className="input" placeholder="Password (8+ chars)" autoComplete="new-password" value={password} onChange={(e) => { setPassword(e.target.value); setAddErr(null); }} />
         </div>
         <AccessFields draft={draft} onChange={setDraft} servers={servers} clusters={clusters} />
-        <button type="button" className="btn-secondary" onClick={add} disabled={busy || !username || password.length < 8}>
-          <Plus className="h-4 w-4" /> Add user
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="button" className="btn-primary" onClick={add} disabled={busy || !username.trim() || password.length < 8}>
+            <Plus className="h-4 w-4" /> Add user
+          </button>
+          {addErr && <p className="text-sm text-amber-400">{addErr}</p>}
+        </div>
       </div>
-      {msg && <p className="text-sm text-amber-400">{msg}</p>}
     </div>
   );
 }
