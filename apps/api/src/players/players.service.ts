@@ -1,5 +1,5 @@
 import { Injectable, Logger } from "@nestjs/common";
-import { Game, ServerState } from "@ark/shared";
+import { Game, ServerState, type ServerConfigValues } from "@ark/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { RconService } from "../rcon/rcon.service";
 import { CryptoService } from "../crypto/crypto.service";
@@ -8,6 +8,7 @@ import { containerName } from "../common/naming";
 import { GameEndpointService } from "../docker/game-endpoint.service";
 import { a2sInfo, raknetPing, type QueryCount } from "./query-protocols";
 import { ProbeHealthTracker } from "./probe-health";
+import { SightingsService } from "./sightings.service";
 
 /** How long a fetched count stays fresh — dashboards poll every 5 s, but hitting
  *  the game servers that often is pointless. */
@@ -56,6 +57,7 @@ export class PlayersService {
     private readonly rcon: RconService,
     private readonly crypto: CryptoService,
     private readonly endpoints: GameEndpointService,
+    private readonly sightings: SightingsService,
   ) {}
 
   /**
@@ -118,6 +120,12 @@ export class PlayersService {
         return { online: count.online, max: count.max ?? server.maxPlayers };
       }
       if (game === Game.VALHEIM) {
+        // The status endpoint below reads the Steam query port, which crossplay and
+        // private servers never answer, so they count from the join/leave log lines.
+        const values = (JSON.parse(server.configJson) as ServerConfigValues).values ?? {};
+        if (String(values.CROSSPLAY) === "true" || String(values.SERVER_PUBLIC) === "false") {
+          return { online: this.sightings.logRosterCount(serverId), max: server.maxPlayers };
+        }
         // The lloesche image's built-in HTTP status endpoint (STATUS_HTTP), on
         // game port + 3 by our convention (set in buildValheimSpec).
         const { host, port } = await at(server.gamePort + 3, "tcp");

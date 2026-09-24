@@ -8,10 +8,10 @@ import { SightingsService } from "./sightings.service";
  * for everyone on it (which is what keeps them Online), and the "Remove Entity"
  * line takes them off again.
  */
-function makeSvc() {
+function makeSvc(game = Game.ENSHROUDED) {
   const prisma = {
     server: {
-      findMany: vi.fn(async () => [{ id: "s1", game: Game.ENSHROUDED, state: ServerState.Running }]),
+      findMany: vi.fn(async () => [{ id: "s1", game, state: ServerState.Running }]),
     },
     playerSighting: {
       findUnique: vi.fn(async () => null),
@@ -30,7 +30,7 @@ function makeSvc() {
   );
   svc.onModuleInit();
   const poll = () => (svc as unknown as { poll: () => Promise<void> }).poll();
-  return { prisma, events, line: (l: string) => onLine("s1", l), poll };
+  return { svc, prisma, events, line: (l: string) => onLine("s1", l), poll };
 }
 
 const ticks = (prisma: ReturnType<typeof makeSvc>["prisma"]) =>
@@ -67,6 +67,62 @@ describe("Enshrouded presence from the log", () => {
     await new Promise((r) => setTimeout(r, 20));
     expect(prisma.playerSighting.upsert).not.toHaveBeenCalled();
     expect(events.emit).not.toHaveBeenCalled();
+  });
+});
+
+/** Lines verbatim from a lloesche/valheim-server 1.0.15 boot, Steam then crossplay. */
+describe("Valheim presence from the log", () => {
+  const upserted = (prisma: ReturnType<typeof makeSvc>["prisma"]) =>
+    (prisma.playerSighting.upsert.mock.calls as unknown[][]).map((c) => (c[0] as { create: unknown }).create);
+
+  it("tracks a Steam player with a spaced name from join to leave", async () => {
+    const { svc, prisma, events, line, poll } = makeSvc(Game.VALHEIM);
+    await poll();
+    line("09/24/2026 08:14:47: Got handshake from client 76561198051014133");
+    line("09/24/2026 08:15:37: Got character ZDOID from Palisade Tester : 1305773203:5");
+    await vi.waitFor(() =>
+      expect(upserted(prisma)).toContainEqual({ serverId: "s1", name: "Palisade Tester", playerId: "76561198051014133" }),
+    );
+    expect(svc.logRosterCount("s1")).toBe(1);
+
+    await poll();
+    expect(ticks(prisma)).toBe(1);
+
+    line("09/24/2026 08:18:38: Destroying abandoned non persistent zdo 1305773203:5 owner 1305773203");
+    line("09/24/2026 08:18:38: Destroying abandoned non persistent zdo 1305773203:116 owner 1305773203");
+    await vi.waitFor(() =>
+      expect(events.emit).toHaveBeenCalledWith(expect.objectContaining({ type: EventType.PlayerLeave })),
+    );
+    const leaves = (events.emit.mock.calls as unknown[][]).filter(
+      (c) => (c[0] as { type: EventType }).type === EventType.PlayerLeave,
+    );
+    expect(leaves).toHaveLength(1);
+    expect(svc.logRosterCount("s1")).toBe(0);
+    await poll();
+    expect(ticks(prisma)).toBe(1);
+  });
+
+  it("takes the SteamID from the crossplay platform line", async () => {
+    const { prisma, line, poll } = makeSvc(Game.VALHEIM);
+    await poll();
+    line("PlayFab socket with remote ID playfab/D3E2D552844E42EA received local Platform ID Steam_76561198051014133");
+    line("Got handshake from client playfab/D3E2D552844E42EA");
+    line("Got character ZDOID from Justin : -1284701504:1");
+    await vi.waitFor(() =>
+      expect(upserted(prisma)).toContainEqual({ serverId: "s1", name: "Justin", playerId: "76561198051014133" }),
+    );
+  });
+
+  it("ignores a death respawn and forgets everyone when the server process restarts", async () => {
+    const { svc, prisma, line, poll } = makeSvc(Game.VALHEIM);
+    await poll();
+    line("Got character ZDOID from Justin : 42:1");
+    line("Got character ZDOID from Justin : 0:0");
+    await new Promise((r) => setTimeout(r, 20));
+    expect(prisma.playerSighting.upsert).toHaveBeenCalledTimes(1);
+    expect(svc.logRosterCount("s1")).toBe(1);
+    line("09/24/2026 08:28:47: Game server connected");
+    expect(svc.logRosterCount("s1")).toBe(0);
   });
 });
 
