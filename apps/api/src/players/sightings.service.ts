@@ -102,7 +102,7 @@ const ACTIONS_BY_GAME: Record<Game, PlayerAction[]> = {
 const CAPTURE_NOTES: Partial<Record<Game, string>> = {
   [Game.ICARUS]: "Captured from join log lines (name only).",
   [Game.BEDROCK]: "Captured from join log lines (gamertag + XUID).",
-  [Game.VALHEIM]: "Captured from join log lines (character name + SteamID64).",
+  [Game.VALHEIM]: "Captured from the server's join and leave log lines (character name + SteamID64).",
   [Game.ENSHROUDED]: "Captured from the server's join and leave log lines.",
   [Game.TERRARIA]: "Captured from join log lines (character name).",
   [Game.DRAGONWILDS]: "Captured from join log lines (character name).",
@@ -134,8 +134,9 @@ export class SightingsService implements OnModuleInit {
   private readonly valheimPendingId = new Map<string, string>();
   /** serverId → names seen in the last RCON poll, for leave detection. */
   private readonly lastPollNames = new Map<string, Set<string>>();
-  /** serverId → names currently online per the join/leave log lines (Enshrouded). */
-  private readonly logRoster = new Map<string, Set<string>>();
+  /** serverId → who is online per the join/leave log lines, keyed by the handle the
+   *  leave line carries (Enshrouded: the name; Valheim: the ZDO owner id) → name. */
+  private readonly logRoster = new Map<string, Map<string, string>>();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -164,9 +165,9 @@ export class SightingsService implements OnModuleInit {
       .catch(() => []);
     for (const s of running) {
       const game = s.game as Game;
-      if (game === Game.ENSHROUDED) {
+      if (game === Game.ENSHROUDED || game === Game.VALHEIM) {
         // No player list to poll; the log-derived roster is the heartbeat instead.
-        for (const name of this.logRoster.get(s.id) ?? []) await this.upsert(s.id, name, undefined, true);
+        for (const name of this.logRoster.get(s.id)?.values() ?? []) await this.upsert(s.id, name, undefined, true);
         continue;
       }
       if (!RCON_POLL_GAMES.has(game) || !s.adminPasswordEnc) continue;
@@ -264,17 +265,37 @@ export class SightingsService implements OnModuleInit {
       return;
     }
     if (game === Game.VALHEIM) {
-      const hs = line.match(/Got handshake from client (\d{10,})/i);
+      // Steam logs the id on the handshake; crossplay hands over a playfab/ handle
+      // there and names the SteamID on the line before it.
+      const hs = line.match(/(?:Got handshake from client |received local Platform ID Steam_)(\d{10,})/i);
       if (hs) {
         this.valheimPendingId.set(serverId, hs[1]!);
         return;
       }
-      const zdoid = line.match(/Got character ZDOID from ([^\s:]+)\s*:/i);
+      // Names may contain spaces: "Got character ZDOID from Big Bob : -12345:1".
+      const zdoid = line.match(/Got character ZDOID from (.+?) : (-?\d+):\d+/i);
       if (zdoid) {
+        const [, name, owner] = zdoid;
+        if (owner === "0") return; // "… : 0:0" is the character dying, not a join
         const id = this.valheimPendingId.get(serverId);
         this.valheimPendingId.delete(serverId);
-        void this.upsert(serverId, zdoid[1]!, id);
+        this.roster(serverId).set(owner!, name!);
+        void this.upsert(serverId, name!, id);
+        return;
       }
+      // Both transports log this once the leaver's character is cleaned up; crossplay
+      // has no "Closing socket" line.
+      const left = line.match(/Destroying abandoned non persistent zdo \S+ owner (-?\d+)/i);
+      if (left) {
+        const roster = this.logRoster.get(serverId);
+        const name = roster?.get(left[1]!);
+        if (name !== undefined) {
+          roster!.delete(left[1]!);
+          void this.leave(serverId, name);
+        }
+        return;
+      }
+      if (/Game server connected/i.test(line)) this.logRoster.delete(serverId); // the process restarted
       return;
     }
     if (game === Game.MINECRAFT) {
@@ -297,9 +318,7 @@ export class SightingsService implements OnModuleInit {
       // real one carries the permissions suffix.
       const m = line.match(/Player '([^']+)' logged in with Permissions/i);
       if (m) {
-        let roster = this.logRoster.get(serverId);
-        if (!roster) this.logRoster.set(serverId, (roster = new Set()));
-        roster.add(m[1]!);
+        this.roster(serverId).set(m[1]!, m[1]!);
         void this.upsert(serverId, m[1]!);
         return;
       }
@@ -319,6 +338,17 @@ export class SightingsService implements OnModuleInit {
       const m = line.match(/LogNet: Join succeeded: (\S+)/);
       if (m) void this.upsert(serverId, m[1]!);
     }
+  }
+
+  private roster(serverId: string): Map<string, string> {
+    let roster = this.logRoster.get(serverId);
+    if (!roster) this.logRoster.set(serverId, (roster = new Map()));
+    return roster;
+  }
+
+  /** How many players the join/leave log lines say are online (log-roster games). */
+  logRosterCount(serverId: string): number {
+    return new Set(this.logRoster.get(serverId)?.values()).size;
   }
 
   private async upsert(serverId: string, name: string, playerId?: string, tick = false): Promise<void> {
@@ -388,7 +418,7 @@ export class SightingsService implements OnModuleInit {
         ? `Player tracking isn't available for ${GAME_LABELS[game]}: Palisade can't read its player list.`
         : (CAPTURE_NOTES[game] ?? "Captured from the live player list every minute while the server runs."),
       hourCounts,
-      playtimeTracked: RCON_POLL_GAMES.has(game) || game === Game.ENSHROUDED,
+      playtimeTracked: RCON_POLL_GAMES.has(game) || game === Game.ENSHROUDED || game === Game.VALHEIM,
     };
   }
 
