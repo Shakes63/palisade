@@ -37,13 +37,20 @@ export const SettingKeys = {
   PfsenseHost: "pfsense_host",
   PfsenseApiKey: "pfsense_api_key", // secret
   PfsenseTargetIp: "pfsense_target_ip", // the LAN IP the game servers bind on
-  // Which router the port-forward integration drives: "pfsense" (default) or "unifi".
+  // Which router the port-forward integration drives: "pfsense" (default), "unifi" or "mikrotik".
   PortForwardRouter: "port_forward_router",
   // UniFi Network API (API key from Settings → Control Plane → Integrations).
   UnifiHost: "unifi_host",
   UnifiApiKey: "unifi_api_key", // secret
   UnifiSite: "unifi_site", // the Network app's site name ("default" unless multi-site)
   UnifiTargetIp: "unifi_target_ip", // the LAN IP the game servers bind on
+  // RouterOS REST API (v7.1+) — HTTP Basic auth, so a user and password rather
+  // than an API key. The window that created the www-ssl service must be running.
+  MikrotikHost: "mikrotik_host",
+  MikrotikUser: "mikrotik_user",
+  MikrotikPassword: "mikrotik_password", // secret
+  MikrotikTargetIp: "mikrotik_target_ip", // the LAN IP the game servers bind on
+  MikrotikWanInterface: "mikrotik_wan_interface", // optional in-interface matcher
   Initialized: "initialized",
 } as const;
 
@@ -60,6 +67,7 @@ const SECRET_KEYS = new Set<string>([
   SettingKeys.SteamWebApiKey,
   SettingKeys.PfsenseApiKey,
   SettingKeys.UnifiApiKey,
+  SettingKeys.MikrotikPassword,
   SettingKeys.NotificationTargets,
   SettingKeys.BackupReplication,
   SettingKeys.SteamGridDbApiKey,
@@ -178,9 +186,10 @@ export class ManagerSettingsService implements OnModuleInit {
     const router = (await this.get(SettingKeys.PortForwardRouter))?.trim();
     return resolveConnectHost({
       explicit: await this.getStringOverride(SettingKeys.ConnectHost),
-      router: router === "unifi" ? "unifi" : "pfsense",
+      router: router === "unifi" ? "unifi" : router === "mikrotik" ? "mikrotik" : "pfsense",
       pfsenseTargetIp: await this.getStringOverride(SettingKeys.PfsenseTargetIp),
       unifiTargetIp: await this.getStringOverride(SettingKeys.UnifiTargetIp),
+      mikrotikTargetIp: await this.getStringOverride(SettingKeys.MikrotikTargetIp),
       publicBaseUrl: (await this.getPublicBaseUrl()) ?? loadEnv().PUBLIC_BASE_URL,
     });
   }
