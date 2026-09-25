@@ -36,11 +36,16 @@ export class UpdateSettingsBody {
   @IsOptional() @IsRouterHost(() => "pfsense") pfsenseHost?: string;
   @IsOptional() @IsString() pfsenseApiKey?: string;
   @IsOptional() @IsTargetIp() pfsenseTargetIp?: string;
-  @IsOptional() @IsIn(["pfsense", "unifi"]) portForwardRouter?: "pfsense" | "unifi";
+  @IsOptional() @IsIn(["pfsense", "unifi", "mikrotik"]) portForwardRouter?: "pfsense" | "unifi" | "mikrotik";
   @IsOptional() @IsRouterHost(() => "unifi") unifiHost?: string;
   @IsOptional() @IsString() unifiApiKey?: string;
   @IsOptional() @IsString() unifiSite?: string;
   @IsOptional() @IsTargetIp() unifiTargetIp?: string;
+  @IsOptional() @IsRouterHost(() => "mikrotik") mikrotikHost?: string;
+  @IsOptional() @IsString() mikrotikUser?: string;
+  @IsOptional() @IsString() mikrotikPassword?: string;
+  @IsOptional() @IsTargetIp() mikrotikTargetIp?: string;
+  @IsOptional() @IsString() mikrotikWanInterface?: string;
 }
 
 /** "" for null so the row exists but reads back as unset — the tri-state the
@@ -116,6 +121,13 @@ export class ManagerSettingsController {
     if (body.unifiSite !== undefined) await this.settings.set(SettingKeys.UnifiSite, body.unifiSite.trim());
     if (body.unifiTargetIp !== undefined)
       await this.settings.set(SettingKeys.UnifiTargetIp, body.unifiTargetIp.trim());
+    if (body.mikrotikHost !== undefined) await this.settings.set(SettingKeys.MikrotikHost, body.mikrotikHost.trim());
+    if (body.mikrotikUser !== undefined) await this.settings.set(SettingKeys.MikrotikUser, body.mikrotikUser.trim());
+    if (body.mikrotikPassword) await this.settings.set(SettingKeys.MikrotikPassword, body.mikrotikPassword);
+    if (body.mikrotikTargetIp !== undefined)
+      await this.settings.set(SettingKeys.MikrotikTargetIp, body.mikrotikTargetIp.trim());
+    if (body.mikrotikWanInterface !== undefined)
+      await this.settings.set(SettingKeys.MikrotikWanInterface, body.mikrotikWanInterface.trim());
 
     // Host overrides. An empty string / null means "defer to the env var again",
     // which is stored as "" and read back as unset by the tri-state getters.

@@ -34,11 +34,16 @@ export default function SettingsPage() {
   const [pfTestMsg, setPfTestMsg] = useState<string | null>(null);
   // Which router the port-forward integration drives. Unset reads as pfSense so
   // installs that predate UniFi support keep their forwards untouched.
-  const [portForwardRouter, setPortForwardRouter] = useState<"pfsense" | "unifi">("pfsense");
+  const [portForwardRouter, setPortForwardRouter] = useState<"pfsense" | "unifi" | "mikrotik">("pfsense");
   const [unifiHost, setUnifiHost] = useState("");
   const [unifiApiKey, setUnifiApiKey] = useState("");
   const [unifiSite, setUnifiSite] = useState("default");
   const [unifiTargetIp, setUnifiTargetIp] = useState("");
+  const [mikrotikHost, setMikrotikHost] = useState("");
+  const [mikrotikUser, setMikrotikUser] = useState("");
+  const [mikrotikPassword, setMikrotikPassword] = useState("");
+  const [mikrotikTargetIp, setMikrotikTargetIp] = useState("");
+  const [mikrotikWanInterface, setMikrotikWanInterface] = useState("");
   // Host overrides. "" means "not set here" — the env var keeps deciding.
   const [gameHostNetwork, setGameHostNetwork] = useState("");
   const [autoCreateNetwork, setAutoCreateNetwork] = useState("");
@@ -68,10 +73,16 @@ export default function SettingsPage() {
         if (reset("portforwarding")) {
           if (typeof v.pfsense_host === "string") setPfsenseHost(v.pfsense_host);
           if (typeof v.pfsense_target_ip === "string") setPfsenseTargetIp(v.pfsense_target_ip);
-          setPortForwardRouter(v.port_forward_router === "unifi" ? "unifi" : "pfsense");
+          setPortForwardRouter(
+            v.port_forward_router === "unifi" ? "unifi" : v.port_forward_router === "mikrotik" ? "mikrotik" : "pfsense",
+          );
           if (typeof v.unifi_host === "string") setUnifiHost(v.unifi_host);
           if (typeof v.unifi_site === "string" && v.unifi_site) setUnifiSite(v.unifi_site);
           if (typeof v.unifi_target_ip === "string") setUnifiTargetIp(v.unifi_target_ip);
+          if (typeof v.mikrotik_host === "string") setMikrotikHost(v.mikrotik_host);
+          if (typeof v.mikrotik_user === "string") setMikrotikUser(v.mikrotik_user);
+          if (typeof v.mikrotik_target_ip === "string") setMikrotikTargetIp(v.mikrotik_target_ip);
+          if (typeof v.mikrotik_wan_interface === "string") setMikrotikWanInterface(v.mikrotik_wan_interface);
         }
         if (reset("host")) {
           setGameHostNetwork(typeof v.game_host_network === "string" ? v.game_host_network : "");
@@ -139,7 +150,9 @@ export default function SettingsPage() {
 
   /** Saves the router choice plus the fields of the router that's showing; the
    *  other router's saved settings stay put so switching back costs nothing. */
-  const targetIpBad = badTargetIp(portForwardRouter === "unifi" ? unifiTargetIp : pfsenseTargetIp);
+  const activeTargetIp =
+    portForwardRouter === "unifi" ? unifiTargetIp : portForwardRouter === "mikrotik" ? mikrotikTargetIp : pfsenseTargetIp;
+  const targetIpBad = badTargetIp(activeTargetIp);
   const savePortForwarding = () => {
     const body: Record<string, string> = { portForwardRouter };
     if (portForwardRouter === "unifi") {
@@ -147,6 +160,12 @@ export default function SettingsPage() {
       body.unifiSite = unifiSite;
       body.unifiTargetIp = unifiTargetIp;
       if (unifiApiKey) body.unifiApiKey = unifiApiKey;
+    } else if (portForwardRouter === "mikrotik") {
+      body.mikrotikHost = mikrotikHost;
+      body.mikrotikUser = mikrotikUser;
+      body.mikrotikTargetIp = mikrotikTargetIp;
+      body.mikrotikWanInterface = mikrotikWanInterface;
+      if (mikrotikPassword) body.mikrotikPassword = mikrotikPassword;
     } else {
       body.pfsenseHost = pfsenseHost;
       body.pfsenseTargetIp = pfsenseTargetIp;
@@ -155,6 +174,7 @@ export default function SettingsPage() {
     void saveCard("portforwarding", body, () => {
       setPfsenseApiKey("");
       setUnifiApiKey("");
+      setMikrotikPassword("");
       setPfTestMsg(null);
     });
   };
@@ -211,7 +231,16 @@ export default function SettingsPage() {
       const draft =
         portForwardRouter === "unifi"
           ? { router: "unifi", host: unifiHost, apiKey: unifiApiKey, site: unifiSite, targetIp: unifiTargetIp }
-          : { router: "pfsense", host: pfsenseHost, apiKey: pfsenseApiKey, targetIp: pfsenseTargetIp };
+          : portForwardRouter === "mikrotik"
+            ? {
+                router: "mikrotik",
+                host: mikrotikHost,
+                user: mikrotikUser,
+                password: mikrotikPassword,
+                wanInterface: mikrotikWanInterface,
+                targetIp: mikrotikTargetIp,
+              }
+            : { router: "pfsense", host: pfsenseHost, apiKey: pfsenseApiKey, targetIp: pfsenseTargetIp };
       const res = await apiPost<{ ok: boolean; message: string }>("/router/test", draft);
       setPfTestMsg(`${res.ok ? "✓ " : "✗ "}${res.message}`);
     } catch (err) {
@@ -219,18 +248,29 @@ export default function SettingsPage() {
     }
   };
 
-  // UniFi only: creates and deletes a disabled rule, two config pushes to the
-  // gateway, so it is a separate button the admin chooses to press.
-  const testUnifiWrite = async () => {
+  // UniFi and RouterOS apply each write immediately (a config push / a live rule),
+  // so the write probe is a separate button the admin chooses to press.
+  const testRouterWrite = async () => {
     setPfTestMsg("Testing write access…");
     try {
-      const res = await apiPost<{ ok: boolean; message: string }>("/router/test-write", {
-        router: "unifi",
-        host: unifiHost,
-        apiKey: unifiApiKey,
-        site: unifiSite,
-        targetIp: unifiTargetIp,
-      });
+      const draft =
+        portForwardRouter === "mikrotik"
+          ? {
+              router: "mikrotik",
+              host: mikrotikHost,
+              user: mikrotikUser,
+              password: mikrotikPassword,
+              wanInterface: mikrotikWanInterface,
+              targetIp: mikrotikTargetIp,
+            }
+          : {
+              router: "unifi",
+              host: unifiHost,
+              apiKey: unifiApiKey,
+              site: unifiSite,
+              targetIp: unifiTargetIp,
+            };
+      const res = await apiPost<{ ok: boolean; message: string }>("/router/test-write", draft);
       setPfTestMsg(`${res.ok ? "✓ " : "✗ "}${res.message}`);
     } catch (err) {
       setPfTestMsg((err as Error).message);
@@ -463,12 +503,15 @@ export default function SettingsPage() {
                 className="input"
                 value={portForwardRouter}
                 onChange={(e) => {
-                  setPortForwardRouter(e.target.value === "unifi" ? "unifi" : "pfsense");
+                  setPortForwardRouter(
+                    e.target.value === "unifi" ? "unifi" : e.target.value === "mikrotik" ? "mikrotik" : "pfsense",
+                  );
                   setPfTestMsg(null);
                 }}
               >
                 <option value="pfsense">pfSense (REST API package)</option>
                 <option value="unifi">UniFi Network (UniFi OS console)</option>
+                <option value="mikrotik">MikroTik RouterOS</option>
               </select>
             </div>
             {portForwardRouter === "pfsense" ? (
@@ -518,7 +561,7 @@ export default function SettingsPage() {
                   configured={configured("pfsense_api_key")}
                 />
               </>
-            ) : (
+            ) : portForwardRouter === "unifi" ? (
               <>
                 <p className="text-xs text-slate-500">
                   Works with UniFi OS consoles (Dream Machine, Cloud Gateway, Cloud Key) on Network 9.0 or
@@ -570,23 +613,92 @@ export default function SettingsPage() {
                   configured={configured("unifi_api_key")}
                 />
               </>
+            ) : (
+              <>
+                <p className="text-xs text-slate-500">
+                  Works with RouterOS 7.1 or newer. Enable the{" "}
+                  <span className="font-mono text-slate-400">www-ssl</span> service (IP → Services) and create a
+                  dedicated user with <span className="font-mono text-slate-400">write</span>,{" "}
+                  <span className="font-mono text-slate-400">api</span>,{" "}
+                  <span className="font-mono text-slate-400">rest-api</span> (7.13+) and{" "}
+                  <span className="font-mono text-slate-400">read</span> policies rather than using{" "}
+                  <span className="font-mono text-slate-400">admin</span>. The REST API speaks HTTP Basic auth, so
+                  this uses the user&apos;s name and password. Assigning a certificate to{" "}
+                  <span className="font-mono text-slate-400">www-ssl</span> is recommended; without one RouterOS
+                  serves anonymous Diffie-Hellman only, which Palisade still connects to. On a stock firewall a
+                  dst-nat rule is enough (the default drop exempts DSTNATed traffic); a custom/hardened forward
+                  chain also needs a matching accept rule, added by hand in IP → Firewall → Filter.
+                </p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <label htmlFor={`${uid}-mkhost`} className="label">Router host / IP</label>
+                    <input
+                      id={`${uid}-mkhost`}
+                      className="input"
+                      placeholder="e.g. 192.168.1.1 (your router)"
+                      value={mikrotikHost}
+                      onChange={(e) => setMikrotikHost(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor={`${uid}-mktarget`} className="label">Forward to (LAN IP)</label>
+                    <input
+                      id={`${uid}-mktarget`}
+                      className={`input ${badTargetIp(mikrotikTargetIp) ? "border-rose-500/60" : ""}`}
+                      placeholder="e.g. 192.168.1.50 (this server box)"
+                      value={mikrotikTargetIp}
+                      onChange={(e) => setMikrotikTargetIp(e.target.value)}
+                      aria-invalid={badTargetIp(mikrotikTargetIp)}
+                    />
+                    {badTargetIp(mikrotikTargetIp) && (
+                      <p className="mt-1 text-xs text-rose-400">Enter an IPv4 address, e.g. 192.168.1.50.</p>
+                    )}
+                  </div>
+                  <div>
+                    <label htmlFor={`${uid}-mkuser`} className="label">API user</label>
+                    <input
+                      id={`${uid}-mkuser`}
+                      className="input"
+                      placeholder="e.g. palisade"
+                      value={mikrotikUser}
+                      onChange={(e) => setMikrotikUser(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor={`${uid}-mkwan`} className="label">WAN interface or list (optional)</label>
+                    <input
+                      id={`${uid}-mkwan`}
+                      className="input"
+                      placeholder="e.g. WAN or ether1, or leave blank"
+                      value={mikrotikWanInterface}
+                      onChange={(e) => setMikrotikWanInterface(e.target.value)}
+                    />
+                  </div>
+                </div>
+                <SecretField
+                  label="API password"
+                  value={mikrotikPassword}
+                  onChange={setMikrotikPassword}
+                  configured={configured("mikrotik_password")}
+                />
+              </>
             )}
             <div>
               <div className="flex flex-wrap gap-2">
                 <button type="button" className="btn-secondary" onClick={testRouter}>
                   <Send className="h-4 w-4" /> Test connection
                 </button>
-                {portForwardRouter === "unifi" && (
-                  <button type="button" className="btn-secondary" onClick={testUnifiWrite}>
+                {portForwardRouter !== "pfsense" && (
+                  <button type="button" className="btn-secondary" onClick={testRouterWrite}>
                     <Send className="h-4 w-4" /> Test write access
                   </button>
                 )}
               </div>
-              {portForwardRouter === "unifi" && (
+              {portForwardRouter !== "pfsense" && (
                 <p className="mt-2 text-xs text-slate-500">
                   Test connection only reads. Test write access creates a disabled rule named{" "}
                   <span className="font-mono text-slate-400">Palisade - write test (safe to delete)</span> and deletes
-                  it again. Each of those two steps is a real config change that UniFi pushes to the gateway, so
+                  it again. Each of those two steps is a real config change that the router applies immediately, so
                   run it when a brief firewall reload would be acceptable.
                 </p>
               )}

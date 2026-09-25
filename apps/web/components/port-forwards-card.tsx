@@ -1,12 +1,13 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Globe, Check, X, Loader2, ArrowUpRight, Power, Trash2, TriangleAlert } from "lucide-react";
+import { Globe, Check, X, Loader2, ArrowUpRight, Power, Trash2, TriangleAlert, RefreshCw } from "lucide-react";
 import type { PortSet } from "@ark/shared";
 import { apiGet, apiPost, apiPatch, apiDelete } from "@/lib/api";
+import { confirmDialog } from "@/components/dialogs";
 import { keepCase } from "@/lib/keep-case";
 
-type ForwardState = "ok" | "disabled" | "mismatched" | "missing";
+type ForwardState = "ok" | "disabled" | "mismatched" | "conflict" | "missing";
 interface ForwardStatus {
   port: number;
   proto: "udp" | "tcp";
@@ -14,16 +15,36 @@ interface ForwardStatus {
   state: ForwardState;
   ruleId: string | null;
   actualTarget?: string | null;
+  actualName?: string;
+  actualSpec?: string;
 }
 interface View {
-  router: "pfsense" | "unifi";
+  router: "pfsense" | "unifi" | "mikrotik";
   configured: boolean;
   targetIp: string | null;
   wanIp: string | null;
   forwards: ForwardStatus[];
 }
 
-const ROUTER_LABELS = { pfsense: "pfSense", unifi: "UniFi" } as const;
+/** One write the "Fix" button would make, as reported by the preview endpoint. */
+interface PlannedChange {
+  port: number;
+  proto: "udp" | "tcp";
+  label: string;
+  action: "create" | "retarget";
+  from: string | null;
+  to: string;
+  name: string;
+}
+interface Plan {
+  router: View["router"];
+  configured: boolean;
+  targetIp: string | null;
+  wanIp: string | null;
+  changes: PlannedChange[];
+}
+
+const ROUTER_LABELS = { pfsense: "pfSense", unifi: "UniFi", mikrotik: "MikroTik" } as const;
 
 /**
  * Full WAN port-forward management for this server's player-facing ports:
@@ -63,6 +84,85 @@ export function PortForwardsCard({ serverId, ports }: { serverId: string; ports:
   const routerLabel = ROUTER_LABELS[view.router] ?? "router";
   const fixable = view.forwards.filter((f) => f.state === "missing" || f.state === "mismatched").length;
 
+  // Show exactly what "Fix" will do before touching the router. The preview is a
+  // read, so the router is untouched unless the admin confirms.
+  const fix = async () => {
+    setBusy("preview");
+    setErr(null);
+    try {
+      const plan = await apiGet<Plan>(`/servers/${serverId}/portforwards/preview`);
+      if (plan.changes.length === 0) return;
+      const ok = await confirmDialog({
+        title: `Apply ${plan.changes.length} change${plan.changes.length === 1 ? "" : "s"} to ${routerLabel}?`,
+        confirmLabel: "Apply",
+        body: (
+          <div className="space-y-2">
+            <p>
+              {plan.changes.length} WAN port-forward{plan.changes.length === 1 ? "" : "s"} on{" "}
+              <span className="font-mono text-slate-200">{plan.targetIp}</span> will change:
+            </p>
+            <ul className="space-y-1.5">
+              {plan.changes.map((ch) => (
+                <li key={`${ch.port}/${ch.proto}`}>
+                  <span className="font-mono text-xs text-slate-200">
+                    {ch.proto.toUpperCase()} {ch.port} → {ch.to}
+                  </span>{" "}
+                  <span className="text-xs text-slate-500">({ch.label})</span>
+                  <div className="text-xs text-slate-500">
+                    {ch.action === "create" ? "new rule" : `re-pointed from ${ch.from ?? "another host"}`}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ),
+      });
+      if (ok) await run("apply", () => apiPost<View>(`/servers/${serverId}/portforwards`));
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy((b) => (b === "preview" ? null : b));
+    }
+  };
+
+  // A port another rule is using. Disabling that rule (reversible) and creating a
+  // dedicated Palisade rule is the only way to take it over, so it's an explicit
+  // per-forward action with the current owner shown in the confirm.
+  const replace = async (f: ForwardStatus) => {
+    const shared = f.actualSpec !== undefined && f.actualSpec.trim() !== String(f.port);
+    const who = f.actualName ? `"${f.actualName}"` : "An existing rule";
+    const ok = await confirmDialog({
+      title: `Replace the rule on ${f.proto.toUpperCase()} ${f.port}?`,
+      confirmLabel: "Replace",
+      danger: true,
+      body: (
+        <div className="space-y-2">
+          <p>
+            {who} currently forwards{" "}
+            <span className="font-mono text-slate-200">
+              {f.proto.toUpperCase()} {f.port}
+            </span>{" "}
+            to <span className="font-mono text-slate-200">{f.actualTarget}</span>.
+          </p>
+          {shared && (
+            <p className="text-amber-300">
+              That rule also covers other ports ({f.actualSpec}) — disabling it stops those too.
+            </p>
+          )}
+          <p>
+            It will be <strong>disabled</strong> (not deleted), and a Palisade rule forwarding{" "}
+            {f.proto.toUpperCase()} {f.port} → <span className="font-mono text-slate-200">{view.targetIp}</span> will be
+            created.
+          </p>
+        </div>
+      ),
+    });
+    if (ok)
+      await run(`${f.port}/${f.proto}`, () =>
+        apiPost<View>(`/servers/${serverId}/portforwards/replace`, { port: f.port, proto: f.proto }),
+      );
+  };
+
   const stateChip = (f: ForwardStatus) => {
     switch (f.state) {
       case "ok":
@@ -81,6 +181,15 @@ export function PortForwardsCard({ serverId, ports }: { serverId: string; ports:
         return (
           <span className="inline-flex items-center gap-1 text-xs text-amber-400" title={`Currently → ${f.actualTarget}`}>
             <TriangleAlert className="h-3.5 w-3.5" /> wrong target ({f.actualTarget})
+          </span>
+        );
+      case "conflict":
+        return (
+          <span
+            className="inline-flex items-center gap-1 text-xs text-amber-400"
+            title={`${f.actualName || "Another rule"} → ${f.actualTarget}`}
+          >
+            <TriangleAlert className="h-3.5 w-3.5" /> in use ({f.actualTarget})
           </span>
         );
       default:
@@ -102,16 +211,20 @@ export function PortForwardsCard({ serverId, ports }: { serverId: string; ports:
           </h3>
         </div>
         {view.configured && fixable > 0 && (
-          <button className="btn-primary" onClick={() => run("apply", () => apiPost<View>(`/servers/${serverId}/portforwards`))} disabled={busy !== null}>
-            {busy === "apply" ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowUpRight className="h-4 w-4" />}
-            {busy === "apply" ? "Applying…" : `Fix ${fixable} forward${fixable === 1 ? "" : "s"}`}
+          <button className="btn-primary" onClick={fix} disabled={busy !== null}>
+            {busy !== null ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowUpRight className="h-4 w-4" />}
+            {busy === "apply"
+              ? "Applying…"
+              : busy === "preview"
+                ? "Checking…"
+                : `Fix ${fixable} forward${fixable === 1 ? "" : "s"}`}
           </button>
         )}
       </div>
 
       {!view.configured ? (
         <p className="text-xs text-slate-500">
-          Set the {routerLabel} host, API key, and target IP in{" "}
+          Set the {routerLabel} host, credentials, and target IP in{" "}
           <Link href="/settings" className="text-ark-accent hover:underline">
             Settings
           </Link>{" "}
@@ -130,6 +243,16 @@ export function PortForwardsCard({ serverId, ports }: { serverId: string; ports:
                   <span className="min-w-0 flex-1">{stateChip(f)}</span>
                   {rowBusy ? (
                     <Loader2 className="h-4 w-4 shrink-0 animate-spin text-slate-500" />
+                  ) : f.state === "conflict" ? (
+                    <button
+                      className="inline-flex shrink-0 items-center gap-1 text-xs text-amber-400 hover:text-amber-300"
+                      title={`Replace the rule using ${key}`}
+                      aria-label={`Replace rule on ${key}`}
+                      disabled={busy !== null}
+                      onClick={() => replace(f)}
+                    >
+                      <RefreshCw className="h-3.5 w-3.5" /> Replace
+                    </button>
                   ) : (
                     f.ruleId != null && (
                       <span className="flex shrink-0 items-center gap-1">

@@ -15,20 +15,27 @@ import {
 } from "./router";
 import { PfsenseClient } from "./pfsense.client";
 import { UnifiClient } from "./unifi.client";
+import { MikrotikClient } from "./mikrotik.client";
 
 /** Per-forward state on the router:
  *  ok         — enabled WAN rule exists and points at the target
  *  disabled   — a matching rule exists but is disabled
- *  mismatched — an enabled rule exists for the port/proto but targets another host
+ *  mismatched — a dedicated Palisade rule exists for the port but targets another host
+ *  conflict   — an enabled rule occupies the port but isn't ours to re-point (a
+ *               hand-made rule, or a range/list shared with other ports); needs Replace
  *  missing    — no rule at all */
-export type ForwardState = "ok" | "disabled" | "mismatched" | "missing";
+export type ForwardState = "ok" | "disabled" | "mismatched" | "conflict" | "missing";
 
 export interface ForwardStatus extends ForwardPort {
   state: ForwardState;
   /** The router's rule id when one exists (for enable/disable/delete). */
   ruleId: string | null;
-  /** The host a mismatched rule currently points at. */
+  /** The host a mismatched or conflicting rule currently points at. */
   actualTarget?: string | null;
+  /** The description of that rule, so the card can name it. */
+  actualName?: string;
+  /** That rule's WAN port spec — differs from the port when it's a shared range/list. */
+  actualSpec?: string;
 }
 
 /** Unsaved Settings-form values the Test button sends, so a router can be tried
@@ -37,7 +44,11 @@ export interface RouterDraft {
   router?: RouterKind;
   host?: string;
   apiKey?: string;
+  /** RouterOS user/password (Basic auth) instead of an API key. */
+  user?: string;
+  password?: string;
   site?: string;
+  wanInterface?: string;
   targetIp?: string;
 }
 
@@ -64,6 +75,35 @@ export interface PortForwardsView {
   forwards: ForwardStatus[];
 }
 
+/** One write `apply` would make, so an admin can see the change before it lands. */
+export interface PlannedForwardChange {
+  port: number;
+  proto: "udp" | "tcp";
+  label: string;
+  action: "create" | "retarget";
+  /** For a retarget, the host the rule points at now. */
+  from: string | null;
+  /** Where the rule will point once applied. */
+  to: string;
+  /** The name a created rule will carry on the router. */
+  name: string;
+}
+
+export interface ForwardPlan {
+  router: RouterKind;
+  configured: boolean;
+  targetIp: string | null;
+  wanIp: string | null;
+  /** Empty when every forward is already correct (or the router isn't set up). */
+  changes: PlannedForwardChange[];
+}
+
+/** How to name the write credential in messages — pfSense and UniFi use an API
+ *  key, RouterOS uses a user and password. */
+function credentialNoun(kind: RouterKind): string {
+  return kind === "mikrotik" ? "user and password" : "API key";
+}
+
 /**
  * WAN port-forward management. The manager knows exactly which player-facing
  * ports each game needs (forwardSpec), so it can report each forward's state and
@@ -84,7 +124,7 @@ export class PortForwardsService {
    *  installs had before UniFi support, so their forwards keep working untouched. */
   async routerKind(): Promise<RouterKind> {
     const raw = await this.settings.get(SettingKeys.PortForwardRouter);
-    return raw === "unifi" ? "unifi" : "pfsense";
+    return raw === "unifi" ? "unifi" : raw === "mikrotik" ? "mikrotik" : "pfsense";
   }
 
   /** A client for the selected router, or null while its settings are incomplete.
@@ -103,6 +143,17 @@ export class PortForwardsService {
       if (!host || !apiKey || !targetIp) return null;
       return new UnifiClient(host, apiKey, site?.trim() || "default", targetIp);
     }
+    if (kind === "mikrotik") {
+      const [host, user, password, targetIp, wanInterface] = await Promise.all([
+        pick(SettingKeys.MikrotikHost, draft.host),
+        pick(SettingKeys.MikrotikUser, draft.user),
+        pick(SettingKeys.MikrotikPassword, draft.password),
+        pick(SettingKeys.MikrotikTargetIp, draft.targetIp),
+        pick(SettingKeys.MikrotikWanInterface, draft.wanInterface),
+      ]);
+      if (!host || !user || !password || !targetIp) return null;
+      return new MikrotikClient(host, user, password, targetIp, wanInterface?.trim() || null);
+    }
     const [host, apiKey, targetIp] = await Promise.all([
       pick(SettingKeys.PfsenseHost, draft.host),
       pick(SettingKeys.PfsenseApiKey, draft.apiKey),
@@ -115,8 +166,10 @@ export class PortForwardsService {
   private async requireClient(): Promise<RouterClient> {
     const c = await this.client();
     if (!c) {
-      const label = ROUTER_LABELS[await this.routerKind()];
-      throw new BadRequestException(`Configure the ${label} host, API key, and target IP in Settings first.`);
+      const kind = await this.routerKind();
+      throw new BadRequestException(
+        `Configure the ${ROUTER_LABELS[kind]} host, ${credentialNoun(kind)}, and target IP in Settings first.`,
+      );
     }
     return c;
   }
@@ -161,7 +214,7 @@ export class PortForwardsService {
     const kind = draft.router ?? (await this.routerKind());
     const label = ROUTER_LABELS[kind];
     const c = await this.client(draft);
-    if (!c) return { ok: false, message: `Fill in the ${label} host, API key, and target IP first.` };
+    if (!c) return { ok: false, message: `Fill in the ${label} host, ${credentialNoun(kind)}, and target IP first.` };
     let detail: string;
     let wanIp: string | null;
     try {
@@ -170,7 +223,7 @@ export class PortForwardsService {
       return { ok: false, message: `Could not reach the ${label} API: ${(e as Error).message}` };
     }
     const connected = `Connected to ${c.host} — WAN ${wanIp ?? "unknown"}, ${detail}. Forwards will target ${c.targetIp}.`;
-    if (c.kind !== "pfsense") return { ok: true, message: `${connected} (Read access only — use Test write access to check the key can change rules.)` };
+    if (c.kind !== "pfsense") return { ok: true, message: `${connected} (Read access only — use Test write access to check the credentials can change rules.)` };
     try {
       await c.probeWrite();
       return { ok: true, message: `${connected} Read and write access OK.` };
@@ -184,7 +237,7 @@ export class PortForwardsService {
     const kind = draft.router ?? (await this.routerKind());
     const label = ROUTER_LABELS[kind];
     const c = await this.client(draft);
-    if (!c) return { ok: false, message: `Fill in the ${label} host, API key, and target IP first.` };
+    if (!c) return { ok: false, message: `Fill in the ${label} host, ${credentialNoun(kind)}, and target IP first.` };
     try {
       await c.probeWrite();
       return { ok: true, message: `${label} created and removed a disabled test rule — the key can write port forwards.` };
@@ -204,10 +257,20 @@ export class PortForwardsService {
     );
   }
 
-  private classify(rule: RouterRule | undefined, targetIp: string): ForwardState {
+  /** A rule made for exactly this one port and one protocol — the only kind safe
+   *  to re-point silently. Palisade only ever creates these; a range or list
+   *  belongs to something else and moving it would take other ports with it. */
+  private isDedicated(rule: RouterRule, f: ForwardPort): boolean {
+    return rule.proto !== "both" && rule.ports.trim() === String(f.port);
+  }
+
+  private classify(rule: RouterRule | undefined, f: ForwardPort, targetIp: string): ForwardState {
     if (!rule) return "missing";
     if (!rule.enabled) return "disabled";
-    return rule.target === targetIp ? "ok" : "mismatched";
+    if (rule.target === targetIp) return "ok";
+    // Points elsewhere. Only a dedicated Palisade rule is ours to re-point; anything
+    // hand-made or shared needs an explicit Replace (GH parity with pfSense/UniFi).
+    return isPalisadeRule(rule) && this.isDedicated(rule, f) ? "mismatched" : "conflict";
   }
 
   /** Each of this server's player-facing forwards + its state on the router. */
@@ -235,12 +298,15 @@ export class PortForwardsService {
       wanIp,
       forwards: spec.map((f) => {
         const rule = this.matchRule(rules, f, c.targetIp);
-        const state = this.classify(rule, c.targetIp);
+        const state = this.classify(rule, f, c.targetIp);
+        const showsActual = state === "mismatched" || state === "conflict";
         return {
           ...f,
           state,
           ruleId: rule?.id ?? null,
-          actualTarget: state === "mismatched" ? (rule?.target ?? null) : undefined,
+          actualTarget: showsActual ? (rule?.target ?? null) : undefined,
+          actualName: showsActual ? rule?.name : undefined,
+          actualSpec: state === "conflict" ? rule?.ports : undefined,
         };
       }),
     };
@@ -250,6 +316,28 @@ export class PortForwardsService {
   private async ruleFor(c: RouterClient, f: ForwardStatus): Promise<RouterRule | undefined> {
     if (f.ruleId == null) return undefined;
     return (await c.list()).find((r) => r.id === f.ruleId);
+  }
+
+  /** What apply() would change, without writing anything — the card shows this so
+   *  an admin confirms the exact rules before they land on the router. Reads the
+   *  router (so it reflects the live state), but never mutates it. */
+  async preview(id: string): Promise<ForwardPlan> {
+    const s = await this.server(id);
+    const view = await this.viewFor(s);
+    const changes: PlannedForwardChange[] = view.configured
+      ? view.forwards
+          .filter((f) => f.state === "missing" || f.state === "mismatched")
+          .map((f) => ({
+            port: f.port,
+            proto: f.proto,
+            label: f.label,
+            action: f.state === "missing" ? ("create" as const) : ("retarget" as const),
+            from: f.state === "mismatched" ? (f.actualTarget ?? null) : null,
+            to: view.targetIp ?? "",
+            name: ruleName(GAME_LABELS[s.game as Game] ?? s.game, s.name, f.label),
+          }))
+      : [];
+    return { router: view.router, configured: view.configured, targetIp: view.targetIp, wanIp: view.wanIp, changes };
   }
 
   /** Fix everything: create missing rules and re-target mismatched ones, then apply.
@@ -304,6 +392,39 @@ export class PortForwardsService {
     await c.commit();
     this.logger.log(`${ROUTER_LABELS[c.kind]} forward ${enabled ? "enabled" : "disabled"}: ${port}/${proto}`);
     return this.status(id);
+  }
+
+  /**
+   * Take over a port another rule is using: disable that rule (reversible — the
+   * admin can re-enable it) and create a Palisade rule pointing at our target.
+   * RouterOS/pfSense are first-match, so disabling is enough for ours to win; the
+   * old rule is never deleted. Only valid for a `conflict`; a dedicated Palisade
+   * rule pointing elsewhere is fixed by apply() instead.
+   */
+  async replace(id: string, port: number, proto: "udp" | "tcp"): Promise<PortForwardsView> {
+    const c = await this.requireClient();
+    const s = await this.server(id);
+    const view = await this.status(id);
+    const f = view.forwards.find((x) => x.port === port && x.proto === proto);
+    if (!f) throw new BadRequestException(`${port}/${proto} isn't one of this server's forwards`);
+    if (f.state !== "conflict") {
+      throw new BadRequestException(`${port}/${proto} has no conflicting rule to replace`);
+    }
+    const rule = await this.ruleFor(c, f);
+    if (!rule) throw new NotFoundException("The conflicting rule is gone — refresh and try again");
+    await c.setEnabled(rule, false);
+    await c.create(f, ruleName(GAME_LABELS[s.game as Game] ?? s.game, s.name, f.label));
+    await c.commit();
+    const after = await this.status(id);
+    if (after.forwards.find((x) => x.port === port && x.proto === proto)?.state !== "ok") {
+      throw new BadGatewayException(
+        `${ROUTER_LABELS[c.kind]} accepted the replacement but ${port}/${proto} still isn't forwarded`,
+      );
+    }
+    this.logger.log(
+      `${ROUTER_LABELS[c.kind]} forward replaced: ${port}/${proto} → ${c.targetIp} (disabled "${rule.name || rule.id}")`,
+    );
+    return after;
   }
 
   /** Delete one forward (port+proto), or ALL of this server's forwards when omitted. */

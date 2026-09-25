@@ -5,6 +5,7 @@ import { validateSync } from "class-validator";
 import { isPalisadeRule, isRouterHost, isTargetIp, portSpecCovers, protoCovers, ruleName } from "./router";
 import { UpdateSettingsBody } from "../manager-settings/manager-settings.controller";
 import { normalizeUnifiRule, parseUnifiHost } from "./unifi.client";
+import { normalizeMikrotikNat, stripCidr } from "./mikrotik.client";
 
 describe("portSpecCovers", () => {
   it("matches a single port exactly", () => {
@@ -101,6 +102,52 @@ describe("normalizeUnifiRule", () => {
   });
 });
 
+describe("normalizeMikrotikNat", () => {
+  it("maps a RouterOS dstnat rule onto the router-neutral rule", () => {
+    expect(
+      normalizeMikrotikNat({
+        ".id": "*1A",
+        chain: "dstnat",
+        action: "dst-nat",
+        protocol: "tcp",
+        "dst-port": "27015",
+        "to-addresses": "10.0.0.5",
+        "to-ports": "27015",
+        comment: "Palisade - Valheim - Vikings - game",
+        disabled: "false",
+      }),
+    ).toEqual({
+      id: "*1A",
+      name: "Palisade - Valheim - Vikings - game",
+      proto: "tcp",
+      ports: "27015",
+      target: "10.0.0.5",
+      enabled: true,
+    });
+  });
+
+  it("treats anything but disabled=true as enabled and a missing comment as empty", () => {
+    expect(normalizeMikrotikNat({ ".id": "*2", protocol: "udp" })).toMatchObject({
+      name: "",
+      proto: "udp",
+      ports: "",
+      target: "",
+      enabled: true,
+    });
+    expect(normalizeMikrotikNat({ ".id": "*3", disabled: "true" }).enabled).toBe(false);
+  });
+
+  it("keeps dst-port ranges and lists intact for portSpecCovers to read", () => {
+    expect(normalizeMikrotikNat({ ".id": "*4", "dst-port": "2456-2458" }).ports).toBe("2456-2458");
+    expect(normalizeMikrotikNat({ ".id": "*5", "dst-port": "2456,2457" }).ports).toBe("2456,2457");
+  });
+
+  it("strips the CIDR off a /ip/address value", () => {
+    expect(stripCidr("203.0.113.9/24")).toBe("203.0.113.9");
+    expect(stripCidr("10.0.0.1")).toBe("10.0.0.1");
+  });
+});
+
 describe("isRouterHost", () => {
   it.each(["192.168.1.1", "pfsense", "pfsense.lan", "fd00::1", "", "  10.0.0.1  "])("pfSense accepts %j", (h) => {
     expect(isRouterHost(h, "pfsense")).toBe(true);
@@ -121,10 +168,24 @@ describe("isRouterHost", () => {
     (h) => expect(isRouterHost(h, "unifi")).toBe(false),
   );
 
+  it.each(["192.168.1.1", "mikrotik.lan", "fd00::1", "", "  10.0.0.1  "])(
+    "MikroTik accepts %j (REST is reached at https://<host>/rest)",
+    (h) => expect(isRouterHost(h, "mikrotik")).toBe(true),
+  );
+
+  it.each(["not a host!!", "https://192.168.1.1", "192.168.1.1:443", "foo_bar"])(
+    "MikroTik rejects %j",
+    (h) => expect(isRouterHost(h, "mikrotik")).toBe(false),
+  );
+
   it("is enforced on the settings body", () => {
     const errors = (body: object) => validateSync(plainToInstance(UpdateSettingsBody, body)).map((e) => e.property);
-    expect(errors({ unifiHost: "not a host!!", pfsenseHost: "https://pfsense" })).toEqual(["pfsenseHost", "unifiHost"]);
-    expect(errors({ unifiHost: "https://unifi:8443", pfsenseHost: "" })).toEqual([]);
+    expect(errors({ unifiHost: "not a host!!", pfsenseHost: "https://pfsense", mikrotikHost: "http://mk" })).toEqual([
+      "pfsenseHost",
+      "unifiHost",
+      "mikrotikHost",
+    ]);
+    expect(errors({ unifiHost: "https://unifi:8443", pfsenseHost: "", mikrotikHost: "10.0.0.1" })).toEqual([]);
   });
 });
 

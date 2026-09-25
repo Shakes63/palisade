@@ -2,19 +2,24 @@ import { isFQDN, isIP, registerDecorator } from "class-validator";
 import type { ForwardPort } from "../catalog/ports";
 
 /** Which router product the port-forward integration talks to. */
-export type RouterKind = "pfsense" | "unifi";
-export const ROUTER_KINDS: readonly RouterKind[] = ["pfsense", "unifi"];
-export const ROUTER_LABELS: Record<RouterKind, string> = { pfsense: "pfSense", unifi: "UniFi" };
+export type RouterKind = "pfsense" | "unifi" | "mikrotik";
+export const ROUTER_KINDS: readonly RouterKind[] = ["pfsense", "unifi", "mikrotik"];
+export const ROUTER_LABELS: Record<RouterKind, string> = {
+  pfsense: "pfSense",
+  unifi: "UniFi",
+  mikrotik: "MikroTik RouterOS",
+};
 
 const isHostname = (h: string) => isIP(h) || isFQDN(h, { require_tld: false });
 
 /** A router address as its client can use it: a hostname or IP, and for UniFi
  *  (parseUnifiHost) an optional http(s) scheme, port and trailing slash. Blank
- *  clears the setting. */
+ *  clears the setting. pfSense and RouterOS both take a bare host (their REST
+ *  APIs are reached at https://<host>/... on 443). */
 export function isRouterHost(input: string, kind: RouterKind): boolean {
   const v = input.trim();
   if (!v) return true;
-  if (kind === "pfsense") return isHostname(v);
+  if (kind === "pfsense" || kind === "mikrotik") return isHostname(v);
   let url: URL;
   try {
     url = new URL(/^[a-z]+:\/\//i.test(v) ? v : `https://${v}`);
@@ -35,7 +40,9 @@ export function IsRouterHost(kindOf: (body: object) => RouterKind): PropertyDeco
         defaultMessage: (args) =>
           kindOf(args!.object) === "pfsense"
             ? "pfSense host must be a hostname or IP address"
-            : "UniFi host must be a hostname or IP address, optionally with https:// and a port",
+            : kindOf(args!.object) === "mikrotik"
+              ? "MikroTik host must be a hostname or IP address"
+              : "UniFi host must be a hostname or IP address, optionally with https:// and a port",
       },
     });
 }

@@ -107,8 +107,8 @@ player administration, and even your router's port-forwards.
 - ARK cluster support (shared transfer dir across servers).
 - Discord/webhook notifications, host low-disk warnings, editable ports with a
   start-time port-conflict guard.
-- Optional **router integration** (pfSense or UniFi): one-click WAN port-forward
-  create/fix/enable/disable/delete per server via the router's API.
+- Optional **router integration** (pfSense, UniFi, or MikroTik RouterOS): one-click
+  WAN port-forward create/fix/enable/disable/delete per server via the router's API.
 
 See [PLANNING.md](PLANNING.md) for architecture details.
 
@@ -388,6 +388,7 @@ next time it starts.
 | Discord webhook | State changes, crashes, backups, schedule events | A channel webhook URL |
 | pfSense | Per-server WAN port-forward management (create / fix / enable / disable / delete, WAN IP display) | The free [pfSense REST API package](https://pfrest.org/) on your router + an API key (System → REST API). Works with any pfSense — nothing is network-specific. **Test connection** checks read and write access (see [Checking write access](#checking-router-write-access)). |
 | UniFi | Same port-forward management on a UniFi OS console (Dream Machine, Cloud Gateway, Cloud Key) | An API key from the Network app (Settings → Control Plane → Integrations) on Network 9.0+, created by a full admin, plus the site name (`default` unless multi-site). Pick **UniFi** under Settings → Integrations → Port forwarding, then **Test connection** and **Test write access** (see [Checking write access](#checking-router-write-access)). |
+| MikroTik RouterOS | Same port-forward management on RouterOS 7.1+ | Enable the `www-ssl` service (IP → Services) and create a dedicated user with the `api`, `rest-api` (7.13+), `read`, and `write` policies — the built-in `read`/`write` groups grant far more than needed, so make a custom group and restrict the user to the Palisade host's source address. REST uses HTTP Basic auth, so enter the user's name and password. The WAN field takes an interface **or** interface-list name (`WAN` in the stock config). **Test connection** reads; **Test write access** proves write (see [Checking write access](#checking-router-write-access)). |
 
 **CurseForge terms:** the mod browser uses the CurseForge API read-only to
 search and display mods; it never downloads or redistributes mod files — the
@@ -400,7 +401,7 @@ This repo does not ship one.
 
 A router API key can pass a connection test and still be unable to change
 anything: a key inherits the role of the admin who created it, and a view-only
-key reads rules fine. Neither router API has a dry-run mode, and UniFi's
+key reads rules fine. None of the router APIs has a dry-run mode, and UniFi's
 port-forward endpoint does not validate its input (an empty body creates an empty
 rule), so the only honest write check is to make a real change and undo it.
 
@@ -424,10 +425,14 @@ says so and names the rule so you can remove it by hand.
   not mid-session. A green result means the key can create and delete rules; a
   red one names the step that failed and, if the delete failed, the rule to
   remove by hand.
+- **MikroTik RouterOS** also keeps the probe behind **Test write access** — the
+  REST API applies each write immediately. The probe rule is disabled, so it
+  never reaches the live firewall.
 
 When **Fix forwards** later reports that the router accepted a change but the
 ports still are not forwarded, run this check first: it separates a permissions
-problem from a router-side one.
+problem from a router-side one. **Fix forwards** shows the exact rules it will
+create or re-point — and asks you to confirm — before it writes anything.
 
 ## Reverse proxy / TLS
 
