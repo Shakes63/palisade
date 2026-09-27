@@ -7,6 +7,7 @@ import { TimezoneSelect, detectZone } from "@/components/timezone-select";
 import { NotificationTargetsCard } from "@/components/notification-targets";
 import { ReplicationCard } from "@/components/replication-card";
 import { UsersCard } from "@/components/users-card";
+import { CopyRow } from "@/components/connect-command";
 import { toast } from "@/components/dialogs";
 import { keepCase } from "@/lib/keep-case";
 
@@ -45,6 +46,16 @@ export default function SettingsPage() {
   const [publicBaseUrl, setPublicBaseUrl] = useState("");
   const [connectHost, setConnectHost] = useState("");
   const [hostDataDir, setHostDataDir] = useState("");
+  const [oidcIssuer, setOidcIssuer] = useState("");
+  const [oidcClientId, setOidcClientId] = useState("");
+  const [oidcClientSecret, setOidcClientSecret] = useState("");
+  const [oidcAdminGroup, setOidcAdminGroup] = useState("");
+  const [oidcOperatorGroup, setOidcOperatorGroup] = useState("");
+  const [oidcViewerGroup, setOidcViewerGroup] = useState("");
+  const [oidcGroupsClaim, setOidcGroupsClaim] = useState("");
+  const [oidcRedirectUri, setOidcRedirectUri] = useState("");
+  const [oidcHidePassword, setOidcHidePassword] = useState(false);
+  const [oidcAutoRedirect, setOidcAutoRedirect] = useState(false);
   // Per-card save state: which card is mid-save / which just saved.
   const [busyCard, setBusyCard] = useState<string | null>(null);
   const [savedCard, setSavedCard] = useState<string | null>(null);
@@ -80,10 +91,26 @@ export default function SettingsPage() {
           setConnectHost(typeof v.connect_host === "string" ? v.connect_host : "");
           setHostDataDir(typeof v.host_data_dir === "string" ? v.host_data_dir : "");
         }
+        if (reset("sso")) {
+          const str = (k: string) => (typeof v[k] === "string" ? (v[k] as string) : "");
+          setOidcIssuer(str("oidc_issuer"));
+          setOidcClientId(str("oidc_client_id"));
+          setOidcAdminGroup(str("oidc_admin_group"));
+          setOidcOperatorGroup(str("oidc_operator_group"));
+          setOidcViewerGroup(str("oidc_viewer_group"));
+          setOidcGroupsClaim(str("oidc_groups_claim"));
+          setOidcHidePassword(v.oidc_hide_password === "true");
+          setOidcAutoRedirect(v.oidc_auto_redirect === "true");
+        }
       })
       .catch(() => undefined);
   };
   useEffect(() => load(), []);
+  useEffect(() => {
+    apiGet<{ redirectUri: string }>("/auth/oidc/redirect-uri")
+      .then((r) => setOidcRedirectUri(r.redirectUri))
+      .catch(() => undefined);
+  }, []);
 
   // Keep the active tab in the URL (?tab=backups) so a refresh lands back on the
   // same tab — same pattern as the server page.
@@ -177,6 +204,22 @@ export default function SettingsPage() {
       connectHost,
       hostDataDir,
     });
+  const saveSso = () =>
+    void saveCard(
+      "sso",
+      {
+        oidcIssuer,
+        oidcClientId,
+        oidcAdminGroup,
+        oidcOperatorGroup,
+        oidcViewerGroup,
+        oidcGroupsClaim,
+        oidcHidePassword,
+        oidcAutoRedirect,
+        ...(oidcClientSecret ? { oidcClientSecret } : {}),
+      },
+      () => setOidcClientSecret(""),
+    );
   const saveStartGuard = () => void saveCard("startguard", { autoStopOnStart: autoStop });
 
   const CardSave = ({ card, onClick, disabled }: { card: string; onClick: () => void; disabled?: boolean }) => (
@@ -629,7 +672,125 @@ export default function SettingsPage() {
         </>
       )}
 
-      {tab === "Users" && <UsersCard />}
+      {tab === "Users" && (
+        <>
+          <UsersCard />
+          <div className="card space-y-4">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-ark-accent2">Single sign-on</h2>
+            <p className="text-xs text-slate-500">
+              Adds a &quot;Sign in with SSO&quot; button to the login page for any OpenID Connect provider
+              (Authentik, Keycloak, Authelia, …). Create a confidential OAuth2/OIDC client there with this redirect
+              URI; password sign-in keeps working. Clear the issuer to turn SSO off.
+            </p>
+            <div>
+              <span className="label">Redirect URI</span>
+              {oidcRedirectUri && <CopyRow value={oidcRedirectUri} title="Copy the redirect URI" />}
+              <p className="mt-1 text-xs text-slate-500">
+                Built from the public base URL (General tab). Change that if this is not the address you open
+                Palisade on.
+              </p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="sm:col-span-2">
+                <label htmlFor={`${uid}-oidc-issuer`} className="label">Issuer URL</label>
+                <input
+                  id={`${uid}-oidc-issuer`}
+                  className="input"
+                  placeholder="e.g. https://auth.example.com/application/o/palisade/"
+                  value={oidcIssuer}
+                  onChange={(e) => setOidcIssuer(e.target.value)}
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <label htmlFor={`${uid}-oidc-client`} className="label">Client ID</label>
+                <input
+                  id={`${uid}-oidc-client`}
+                  className="input"
+                  value={oidcClientId}
+                  onChange={(e) => setOidcClientId(e.target.value)}
+                />
+              </div>
+            </div>
+            <SecretField
+              label="Client secret"
+              value={oidcClientSecret}
+              onChange={setOidcClientSecret}
+              configured={configured("oidc_client_secret")}
+            />
+            <div>
+              <p className="text-xs text-slate-500">
+                Optional: give roles by provider group or role, read from the ID token. With any group set, the
+                provider decides each SSO user&apos;s role at every sign-in and users in none of them are turned
+                away. With none set, new SSO users start as viewers and you manage their roles above.
+              </p>
+              <div className="mt-3">
+                <label htmlFor={`${uid}-oidc-claim`} className="label">Groups claim</label>
+                <input
+                  id={`${uid}-oidc-claim`}
+                  className="input font-mono"
+                  placeholder="groups"
+                  value={oidcGroupsClaim}
+                  onChange={(e) => setOidcGroupsClaim(e.target.value)}
+                />
+                <p className="mt-1 text-xs text-slate-500">
+                  Blank means <span className="font-mono text-slate-400">groups</span>, which Authentik, Authelia
+                  and Okta use. Nested claims take a dotted path, e.g. Keycloak realm roles are{" "}
+                  <span className="font-mono text-slate-400">realm_access.roles</span>.
+                </p>
+              </div>
+              <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                {(
+                  [
+                    ["Admin group", oidcAdminGroup, setOidcAdminGroup],
+                    ["Operator group", oidcOperatorGroup, setOidcOperatorGroup],
+                    ["Viewer group", oidcViewerGroup, setOidcViewerGroup],
+                  ] as const
+                ).map(([label, value, set]) => (
+                  <div key={label}>
+                    <label htmlFor={`${uid}-${label}`} className="label">{label}</label>
+                    <input id={`${uid}-${label}`} className="input" value={value} onChange={(e) => set(e.target.value)} />
+                  </div>
+                ))}
+              </div>
+            </div>
+            {(
+              [
+                [
+                  "Hide password sign-in",
+                  "The login page shows only the SSO button. The password form comes back whenever SSO fails, and at /login?password. Passwords still work; they are just out of the way.",
+                  oidcHidePassword,
+                  setOidcHidePassword,
+                ],
+                [
+                  "Sign in with SSO automatically",
+                  "Opening the login page goes straight to the provider. Skipped after an SSO error, right after signing out, and at /login?password.",
+                  oidcAutoRedirect,
+                  setOidcAutoRedirect,
+                ],
+              ] as const
+            ).map(([label, hint, checked, set]) => (
+              <label key={label} className="flex items-start gap-3 text-sm text-slate-200">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 h-4 w-4"
+                  checked={checked}
+                  onChange={(e) => set(e.target.checked)}
+                />
+                <span>
+                  {label}
+                  <span className="mt-1 block text-xs font-normal text-slate-500">{hint}</span>
+                </span>
+              </label>
+            ))}
+            <p className="border-t border-ark-border/60 pt-4 text-xs text-slate-500">
+              SSO never takes over an existing account by name. To sign in to an account you already have with SSO,
+              such as this one, save these settings and use &quot;Link SSO account&quot; in the account menu at the
+              top right. Every user can do that for their own account.
+            </p>
+            <CardSave card="sso" onClick={saveSso} />
+          </div>
+        </>
+      )}
       {tab === "Notifications" && <NotificationTargetsCard />}
       {tab === "About" && <CreditsCard />}
     </div>

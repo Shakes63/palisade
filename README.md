@@ -230,7 +230,7 @@ docker compose up -d
 | `HOST_DATA_DIR` ⚙ | no¹ | auto-detected | The data dir **as the host's Docker daemon sees it** (e.g. `/mnt/cache/appdata/palisade` on Unraid). Game-container bind mounts resolve on the host, not inside the manager. Leave it unset: the manager reads it off its own `/data` mount at boot. |
 | `DATA_DIR` | no | `./data` | Data dir inside the manager container (mount your volume here, conventionally `/data`). |
 | `DATABASE_URL` | no | `file:./data/db.sqlite` | SQLite path — keep it inside `DATA_DIR`. |
-| `PUBLIC_BASE_URL` ⚙ | no | `http://localhost:3000` | The address you actually browse to. Used for links and Unraid WebUI buttons. |
+| `PUBLIC_BASE_URL` ⚙ | no | `http://localhost:3000` | The address you actually browse to. Used for links, Unraid WebUI buttons and the single sign-on redirect URI. |
 | `GAME_HOST_NETWORK` ⚙ | no | `false` | `true` = game containers use host networking (recommended — ASA/EOS and Steam query behave better without Docker NAT). Requires the `--add-host host.docker.internal:host-gateway` flag on the manager so it can still reach RCON/query. Individual servers can override this on their own General card. |
 | `AUTO_CREATE_NETWORK` ⚙ | no | `true` | Let Palisade manage its bridge: create it when a game server needs it, attach itself to it when it isn't already (added live — existing networks and a static IP are kept), and drop the legacy `ark-net` once nothing uses it. Set `false` to manage Docker networks yourself. |
 | `SHARED_NETWORK` | no | `palisade-net` | Name of that bridge. The default is chosen so Unraid resolves the manager's WebUI link correctly on a custom network (see [Moving off `ark-net`](#moving-off-ark-net)); change it only if you manage the network yourself. |
@@ -455,6 +455,58 @@ clusters. A cluster grant covers every server in that cluster, including ones
 added later. Restricted users only see what they were granted, and they
 cannot create or import servers. Admins always see everything.
 
+### Single sign-on (SSO)
+
+Palisade can also sign users in through any OpenID Connect (OIDC) provider, such as
+Authentik, Keycloak, Authelia or Zitadel. Password sign-in keeps working
+alongside it. Set it up under Settings → Users → Single sign-on:
+
+1. At the provider, create a confidential OAuth2/OpenID client and register the
+   redirect URI shown on that card. It is built from the public base URL, so
+   set that first if it isn't the address you open Palisade on. In Authentik,
+   that means an OAuth2/OpenID Provider plus an Application that uses it.
+2. Enter the issuer URL, client ID and client secret. For Authentik the
+   issuer is `https://<authentik>/application/o/<app-slug>/`.
+3. Optionally, name a provider group for each role. With any group set, the
+   provider decides each SSO user's role at every sign-in, and users in none
+   of the groups are turned away. A change applies at the user's next SSO
+   sign-in, which also signs them out everywhere else; a user who is turned
+   away is signed out too. With none set, new SSO users start as viewers and
+   you assign roles under Settings → Users. Palisade reads groups
+   from an ID token claim, set under "Groups claim":
+
+   | Provider | Groups claim |
+   | --- | --- |
+   | Authentik, Authelia, Okta | `groups` (the default; leave blank) |
+   | Keycloak | the name set on a "Group Membership" mapper, or `realm_access.roles` for realm roles |
+   | Zitadel | `urn:zitadel:iam:org:project:roles` |
+   | Auth0 | the namespaced claim your Action adds, e.g. `https://example.com/roles` |
+
+   The claim must be in the ID token itself; Palisade does not call the
+   userinfo endpoint. Microsoft Entra ID sends group object IDs rather than
+   names, so enter those IDs as the group names.
+
+The first SSO sign-in creates a Palisade user from the `preferred_username`
+claim, with a random suffix such as `magnus_3fa2c1` if that name is taken.
+SSO never takes over an existing account just because the name matches: to
+use SSO for an account you already have, such as the first-run admin, sign in
+with its password and choose "Link SSO account" in the account menu at the
+top right. With groups set, a link that would lower the account's role is
+refused. The same menu unlinks your account, which takes your password; an
+admin can unlink anyone else from Settings → Users. An account that SSO
+created has no password, so after an unlink it cannot sign in. Clear the
+issuer to turn SSO off, and clear the client ID to also forget the secret.
+
+Two switches on the card make SSO the default way in:
+
+- **Hide password sign-in** leaves only the SSO button on the login page.
+  Passwords still work, so this hides the form rather than disabling it: the
+  form comes back whenever SSO fails (the provider is down, the setup is
+  wrong, the user is turned away), and `/login?password` always shows it.
+- **Sign in with SSO automatically** sends the login page straight to the
+  provider. It stays put after an SSO error, right after you sign out, and at
+  `/login?password`, so you never get caught in a loop.
+
 ## Security
 
 What's built in:
@@ -463,7 +515,9 @@ What's built in:
   (see [Users and access](#users-and-access)), 7-day tokens carrying a
   version claim checked against the DB on every request — `POST
   /auth/logout-all` instantly invalidates every outstanding token. Login and
-  first-run are rate-limited (5/min per client). The realtime socket requires
+  first-run are rate-limited (5/min per client). Optional OIDC sign-in uses
+  the authorization code flow with PKCE, state and nonce, and verifies the
+  ID token's signature, issuer and audience. The realtime socket requires
   the same token; anonymous connections never receive log or console traffic.
 - **API**: helmet security headers; CORS denies cross-origin by default
   (browsers reach the API same-origin through the web app). Serving the UI

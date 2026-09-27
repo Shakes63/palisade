@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { LogOut, Boxes, Settings } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useRole } from "@/lib/use-role";
+import { AccountMenu } from "@/components/account-menu";
 
 function NavLink({ href, active, children }: { href: string; active: boolean; children: React.ReactNode }) {
   return (
@@ -49,10 +50,13 @@ export function AppHeader() {
           )}
         </div>
         {token && (
-          <button onClick={logout} className="btn-secondary" title="Sign out" aria-label="Sign out">
-            <LogOut className="h-4 w-4" />
-            <span className="hidden sm:inline">Sign out</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <AccountMenu />
+            <button onClick={logout} className="btn-secondary" title="Sign out" aria-label="Sign out">
+              <LogOut className="h-4 w-4" />
+              <span className="hidden sm:inline">Sign out</span>
+            </button>
+          </div>
         )}
       </div>
     </header>

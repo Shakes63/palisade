@@ -354,6 +354,8 @@ export interface UserDto {
   role: Role;
   /** Only the granted servers (plus members of granted clusters) are visible. */
   restricted: boolean;
+  /** Linked to a single sign-on (OIDC) identity. */
+  sso: boolean;
   serverIds: string[];
   clusterIds: string[];
   createdAt?: string;

@@ -1,9 +1,10 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Check, Pencil, Plus, Trash2, Users, X } from "lucide-react";
+import { Check, Pencil, Plus, Trash2, Unlink, Users, X } from "lucide-react";
 import { ROLES, type Role, type ServerSummary, type UserAccessDto, type UserDto } from "@ark/shared";
 import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/api";
 import { confirmDialog } from "@/components/dialogs";
+import { useMe } from "@/lib/use-me";
 
 interface ClusterLite {
   id: string;
@@ -238,6 +239,7 @@ export function UsersCard() {
   const [busy, setBusy] = useState(false);
   const [addErr, setAddErr] = useState<string | null>(null);
   const [rowErr, setRowErr] = useState<{ id: string; msg: string } | null>(null);
+  const me = useMe();
 
   const load = () => {
     apiGet<UserDto[]>("/users")
@@ -263,6 +265,25 @@ export function UsersCard() {
       setAddErr((err as Error).message);
     } finally {
       setBusy(false);
+    }
+  };
+
+  const unlinkSso = async (u: UserDto) => {
+    if (
+      !(await confirmDialog({
+        title: `Unlink SSO from "${u.username}"?`,
+        body: "They can no longer sign in with SSO, only with a password. An account SSO created has none.",
+        confirmLabel: "Unlink",
+        danger: true,
+      }))
+    )
+      return;
+    setRowErr(null);
+    try {
+      await apiDelete(`/users/${u.id}/sso`);
+      load();
+    } catch (err) {
+      setRowErr({ id: u.id, msg: (err as Error).message });
     }
   };
 
@@ -311,8 +332,20 @@ export function UsersCard() {
                   <span className="rounded bg-slate-700/60 px-2 py-0.5 text-xs text-slate-300">
                     {roleLabel(u.role)}
                   </span>
+                  {u.sso && <span className="rounded bg-slate-700/60 px-2 py-0.5 text-xs text-slate-300">SSO</span>}
                   {access && <span className="whitespace-nowrap text-xs text-slate-500">{access}</span>}
                 </div>
+                {u.sso && me && u.id !== me.id && (
+                  <button
+                    type="button"
+                    className="btn-secondary shrink-0"
+                    onClick={() => unlinkSso(u)}
+                    title="Unlink SSO"
+                    aria-label={`Unlink SSO from ${u.username}`}
+                  >
+                    <Unlink className="h-4 w-4" />
+                  </button>
+                )}
                 <button
                   type="button"
                   className="btn-secondary shrink-0"

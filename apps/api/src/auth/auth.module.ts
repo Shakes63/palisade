@@ -5,6 +5,7 @@ import { ThrottlerModule } from "@nestjs/throttler";
 import { AuthController } from "./auth.controller";
 import { UsersController } from "./users.controller";
 import { AuthService } from "./auth.service";
+import { OidcService } from "./oidc.service";
 import { JwtAuthGuard } from "./jwt-auth.guard";
 import { RolesGuard } from "./roles.guard";
 import { ServerAccessGuard } from "./server-access.guard";
@@ -25,6 +26,7 @@ import { loadEnv } from "../config/env";
   controllers: [AuthController, UsersController],
   providers: [
     AuthService,
+    OidcService,
     AccessService,
     AuthThrottlerGuard,
     // Protect every route by default; opt out with @Public(). RolesGuard layers

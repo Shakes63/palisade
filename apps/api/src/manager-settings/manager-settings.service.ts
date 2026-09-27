@@ -44,6 +44,16 @@ export const SettingKeys = {
   UnifiApiKey: "unifi_api_key", // secret
   UnifiSite: "unifi_site", // the Network app's site name ("default" unless multi-site)
   UnifiTargetIp: "unifi_target_ip", // the LAN IP the game servers bind on
+  // Single sign-on through any OpenID Connect provider; on once issuer + client id are set.
+  OidcIssuer: "oidc_issuer",
+  OidcClientId: "oidc_client_id",
+  OidcClientSecret: "oidc_client_secret", // secret
+  OidcAdminGroup: "oidc_admin_group",
+  OidcOperatorGroup: "oidc_operator_group",
+  OidcViewerGroup: "oidc_viewer_group",
+  OidcGroupsClaim: "oidc_groups_claim", // unset = "groups"
+  OidcHidePassword: "oidc_hide_password", // UI only: the password form still appears as the fallback
+  OidcAutoRedirect: "oidc_auto_redirect",
   Initialized: "initialized",
 } as const;
 
@@ -63,6 +73,7 @@ const SECRET_KEYS = new Set<string>([
   SettingKeys.NotificationTargets,
   SettingKeys.BackupReplication,
   SettingKeys.SteamGridDbApiKey,
+  SettingKeys.OidcClientSecret,
 ]);
 
 /** Fallback timezone when the user hasn't picked one yet (matches the web default). */
@@ -199,6 +210,10 @@ export class ManagerSettingsService implements OnModuleInit {
       create: { key, value: stored, isSecret },
       update: { value: stored, isSecret },
     });
+  }
+
+  async unset(key: string): Promise<void> {
+    await this.prisma.managerSetting.deleteMany({ where: { key } });
   }
 
   async isInitialized(): Promise<boolean> {

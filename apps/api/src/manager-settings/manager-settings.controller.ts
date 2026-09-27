@@ -6,6 +6,7 @@ import {
   IsInt,
   IsOptional,
   IsString,
+  IsUrl,
   Max,
   MaxLength,
   Min,
@@ -41,6 +42,15 @@ export class UpdateSettingsBody {
   @IsOptional() @IsString() unifiApiKey?: string;
   @IsOptional() @IsString() unifiSite?: string;
   @IsOptional() @IsTargetIp() unifiTargetIp?: string;
+  @IsOptional() @ValidateIf((_o, v) => v !== "") @IsUrl({ require_tld: false }) oidcIssuer?: string;
+  @IsOptional() @IsString() oidcClientId?: string;
+  @IsOptional() @IsString() oidcClientSecret?: string;
+  @IsOptional() @IsString() oidcAdminGroup?: string;
+  @IsOptional() @IsString() oidcOperatorGroup?: string;
+  @IsOptional() @IsString() oidcViewerGroup?: string;
+  @IsOptional() @IsString() oidcGroupsClaim?: string;
+  @IsOptional() @IsBoolean() oidcHidePassword?: boolean;
+  @IsOptional() @IsBoolean() oidcAutoRedirect?: boolean;
 }
 
 /** "" for null so the row exists but reads back as unset — the tri-state the
@@ -116,6 +126,23 @@ export class ManagerSettingsController {
     if (body.unifiSite !== undefined) await this.settings.set(SettingKeys.UnifiSite, body.unifiSite.trim());
     if (body.unifiTargetIp !== undefined)
       await this.settings.set(SettingKeys.UnifiTargetIp, body.unifiTargetIp.trim());
+    if (body.oidcIssuer !== undefined) await this.settings.set(SettingKeys.OidcIssuer, body.oidcIssuer.trim());
+    if (body.oidcClientId !== undefined) await this.settings.set(SettingKeys.OidcClientId, body.oidcClientId.trim());
+    if (body.oidcClientSecret) await this.settings.set(SettingKeys.OidcClientSecret, body.oidcClientSecret.trim());
+    // The secret belongs to the client, so clearing the client drops it too.
+    else if (body.oidcClientId?.trim() === "") await this.settings.unset(SettingKeys.OidcClientSecret);
+    if (body.oidcAdminGroup !== undefined)
+      await this.settings.set(SettingKeys.OidcAdminGroup, body.oidcAdminGroup.trim());
+    if (body.oidcOperatorGroup !== undefined)
+      await this.settings.set(SettingKeys.OidcOperatorGroup, body.oidcOperatorGroup.trim());
+    if (body.oidcViewerGroup !== undefined)
+      await this.settings.set(SettingKeys.OidcViewerGroup, body.oidcViewerGroup.trim());
+    if (body.oidcGroupsClaim !== undefined)
+      await this.settings.set(SettingKeys.OidcGroupsClaim, body.oidcGroupsClaim.trim());
+    if (body.oidcHidePassword !== undefined)
+      await this.settings.set(SettingKeys.OidcHidePassword, String(body.oidcHidePassword));
+    if (body.oidcAutoRedirect !== undefined)
+      await this.settings.set(SettingKeys.OidcAutoRedirect, String(body.oidcAutoRedirect));
 
     // Host overrides. An empty string / null means "defer to the env var again",
     // which is stored as "" and read back as unset by the tri-state getters.

@@ -5,6 +5,14 @@ export class LoginBody {
   @IsString() password!: string;
 }
 
+export class OidcExchangeBody {
+  @IsString() ticket!: string;
+}
+
+export class OidcUnlinkBody {
+  @IsString() password!: string;
+}
+
 export class FirstRunBody {
   @IsString() username!: string;
   @IsString() @MinLength(8) password!: string;

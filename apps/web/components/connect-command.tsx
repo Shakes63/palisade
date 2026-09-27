@@ -7,7 +7,7 @@ import { apiGet } from "@/lib/api";
 /** A copyable mono value with its own copy state + clipboard fallback (the
  *  manager is usually served over plain http on a LAN IP, where
  *  navigator.clipboard is unavailable). */
-function CopyRow({ value, title }: { value: string; title?: string }) {
+export function CopyRow({ value, title }: { value: string; title?: string }) {
   const [copied, setCopied] = useState(false);
   const copy = async () => {
     try {

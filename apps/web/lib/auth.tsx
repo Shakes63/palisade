@@ -7,6 +7,8 @@ interface AuthState {
   token: string | null;
   ready: boolean;
   login: (username: string, password: string) => Promise<void>;
+  /** Finish an SSO sign-in with the one-time ticket the API's callback handed back. */
+  loginWithSso: (ticket: string) => Promise<void>;
   logout: () => void;
 }
 
@@ -51,13 +53,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     router.replace("/");
   };
 
+  const loginWithSso = async (ticket: string) => {
+    const { token } = await apiPost<{ token: string }>("/auth/oidc/exchange", { ticket });
+    setToken(token);
+    router.replace("/");
+  };
+
   const logout = () => {
     clearToken();
-    router.replace("/login");
+    // Tells the login page not to auto-start SSO, which the provider's session would sign straight back in.
+    router.replace("/login?signed_out");
   };
 
   return (
-    <AuthCtx.Provider value={{ token, ready, login, logout }}>{ready ? children : null}</AuthCtx.Provider>
+    <AuthCtx.Provider value={{ token, ready, login, loginWithSso, logout }}>{ready ? children : null}</AuthCtx.Provider>
   );
 }
 

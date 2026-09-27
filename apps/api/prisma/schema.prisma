@@ -22,6 +22,8 @@ model User {
   /// every member of any granted cluster. False = every server, as before
   /// per-user access existed. Admins are never restricted (GH #73).
   restricted   Boolean  @default(false)
+  /// The `sub` claim of the SSO (OIDC) identity signed in as this user, if any.
+  oidcSubject  String?  @unique
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

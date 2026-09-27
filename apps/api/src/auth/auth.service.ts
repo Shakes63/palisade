@@ -1,12 +1,15 @@
 import {
   BadRequestException,
+  ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
   UnauthorizedException,
 } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import * as bcrypt from "bcryptjs";
-import type { FirstRunDto, LoginDto, Role, UserAccessDto, UserDto } from "@ark/shared";
+import { randomBytes } from "node:crypto";
+import { ROLE_RANK, type FirstRunDto, type LoginDto, type Role, type UserAccessDto, type UserDto } from "@ark/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { ManagerSettingsService, SettingKeys } from "../manager-settings/manager-settings.service";
 import { AccessService } from "./access.service";
@@ -58,6 +61,80 @@ export class AuthService {
     return { token: await this.sign(user) };
   }
 
+  /**
+   * Sign in the user an SSO identity maps to, creating it on first sign-in. `role` is
+   * the provider's say when group mapping is configured; null leaves roles to Palisade,
+   * and new users then start as viewers.
+   */
+  async oidcSignIn(subject: string, username: string, role: Role | null): Promise<{ token: string }> {
+    let user = await this.prisma.user.findUnique({ where: { oidcSubject: subject } });
+    if (!user) {
+      // Never adopt an existing account by name: a provider user could pick any username.
+      if (await this.prisma.user.findUnique({ where: { username } })) {
+        username = `${username}_${randomBytes(3).toString("hex")}`;
+      }
+      // The random password can never be typed, so this account only signs in through SSO.
+      const passwordHash = await bcrypt.hash(randomBytes(32).toString("hex"), 12);
+      user = await this.prisma.user.create({
+        data: { username, passwordHash, role: role ?? "viewer", oidcSubject: subject },
+      });
+    } else if (role && role !== user.role && !(await this.isLastAdmin(user))) {
+      await this.updateUser(user.id, { role });
+      // Tokens carry the role, so sessions from before the change would keep the old one.
+      await this.logoutAll(user.id);
+      user = await this.prisma.user.findUniqueOrThrow({ where: { id: user.id } });
+    }
+    return { token: await this.sign(user) };
+  }
+
+  /** Sign out the user an SSO identity signs in as, once the provider no longer grants it a role. */
+  async oidcRevoke(subject: string): Promise<void> {
+    const user = await this.prisma.user.findUnique({ where: { oidcSubject: subject } });
+    if (user && !(await this.isLastAdmin(user))) await this.logoutAll(user.id);
+  }
+
+  /**
+   * Let an existing user sign in through SSO from now on. `role` is what the provider's
+   * groups grant; a link that would demote the account at its next SSO sign-in is refused.
+   */
+  async linkOidc(userId: string, subject: string, role: Role | null): Promise<void> {
+    const owner = await this.prisma.user.findUnique({ where: { oidcSubject: subject }, select: { id: true } });
+    if (owner && owner.id !== userId) {
+      throw new ConflictException("That SSO account already signs in as a different Palisade user");
+    }
+    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    const current = user.role as Role;
+    if (role && ROLE_RANK[role] < ROLE_RANK[current]) {
+      throw new ForbiddenException(
+        `Your SSO groups grant the ${role} role, so this ${current} account would become ${role} at its ` +
+          `next SSO sign-in. Add your SSO account to the ${current} group at the provider first.`,
+      );
+    }
+    await this.prisma.user.update({ where: { id: userId }, data: { oidcSubject: subject } });
+  }
+
+  /**
+   * Stop an SSO identity signing in as this user. Unlinking yourself takes your password,
+   * which an account created through SSO does not have, so nobody locks themselves out.
+   */
+  async unlinkOidc(userId: string, password?: string): Promise<void> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException("User not found");
+    if (password !== undefined && !(await bcrypt.compare(password, user.passwordHash))) {
+      throw new UnauthorizedException(
+        "Wrong password. An account created through SSO has none, so unlinking it would lock you out.",
+      );
+    }
+    await this.prisma.user.update({ where: { id: userId }, data: { oidcSubject: null } });
+  }
+
+  private async isLastAdmin(user: { id: string; role: string }): Promise<boolean> {
+    return (
+      user.role === "admin" &&
+      (await this.prisma.user.count({ where: { role: "admin", id: { not: user.id } } })) === 0
+    );
+  }
+
   /** Reject tokens whose `ver` claim no longer matches the user's tokenVersion. */
   async isTokenCurrent(sub: unknown, ver: unknown): Promise<boolean> {
     return (await this.resolveToken(sub, ver)) !== null;
@@ -102,6 +179,7 @@ export class AuthService {
     username: true,
     role: true,
     restricted: true,
+    oidcSubject: true,
     createdAt: true,
     serverAccess: { select: { serverId: true } },
     clusterAccess: { select: { clusterId: true } },
@@ -112,6 +190,7 @@ export class AuthService {
     username: string;
     role: string;
     restricted: boolean;
+    oidcSubject: string | null;
     createdAt: Date;
     serverAccess: { serverId: string }[];
     clusterAccess: { clusterId: string }[];
@@ -121,6 +200,7 @@ export class AuthService {
       username: u.username,
       role: u.role as Role,
       restricted: u.role !== "admin" && u.restricted,
+      sso: u.oidcSubject !== null,
       serverIds: u.serverAccess.map((a) => a.serverId),
       clusterIds: u.clusterAccess.map((a) => a.clusterId),
       createdAt: u.createdAt.toISOString(),
