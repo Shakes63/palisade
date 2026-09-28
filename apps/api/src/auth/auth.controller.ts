@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Query, Req, Res, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, HttpException, Logger, Post, Query, Req, Res, UseGuards } from "@nestjs/common";
 import { AuthService } from "./auth.service";
 import { OidcService } from "./oidc.service";
 import { Public } from "./public.decorator";
@@ -29,6 +29,8 @@ function readCookie(req: CookieRequest, name: string): string | undefined {
 
 @Controller("auth")
 export class AuthController {
+  private readonly logger = new Logger(AuthController.name);
+
   constructor(
     private readonly auth: AuthService,
     private readonly oidc: OidcService,
@@ -94,7 +96,10 @@ export class AuthController {
       const result = await this.oidc.complete(state, cookieState, code, errorDescription || error);
       target = `${returnTo}#sso=${"ticket" in result ? result.ticket : "linked"}`;
     } catch (e) {
-      target = `${returnTo}#sso_error=${encodeURIComponent((e as Error).message)}`;
+      // Anything but our own errors (a Prisma one, say) names internals the login page should not show.
+      if (!(e instanceof HttpException)) this.logger.error(`SSO callback failed: ${(e as Error).message}`);
+      const message = e instanceof HttpException ? e.message : "Sign-in failed; try again";
+      target = `${returnTo}#sso_error=${encodeURIComponent(message)}`;
     }
     res.redirect(302, target);
   }

@@ -356,6 +356,8 @@ export interface UserDto {
   restricted: boolean;
   /** Linked to a single sign-on (OIDC) identity. */
   sso: boolean;
+  /** False for accounts SSO created, which have no password and so cannot be unlinked. */
+  hasPassword: boolean;
   serverIds: string[];
   clusterIds: string[];
   createdAt?: string;

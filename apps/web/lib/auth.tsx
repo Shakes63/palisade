@@ -3,7 +3,13 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { apiGet, apiPost, clearToken, getToken, setToken } from "./api";
 
-interface AuthState {
+interface SsoOptions {
+  sso: boolean;
+  ssoOnly: boolean;
+  ssoAutoRedirect: boolean;
+}
+
+interface AuthState extends SsoOptions {
   token: string | null;
   ready: boolean;
   login: (username: string, password: string) => Promise<void>;
@@ -13,6 +19,7 @@ interface AuthState {
 }
 
 const AuthCtx = createContext<AuthState | null>(null);
+const NO_SSO: SsoOptions = { sso: false, ssoOnly: false, ssoAutoRedirect: false };
 const PUBLIC_ROUTES = ["/login", "/setup"];
 
 /** Where this visitor belongs instead of `pathname`, or null when they may stay. */
@@ -24,14 +31,19 @@ function authRedirect(initialized: boolean, signedIn: boolean, pathname: string)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [status, setStatus] = useState<{ initialized: boolean; path: string } | null>(null);
+  const [sso, setSso] = useState(NO_SSO);
   const router = useRouter();
   const pathname = usePathname();
 
   useEffect(() => {
-    // Only first-run completes an install, so a true answer never needs asking again.
-    if (status?.initialized) return;
-    apiGet<{ initialized: boolean }>("/auth/status")
-      .then((s) => setStatus({ initialized: s.initialized, path: pathname }))
+    // Only first-run completes an install, so a true answer never needs asking again; the login page
+    // still asks, so it offers SSO as currently configured.
+    if (status?.initialized && pathname !== "/login") return;
+    apiGet<{ initialized: boolean } & Partial<SsoOptions>>("/auth/status")
+      .then((s) => {
+        setSso({ sso: s.sso === true, ssoOnly: s.ssoOnly === true, ssoAutoRedirect: s.ssoAutoRedirect === true });
+        setStatus({ initialized: s.initialized, path: pathname });
+      })
       .catch(() => setStatus({ initialized: true, path: pathname }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
@@ -66,7 +78,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthCtx.Provider value={{ token, ready, login, loginWithSso, logout }}>{ready ? children : null}</AuthCtx.Provider>
+    <AuthCtx.Provider value={{ ...sso, token, ready, login, loginWithSso, logout }}>{ready ? children : null}</AuthCtx.Provider>
   );
 }
 

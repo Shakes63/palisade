@@ -54,6 +54,7 @@ export default function SettingsPage() {
   const [oidcViewerGroup, setOidcViewerGroup] = useState("");
   const [oidcGroupsClaim, setOidcGroupsClaim] = useState("");
   const [oidcRedirectUri, setOidcRedirectUri] = useState("");
+  const [oidcAutoCreate, setOidcAutoCreate] = useState(false);
   const [oidcHidePassword, setOidcHidePassword] = useState(false);
   const [oidcAutoRedirect, setOidcAutoRedirect] = useState(false);
   // Per-card save state: which card is mid-save / which just saved.
@@ -99,6 +100,7 @@ export default function SettingsPage() {
           setOidcOperatorGroup(str("oidc_operator_group"));
           setOidcViewerGroup(str("oidc_viewer_group"));
           setOidcGroupsClaim(str("oidc_groups_claim"));
+          setOidcAutoCreate(v.oidc_auto_create === "true");
           setOidcHidePassword(v.oidc_hide_password === "true");
           setOidcAutoRedirect(v.oidc_auto_redirect === "true");
         }
@@ -214,6 +216,7 @@ export default function SettingsPage() {
         oidcOperatorGroup,
         oidcViewerGroup,
         oidcGroupsClaim,
+        oidcAutoCreate,
         oidcHidePassword,
         oidcAutoRedirect,
         ...(oidcClientSecret ? { oidcClientSecret } : {}),
@@ -720,8 +723,9 @@ export default function SettingsPage() {
             <div>
               <p className="text-xs text-slate-500">
                 Optional: give roles by provider group or role, read from the ID token. With any group set, the
-                provider decides each SSO user&apos;s role at every sign-in and users in none of them are turned
-                away. With none set, new SSO users start as viewers and you manage their roles above.
+                provider decides each SSO user&apos;s role at every SSO sign-in and turns away users in none of
+                them. A linked user who also has a password can still sign in with it. With none set, you manage
+                roles above.
               </p>
               <div className="mt-3">
                 <label htmlFor={`${uid}-oidc-claim`} className="label">Groups claim</label>
@@ -755,6 +759,12 @@ export default function SettingsPage() {
             </div>
             {(
               [
+                [
+                  "Create accounts on first SSO sign-in",
+                  "Anyone the provider lets in gets a Palisade account, so limit who may use the app at the provider. Without groups, new accounts are viewers who see no servers until you grant some. Off: only accounts linked from the account menu sign in with SSO.",
+                  oidcAutoCreate,
+                  setOidcAutoCreate,
+                ],
                 [
                   "Hide password sign-in",
                   "The login page shows only the SSO button. The password form comes back whenever SSO fails, and at /login?password. Passwords still work; they are just out of the way.",

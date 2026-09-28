@@ -42,13 +42,17 @@ export class UpdateSettingsBody {
   @IsOptional() @IsString() unifiApiKey?: string;
   @IsOptional() @IsString() unifiSite?: string;
   @IsOptional() @IsTargetIp() unifiTargetIp?: string;
-  @IsOptional() @ValidateIf((_o, v) => v !== "") @IsUrl({ require_tld: false }) oidcIssuer?: string;
+  @IsOptional()
+  @ValidateIf((_o, v) => v !== "")
+  @IsUrl({ require_tld: false, require_protocol: true, protocols: ["http", "https"] })
+  oidcIssuer?: string;
   @IsOptional() @IsString() oidcClientId?: string;
   @IsOptional() @IsString() oidcClientSecret?: string;
   @IsOptional() @IsString() oidcAdminGroup?: string;
   @IsOptional() @IsString() oidcOperatorGroup?: string;
   @IsOptional() @IsString() oidcViewerGroup?: string;
   @IsOptional() @IsString() oidcGroupsClaim?: string;
+  @IsOptional() @IsBoolean() oidcAutoCreate?: boolean;
   @IsOptional() @IsBoolean() oidcHidePassword?: boolean;
   @IsOptional() @IsBoolean() oidcAutoRedirect?: boolean;
 }
@@ -139,6 +143,8 @@ export class ManagerSettingsController {
       await this.settings.set(SettingKeys.OidcViewerGroup, body.oidcViewerGroup.trim());
     if (body.oidcGroupsClaim !== undefined)
       await this.settings.set(SettingKeys.OidcGroupsClaim, body.oidcGroupsClaim.trim());
+    if (body.oidcAutoCreate !== undefined)
+      await this.settings.set(SettingKeys.OidcAutoCreate, String(body.oidcAutoCreate));
     if (body.oidcHidePassword !== undefined)
       await this.settings.set(SettingKeys.OidcHidePassword, String(body.oidcHidePassword));
     if (body.oidcAutoRedirect !== undefined)

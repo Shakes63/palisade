@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useId, useRef, useState } from "react";
 import { ChevronDown, KeyRound, Unlink, UserRound } from "lucide-react";
-import { apiGet, apiPost } from "@/lib/api";
+import { apiPost } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import { useMe } from "@/lib/use-me";
 import { toast } from "@/components/dialogs";
 
@@ -9,7 +10,7 @@ import { toast } from "@/components/dialogs";
 export function AccountMenu() {
   const uid = useId();
   const me = useMe();
-  const [sso, setSso] = useState(false);
+  const { sso } = useAuth();
   const [open, setOpen] = useState(false);
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -17,9 +18,6 @@ export function AccountMenu() {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    apiGet<{ sso?: boolean }>("/auth/status")
-      .then((s) => setSso(s.sso === true))
-      .catch(() => undefined);
     // Linking round-trips through the provider, and the API's callback lands back on /.
     const hash = new URLSearchParams(window.location.hash.slice(1));
     if (hash.get("sso") === "linked") toast.success("SSO account linked. You can now sign in with SSO.");
@@ -85,7 +83,12 @@ export function AccountMenu() {
               <KeyRound className="h-4 w-4" /> {linked ? "Re-link SSO account" : "Link SSO account"}
             </button>
           )}
-          {linked && (
+          {linked && !me.hasPassword && (
+            <p className="border-t border-ark-border/60 pt-3 text-xs text-slate-500">
+              This account was created through SSO and has no password, so it cannot be unlinked.
+            </p>
+          )}
+          {linked && me.hasPassword && (
             <form onSubmit={unlink} className="space-y-2 border-t border-ark-border/60 pt-3">
               <label htmlFor={`${uid}-password`} className="label">
                 Password, to unlink SSO

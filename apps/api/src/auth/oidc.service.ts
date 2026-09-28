@@ -8,6 +8,7 @@ import { AuthService } from "./auth.service";
 
 const FLOW_TTL_MS = 10 * 60_000;
 const TICKET_TTL_MS = 60_000;
+const PROVIDER_CACHE_TTL_MS = 10 * 60_000;
 const ID_TOKEN_ALGS: jwt.Algorithm[] = [
   "RS256", "RS384", "RS512", "PS256", "PS384", "PS512", "ES256", "ES384", "ES512", "HS256", "HS384", "HS512",
 ];
@@ -18,6 +19,7 @@ interface OidcConfig {
   clientSecret: string | null;
   groups: Record<Role, string | null>;
   groupsClaim: string;
+  autoCreate: boolean;
 }
 
 interface Discovery {
@@ -59,34 +61,30 @@ export function roleForGroups(groups: string[], mapping: Record<Role, string | n
   return (["admin", "operator", "viewer"] as const).find((r) => mapping[r] && member.has(mapping[r])) ?? null;
 }
 
-/**
- * Sign-in through an OpenID Connect provider (Authentik, Keycloak, Authelia, …) with the
- * authorization code flow and PKCE. The browser is sent to the provider and back to
- * /api/auth/oidc/callback, which hands the web UI a one-time ticket for a Palisade token.
- */
+type Jwk = JsonWebKey & { kid?: string };
+
+/** OIDC authorization code flow with PKCE; the callback hands the web UI a one-time ticket for a token. */
 @Injectable()
 export class OidcService {
   private readonly flows = new Map<string, Flow>();
   private readonly tickets = new Map<string, { token: string; expires: number }>();
+  private readonly discoveries = new Map<string, { doc: Discovery; expires: number }>();
+  private readonly jwks = new Map<string, { keys: Jwk[]; expires: number }>();
 
   constructor(
     private readonly settings: ManagerSettingsService,
     private readonly auth: AuthService,
   ) {}
 
-  async enabled(): Promise<boolean> {
-    return (await this.config()) !== null;
-  }
-
   /** How the login page offers SSO. Both switches are moot while SSO is not configured. */
   async loginOptions(): Promise<{ sso: boolean; ssoOnly: boolean; ssoAutoRedirect: boolean }> {
-    const sso = await this.enabled();
-    const on = async (key: string) => sso && (await this.settings.get(key)) === "true";
-    return {
-      sso,
-      ssoOnly: await on(SettingKeys.OidcHidePassword),
-      ssoAutoRedirect: await on(SettingKeys.OidcAutoRedirect),
-    };
+    const [issuer, clientId, hidePassword, autoRedirect] = await Promise.all(
+      [SettingKeys.OidcIssuer, SettingKeys.OidcClientId, SettingKeys.OidcHidePassword, SettingKeys.OidcAutoRedirect].map(
+        (key) => this.settings.get(key),
+      ),
+    );
+    const sso = Boolean(issuer?.trim() && clientId?.trim());
+    return { sso, ssoOnly: sso && hidePassword === "true", ssoAutoRedirect: sso && autoRedirect === "true" };
   }
 
   /** What to register at the provider as the redirect URI. */
@@ -103,9 +101,12 @@ export class OidcService {
     const cfg = await this.requireConfig();
     const redirectUri = await this.redirectUri();
     const openedAt = URL.canParse(origin ?? "") ? new URL(origin!) : null;
-    if (openedAt && openedAt.hostname !== new URL(redirectUri).hostname) {
+    const returnsTo = new URL(redirectUri);
+    // Cookies ignore the port, but a secure one never reaches the callback from a page opened over http.
+    const secureOnly = returnsTo.protocol === "https:" && openedAt?.protocol !== "https:";
+    if (openedAt && (openedAt.hostname !== returnsTo.hostname || secureOnly)) {
       throw new BadRequestException(
-        `You opened Palisade at ${openedAt.origin}, but SSO returns to ${new URL(redirectUri).origin}. Open ` +
+        `You opened Palisade at ${openedAt.origin}, but SSO returns to ${returnsTo.origin}. Open ` +
           "Palisade at that address, or set the public base URL under Settings → General to the one you use.",
       );
     }
@@ -134,11 +135,7 @@ export class OidcService {
     return this.flows.get(state)?.linkUserId !== undefined;
   }
 
-  /**
-   * Finish a flow from the provider's redirect. `cookieState` must match `state`, which
-   * ties the callback to the browser that started it (login CSRF). The provider's error is
-   * only passed on after that check, so a crafted link cannot put words on the login page.
-   */
+  /** Finish a flow. The provider's error only shows once `cookieState` ties the callback to this browser. */
   async complete(
     state: string | undefined,
     cookieState: string | undefined,
@@ -160,20 +157,22 @@ export class OidcService {
     if (claims.nonce !== flow.nonce) throw new UnauthorizedException("ID token nonce mismatch");
     if (typeof claims.sub !== "string" || !claims.sub) throw new UnauthorizedException("ID token has no subject");
 
+    const identity = { issuer: discovery.issuer, subject: claims.sub };
+
     const managesRoles = Object.values(cfg.groups).some(Boolean);
     const role = managesRoles ? roleForGroups(readGroups(claims, cfg.groupsClaim), cfg.groups) : null;
     if (managesRoles && !role) {
-      if (!flow.linkUserId) await this.auth.oidcRevoke(claims.sub);
+      if (!flow.linkUserId) await this.auth.oidcRevoke(identity);
       throw new ForbiddenException("Your SSO account is not in any group that grants access to Palisade");
     }
     if (flow.linkUserId) {
-      await this.auth.linkOidc(flow.linkUserId, claims.sub, role);
+      await this.auth.linkOidc(flow.linkUserId, identity, role);
       return { linked: true };
     }
     const username = [claims.preferred_username, claims.email, claims.sub].find(
       (v): v is string => typeof v === "string" && v.trim() !== "",
     )!;
-    const { token } = await this.auth.oidcSignIn(claims.sub, username.trim(), role);
+    const { token } = await this.auth.oidcSignIn(identity, username.trim(), role, cfg.autoCreate);
     const ticket = base64url(randomBytes(32));
     this.tickets.set(ticket, { token, expires: Date.now() + TICKET_TTL_MS });
     return { ticket };
@@ -208,6 +207,7 @@ export class OidcService {
         viewer: await get(SettingKeys.OidcViewerGroup),
       },
       groupsClaim: (await get(SettingKeys.OidcGroupsClaim)) ?? "groups",
+      autoCreate: (await get(SettingKeys.OidcAutoCreate)) === "true",
     };
   }
 
@@ -218,11 +218,25 @@ export class OidcService {
   }
 
   private async discover(issuer: string): Promise<Discovery> {
+    const cached = this.discoveries.get(issuer);
+    if (cached && cached.expires > Date.now()) return cached.doc;
     const doc = await fetchJson<Discovery>(`${trimSlash(issuer)}/.well-known/openid-configuration`);
     if (trimSlash(doc.issuer ?? "") !== trimSlash(issuer)) {
       throw new UnauthorizedException(`Provider reports issuer "${doc.issuer}", expected "${issuer}"`);
     }
+    this.discoveries.set(issuer, { doc, expires: Date.now() + PROVIDER_CACHE_TTL_MS });
     return doc;
+  }
+
+  private async signingKey(jwksUri: string, kid: string | undefined): Promise<Jwk | undefined> {
+    const pick = (keys: Jwk[]) => (kid ? keys.find((k) => k.kid === kid) : keys.length === 1 ? keys[0] : undefined);
+    const cached = this.jwks.get(jwksUri);
+    const hit = cached && cached.expires > Date.now() ? pick(cached.keys) : undefined;
+    if (hit) return hit;
+    // A miss refetches even inside the TTL, so a provider's rotated key works at once.
+    const { keys = [] } = await fetchJson<{ keys?: Jwk[] }>(jwksUri);
+    this.jwks.set(jwksUri, { keys, expires: Date.now() + PROVIDER_CACHE_TTL_MS });
+    return pick(keys);
   }
 
   private async exchangeCode(cfg: OidcConfig, d: Discovery, code: string, verifier: string): Promise<string> {
@@ -259,8 +273,7 @@ export class OidcService {
       if (!cfg.clientSecret) throw new UnauthorizedException("ID token is signed with a client secret, but none is set");
       key = cfg.clientSecret;
     } else {
-      const { keys = [] } = await fetchJson<{ keys?: (JsonWebKey & { kid?: string })[] }>(d.jwks_uri);
-      const jwk = header?.kid ? keys.find((k) => k.kid === header.kid) : keys.length === 1 ? keys[0] : undefined;
+      const jwk = await this.signingKey(d.jwks_uri, header?.kid);
       if (!jwk) throw new UnauthorizedException("No provider signing key matches the ID token");
       key = createPublicKey({ key: jwk, format: "jwk" });
     }

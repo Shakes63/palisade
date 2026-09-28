@@ -2,16 +2,15 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { KeyRound, LogIn } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { apiGet, apiPost } from "@/lib/api";
+import { apiPost } from "@/lib/api";
 
 export default function LoginPage() {
   const uid = useId();
-  const { login, loginWithSso } = useAuth();
+  const { login, loginWithSso, sso, ssoOnly, ssoAutoRedirect } = useAuth();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [options, setOptions] = useState<{ sso: boolean; ssoOnly: boolean } | null>(null);
   // The password form is the way back in whenever SSO fails, and at /login?password.
   const [showPassword, setShowPassword] = useState(false);
   const started = useRef(false);
@@ -40,14 +39,8 @@ export default function LoginPage() {
     if (ticket || ssoError) window.history.replaceState(null, "", window.location.pathname);
     if (ssoError) setError(ssoError);
     if (ssoError || query.has("password")) setShowPassword(true);
-
-    apiGet<{ sso?: boolean; ssoOnly?: boolean; ssoAutoRedirect?: boolean }>("/auth/status")
-      .then((s) => {
-        setOptions({ sso: s.sso === true, ssoOnly: s.ssoOnly === true });
-        const manual = ticket || ssoError || query.has("password") || query.has("signed_out");
-        if (s.ssoAutoRedirect && !manual) void startSso();
-      })
-      .catch(() => setOptions({ sso: false, ssoOnly: false }));
+    const manual = ticket || ssoError || query.has("password") || query.has("signed_out");
+    if (ssoAutoRedirect && !manual) void startSso();
 
     if (!ticket) return;
     setBusy(true);
@@ -73,8 +66,7 @@ export default function LoginPage() {
     }
   };
 
-  if (!options) return null;
-  const passwordForm = !options.ssoOnly || showPassword;
+  const passwordForm = !ssoOnly || showPassword;
 
   return (
     <div className="mx-auto mt-20 max-w-sm">
@@ -111,7 +103,7 @@ export default function LoginPage() {
             <LogIn className="h-4 w-4" /> {busy ? "Signing in…" : "Sign in"}
           </button>
         )}
-        {options.sso && (
+        {sso && (
           <button
             type="button"
             className={`${passwordForm ? "btn-secondary" : "btn-primary"} w-full justify-center`}

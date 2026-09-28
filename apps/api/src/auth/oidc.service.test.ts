@@ -7,7 +7,9 @@ import { SettingKeys } from "../manager-settings/manager-settings.service";
 const ISSUER = "https://auth.example.com/application/o/palisade/";
 const { privateKey, publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
 
-function makeService(settings: Record<string, string> = {}) {
+const ID = { issuer: ISSUER, subject: "abc" };
+
+function makeService(settings: Record<string, string> = {}, publicBaseUrl = "http://panel.lan:3000/") {
   const values: Record<string, string> = {
     [SettingKeys.OidcIssuer]: ISSUER,
     [SettingKeys.OidcClientId]: "palisade",
@@ -20,7 +22,7 @@ function makeService(settings: Record<string, string> = {}) {
     oidcRevoke: vi.fn(async () => undefined),
   };
   const svc = new OidcService(
-    { get: async (k: string) => values[k] ?? null, getPublicBaseUrl: async () => "http://panel.lan:3000/" } as never,
+    { get: async (k: string) => values[k] ?? null, getPublicBaseUrl: async () => publicBaseUrl } as never,
     auth as never,
   );
   return { svc, auth };
@@ -30,7 +32,10 @@ function makeService(settings: Record<string, string> = {}) {
 function stubProvider(idToken: (nonce: string) => string) {
   let nonce = "";
   const tokenRequests: RequestInit[] = [];
+  const fetched: string[] = [];
+  const jwks = { kid: "k1" };
   vi.stubGlobal("fetch", async (url: string, init: RequestInit = {}) => {
+    fetched.push(url);
     const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200 });
     if (url.endsWith("/.well-known/openid-configuration")) {
       return json({
@@ -40,7 +45,7 @@ function stubProvider(idToken: (nonce: string) => string) {
         jwks_uri: "https://auth.example.com/application/o/palisade/jwks/",
       });
     }
-    if (url.endsWith("/jwks/")) return json({ keys: [{ ...publicKey.export({ format: "jwk" }), kid: "k1" }] });
+    if (url.endsWith("/jwks/")) return json({ keys: [{ ...publicKey.export({ format: "jwk" }), kid: jwks.kid }] });
     if (url.endsWith("/token/")) {
       tokenRequests.push(init);
       return json({ id_token: idToken(nonce) });
@@ -49,6 +54,8 @@ function stubProvider(idToken: (nonce: string) => string) {
   });
   return {
     tokenRequests,
+    fetched,
+    jwks,
     /** Start a flow and remember the nonce the provider would echo back. */
     async begin(svc: OidcService, linkUserId?: string) {
       const flow = await svc.begin(linkUserId, "http://panel.lan:3000");
@@ -66,8 +73,8 @@ describe("OidcService", () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it("is off until an issuer and client id are set", async () => {
-    expect(await makeService().svc.enabled()).toBe(true);
-    expect(await makeService({ [SettingKeys.OidcIssuer]: "" }).svc.enabled()).toBe(false);
+    expect((await makeService().svc.loginOptions()).sso).toBe(true);
+    expect((await makeService({ [SettingKeys.OidcIssuer]: "" }).svc.loginOptions()).sso).toBe(false);
   });
 
   it("only hides the password form or auto-redirects while SSO is configured", async () => {
@@ -99,6 +106,10 @@ describe("OidcService", () => {
     );
     // Cookies ignore the port, so another port on the same host is fine.
     await expect(svc.begin(undefined, "http://panel.lan:8080")).resolves.toBeDefined();
+    // A secure cookie set for https never comes back to a page opened over http.
+    const secure = makeService({}, "https://panel.lan/").svc;
+    await expect(secure.begin(undefined, "http://panel.lan")).rejects.toThrow(/opened Palisade at http:\/\/panel\.lan,/);
+    await expect(secure.begin(undefined, "https://panel.lan")).resolves.toBeDefined();
   });
 
   it("only passes the provider's error on for the browser that started the flow", async () => {
@@ -116,7 +127,7 @@ describe("OidcService", () => {
     const idp = stubProvider((nonce) => rs256({ sub: "abc", preferred_username: "magnus", nonce }));
     const { state } = await idp.begin(svc);
     const result = await svc.complete(state, state, "the-code");
-    expect(auth.oidcSignIn).toHaveBeenCalledWith("abc", "magnus", null);
+    expect(auth.oidcSignIn).toHaveBeenCalledWith(ID, "magnus", null, false);
     expect(new Headers(idp.tokenRequests[0]!.headers).get("authorization")).toMatch(/^Basic /);
     const ticket = (result as { ticket: string }).ticket;
     expect(svc.redeem(ticket)).toEqual({ token: "palisade-token" });
@@ -130,7 +141,7 @@ describe("OidcService", () => {
     );
     const { state } = await idp.begin(svc);
     await svc.complete(state, state, "code");
-    expect(auth.oidcSignIn).toHaveBeenCalledWith("abc", "abc", null);
+    expect(auth.oidcSignIn).toHaveBeenCalledWith(ID, "abc", null, false);
   });
 
   it("rejects a callback from a browser that did not start the flow", async () => {
@@ -165,12 +176,12 @@ describe("OidcService", () => {
     const idp = stubProvider((nonce) => rs256({ sub: "abc", preferred_username: "magnus", groups: memberOf, nonce }));
     let { state } = await idp.begin(svc);
     await svc.complete(state, state, "code");
-    expect(auth.oidcSignIn).toHaveBeenLastCalledWith("abc", "magnus", "admin");
+    expect(auth.oidcSignIn).toHaveBeenLastCalledWith(ID, "magnus", "admin", false);
 
     memberOf = ["someone-else"];
     ({ state } = await idp.begin(svc));
     await expect(svc.complete(state, state, "code")).rejects.toThrow(/not in any group/);
-    expect(auth.oidcRevoke).toHaveBeenCalledWith("abc");
+    expect(auth.oidcRevoke).toHaveBeenCalledWith(ID);
   });
 
   it("passes the role the groups grant to a link, and never signs out the linking user", async () => {
@@ -179,7 +190,7 @@ describe("OidcService", () => {
     const idp = stubProvider((nonce) => rs256({ sub: "abc", groups: memberOf, nonce }));
     let { state } = await idp.begin(svc, "user-1");
     await svc.complete(state, state, "code");
-    expect(auth.linkOidc).toHaveBeenCalledWith("user-1", "abc", "operator");
+    expect(auth.linkOidc).toHaveBeenCalledWith("user-1", ID, "operator");
 
     memberOf = [];
     ({ state } = await idp.begin(svc, "user-1"));
@@ -195,7 +206,31 @@ describe("OidcService", () => {
     const idp = stubProvider((nonce) => rs256({ sub: "abc", realm_access: { roles: ["ops"] }, groups: ["x"], nonce }));
     const { state } = await idp.begin(svc);
     await svc.complete(state, state, "code");
-    expect(auth.oidcSignIn).toHaveBeenCalledWith("abc", "abc", "operator");
+    expect(auth.oidcSignIn).toHaveBeenCalledWith(ID, "abc", "operator", false);
+  });
+
+  it("lets SSO create accounts only when the admin allows it", async () => {
+    const { svc, auth } = makeService({ [SettingKeys.OidcAutoCreate]: "true" });
+    const idp = stubProvider((nonce) => rs256({ sub: "abc", nonce }));
+    const { state } = await idp.begin(svc);
+    await svc.complete(state, state, "code");
+    expect(auth.oidcSignIn).toHaveBeenCalledWith(ID, "abc", null, true);
+  });
+
+  it("reuses the provider's discovery document and keys until a new key id appears", async () => {
+    const { svc } = makeService();
+    const idp = stubProvider((nonce) => rs256({ sub: "abc", nonce }, { keyid: idp.jwks.kid }));
+    for (let i = 0; i < 2; i++) {
+      const { state } = await idp.begin(svc);
+      await svc.complete(state, state, "code");
+    }
+    const count = (suffix: string) => idp.fetched.filter((u) => u.endsWith(suffix)).length;
+    expect([count("/openid-configuration"), count("/jwks/")]).toEqual([1, 1]);
+
+    idp.jwks.kid = "k2";
+    const { state } = await idp.begin(svc);
+    await svc.complete(state, state, "code");
+    expect(count("/jwks/")).toBe(2);
   });
 
   it("links the identity to the user who started a link flow", async () => {
@@ -204,7 +239,7 @@ describe("OidcService", () => {
     const { state } = await idp.begin(svc, "user-1");
     expect(svc.isLinkFlow(state)).toBe(true);
     expect(await svc.complete(state, state, "code")).toEqual({ linked: true });
-    expect(auth.linkOidc).toHaveBeenCalledWith("user-1", "abc", null);
+    expect(auth.linkOidc).toHaveBeenCalledWith("user-1", ID, null);
     expect(auth.oidcSignIn).not.toHaveBeenCalled();
   });
 });

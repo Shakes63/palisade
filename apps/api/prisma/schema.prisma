@@ -15,6 +15,8 @@ model User {
   id           String   @id @default(cuid())
   username     String   @unique
   passwordHash String
+  /// False for accounts SSO created, whose random password nobody knows.
+  hasPassword  Boolean  @default(true)
   role         String   @default("admin")
   /// Bumped to invalidate every outstanding JWT for this user (logout-all).
   tokenVersion Int      @default(0)
@@ -22,13 +24,16 @@ model User {
   /// every member of any granted cluster. False = every server, as before
   /// per-user access existed. Admins are never restricted (GH #73).
   restricted   Boolean  @default(false)
-  /// The `sub` claim of the SSO (OIDC) identity signed in as this user, if any.
-  oidcSubject  String?  @unique
+  /// The SSO (OIDC) identity signed in as this user, if any: `sub` is only unique within its issuer.
+  oidcIssuer   String?
+  oidcSubject  String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
   serverAccess  UserServerAccess[]
   clusterAccess UserClusterAccess[]
+
+  @@unique([oidcIssuer, oidcSubject])
 }
 
 /// Direct per-server grant for a restricted user (GH #73).

@@ -468,10 +468,11 @@ alongside it. Set it up under Settings → Users → Single sign-on:
 2. Enter the issuer URL, client ID and client secret. For Authentik the
    issuer is `https://<authentik>/application/o/<app-slug>/`.
 3. Optionally, name a provider group for each role. With any group set, the
-   provider decides each SSO user's role at every sign-in, and users in none
-   of the groups are turned away. A change applies at the user's next SSO
-   sign-in, which also signs them out everywhere else; a user who is turned
-   away is signed out too. With none set, new SSO users start as viewers and
+   provider decides each SSO user's role at every SSO sign-in, and users in
+   none of the groups are turned away. A change applies at the user's next
+   SSO sign-in, which also signs them out everywhere else; a user who is
+   turned away is signed out too. This only governs SSO sign-ins: a linked
+   user who also has a password can still sign in with it. With none set,
    you assign roles under Settings → Users. Palisade reads groups
    from an ID token claim, set under "Groups claim":
 
@@ -486,15 +487,22 @@ alongside it. Set it up under Settings → Users → Single sign-on:
    userinfo endpoint. Microsoft Entra ID sends group object IDs rather than
    names, so enter those IDs as the group names.
 
-The first SSO sign-in creates a Palisade user from the `preferred_username`
-claim, with a random suffix such as `magnus_3fa2c1` if that name is taken.
-SSO never takes over an existing account just because the name matches: to
+By default only accounts linked to SSO can sign in with it. Turn on **Create
+accounts on first SSO sign-in** to let anyone the provider lets in get an
+account, so limit who may use the app at the provider first. The account is
+named from the `preferred_username` claim, with a random suffix such as
+`magnus_3fa2c1` if that name is taken. Without groups it starts as a viewer
+who sees no servers until an admin grants some.
+
+A link is to one identity at one issuer, so pointing SSO at another provider
+leaves old links unused rather than matching them there. SSO never takes
+over an existing account just because the name matches: to
 use SSO for an account you already have, such as the first-run admin, sign in
 with its password and choose "Link SSO account" in the account menu at the
 top right. With groups set, a link that would lower the account's role is
 refused. The same menu unlinks your account, which takes your password; an
 admin can unlink anyone else from Settings → Users. An account that SSO
-created has no password, so after an unlink it cannot sign in. Clear the
+created has no password, so it cannot be unlinked; delete it instead. Clear the
 issuer to turn SSO off, and clear the client ID to also forget the secret.
 
 Two switches on the card make SSO the default way in:

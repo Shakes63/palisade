@@ -272,7 +272,7 @@ export function UsersCard() {
     if (
       !(await confirmDialog({
         title: `Unlink SSO from "${u.username}"?`,
-        body: "They can no longer sign in with SSO, only with a password. An account SSO created has none.",
+        body: "They can no longer sign in with SSO, only with their password.",
         confirmLabel: "Unlink",
         danger: true,
       }))
@@ -332,10 +332,21 @@ export function UsersCard() {
                   <span className="rounded bg-slate-700/60 px-2 py-0.5 text-xs text-slate-300">
                     {roleLabel(u.role)}
                   </span>
-                  {u.sso && <span className="rounded bg-slate-700/60 px-2 py-0.5 text-xs text-slate-300">SSO</span>}
+                  {u.sso && (
+                    <span
+                      className="rounded bg-slate-700/60 px-2 py-0.5 text-xs text-slate-300"
+                      title={
+                        u.hasPassword
+                          ? undefined
+                          : "Created through SSO, with no password, so it cannot be unlinked; delete the user instead."
+                      }
+                    >
+                      {u.hasPassword ? "SSO" : "SSO only"}
+                    </span>
+                  )}
                   {access && <span className="whitespace-nowrap text-xs text-slate-500">{access}</span>}
                 </div>
-                {u.sso && me && u.id !== me.id && (
+                {u.sso && u.hasPassword && me && u.id !== me.id && (
                   <button
                     type="button"
                     className="btn-secondary shrink-0"

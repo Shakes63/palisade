@@ -52,6 +52,7 @@ export const SettingKeys = {
   OidcOperatorGroup: "oidc_operator_group",
   OidcViewerGroup: "oidc_viewer_group",
   OidcGroupsClaim: "oidc_groups_claim", // unset = "groups"
+  OidcAutoCreate: "oidc_auto_create", // off: only linked accounts sign in through SSO
   OidcHidePassword: "oidc_hide_password", // UI only: the password form still appears as the fallback
   OidcAutoRedirect: "oidc_auto_redirect",
   Initialized: "initialized",
