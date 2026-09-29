@@ -29,6 +29,10 @@ export class PfsenseClient implements RouterClient {
     readonly targetIp: string,
   ) {}
 
+  get cacheKey(): string {
+    return `${this.kind}:${this.host}`;
+  }
+
   /** Minimal JSON request against the pfSense REST API (self-signed cert tolerated). */
   private api<T>(method: "GET" | "POST" | "PATCH" | "DELETE", path: string, body?: unknown): Promise<T> {
     return new Promise((resolve, reject) => {

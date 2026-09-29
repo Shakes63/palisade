@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { PortForwardsService } from "./portforwards.service";
 import type { RouterClient, RouterRule } from "./router";
+import { MikrotikClient } from "./mikrotik.client";
 
 /** An in-memory router: rules live in an array and every write is recorded. */
 function fakeRouter(initial: RouterRule[], targetIp = "10.0.0.5", kind: RouterClient["kind"] = "unifi") {
@@ -11,6 +12,7 @@ function fakeRouter(initial: RouterRule[], targetIp = "10.0.0.5", kind: RouterCl
     kind,
     host: "10.0.0.1",
     targetIp,
+    cacheKey: `${kind}:10.0.0.1`,
     list: async () => rules.map((r) => ({ ...r })),
     wanIp: async () => "203.0.113.9",
     describe: async () => `${rules.length} rules`,
@@ -77,17 +79,17 @@ describe("PortForwardsService", () => {
     expect(view.forwards.map((f) => f.state)).toEqual(["missing", "missing", "missing"]);
   });
 
-  it("classifies ok / disabled / mismatched / missing, seeing through tcp+udp and range rules", async () => {
+  it("classifies ok / disabled / mismatched / conflict / missing, seeing through tcp+udp and range rules", async () => {
     const router = fakeRouter([
       { id: "a", name: "Palisade - x", proto: "both", ports: "2456", target: "10.0.0.5", enabled: true }, // ok via tcp_udp
-      { id: "b", name: "Palisade - x", proto: "udp", ports: "2457-2460", target: "10.0.0.9", enabled: true }, // mismatched via range
+      { id: "b", name: "Palisade - x", proto: "udp", ports: "2457-2460", target: "10.0.0.9", enabled: true }, // conflict via range
     ]);
     const view = await service(router).status("srv1");
     expect(view.wanIp).toBe("203.0.113.9");
     expect(view.forwards.map((f) => [f.port, f.state, f.ruleId, f.actualTarget ?? null])).toEqual([
       [2456, "ok", "a", null],
-      [2457, "mismatched", "b", "10.0.0.9"],
-      [2458, "mismatched", "b", "10.0.0.9"],
+      [2457, "conflict", "b", "10.0.0.9"],
+      [2458, "conflict", "b", "10.0.0.9"],
     ]);
   });
 
@@ -101,8 +103,101 @@ describe("PortForwardsService", () => {
     expect(view.forwards.map((f) => [f.port, f.state, f.ruleId])).toEqual([
       [2456, "disabled", "mine"],
       [2457, "mismatched", "single"],
-      [2458, "mismatched", "shared"],
+      [2458, "conflict", "shared"],
     ]);
+  });
+
+  it("flags a hand-made rule occupying a port as a conflict and never re-points it", async () => {
+    const router = fakeRouter([
+      { id: "h", name: "Plex", proto: "udp", ports: "2457", target: "10.0.0.9", enabled: true },
+    ]);
+    const svc = service(router);
+    const view = await svc.status("srv1");
+    const f = view.forwards.find((x) => x.port === 2457)!;
+    expect(f).toMatchObject({ state: "conflict", actualName: "Plex", actualTarget: "10.0.0.9", actualSpec: "2457" });
+    // Fix creates the genuinely-missing ports and leaves the conflict for a Replace.
+    await svc.apply("srv1");
+    expect(router.calls).toEqual(["create 2456/udp", "create 2458/udp", "commit"]);
+    expect(router.rules.find((r) => r.id === "h")?.target).toBe("10.0.0.9");
+  });
+
+  it("replace disables the occupying rule and creates a dedicated Palisade one", async () => {
+    const router = fakeRouter([
+      { id: "h", name: "Plex", proto: "udp", ports: "2457", target: "10.0.0.9", enabled: true },
+    ]);
+    const view = await service(router).replace("srv1", 2457, "udp");
+    expect(router.calls).toEqual(["setEnabled h false", "create 2457/udp", "commit"]);
+    expect(router.rules.find((r) => r.id === "h")?.enabled).toBe(false);
+    const f = view.forwards.find((x) => x.port === 2457);
+    expect(f).toMatchObject({ state: "ok", actualTarget: undefined, actualName: undefined });
+    expect(router.rules.find((r) => r.ports === "2457" && r.name.startsWith("Palisade"))!.target).toBe("10.0.0.5");
+  });
+
+  it("replace re-enables the old rule if creating the replacement fails", async () => {
+    const router = fakeRouter([
+      { id: "h", name: "Plex", proto: "udp", ports: "2457", target: "10.0.0.9", enabled: true },
+    ]);
+    router.client.create = async () => {
+      throw new Error("400 input does not match any value of interface");
+    };
+    await expect(service(router).replace("srv1", 2457, "udp")).rejects.toThrow(/input does not match/);
+    expect(router.calls).toEqual(["setEnabled h false", "setEnabled h true"]);
+    expect(router.rules.find((r) => r.id === "h")?.enabled).toBe(true);
+    expect(router.rules.some((r) => r.name.startsWith("Palisade") && r.ports === "2457")).toBe(false);
+  });
+
+  it("replace rejects a port that isn't conflicting, or isn't ours", async () => {
+    const router = fakeRouter([
+      { id: "ok", name: "Palisade - x", proto: "udp", ports: "2457", target: "10.0.0.5", enabled: true },
+    ]);
+    await expect(service(router).replace("srv1", 2457, "udp")).rejects.toThrow(/no conflicting rule/);
+    await expect(service(router).replace("srv1", 9999, "udp")).rejects.toThrow(/isn't one of this server's forwards/);
+  });
+
+  it("treats a disabled rule it didn't create as missing, so Fix creates a dedicated one", async () => {
+    const router = fakeRouter([
+      { id: "h", name: "Plex", proto: "udp", ports: "2457", target: "10.0.0.9", enabled: false },
+    ]);
+    const svc = service(router);
+    const f = (await svc.status("srv1")).forwards.find((x) => x.port === 2457)!;
+    expect(f).toMatchObject({ state: "missing", ruleId: null });
+    await svc.apply("srv1");
+    expect(router.calls).toEqual(["create 2456/udp", "create 2457/udp", "create 2458/udp", "commit"]);
+  });
+
+  it("replace on one port of a shared range leaves the rest fixable, not stranded", async () => {
+    const router = fakeRouter([
+      { id: "r", name: "Old range", proto: "udp", ports: "2456-2458", target: "10.0.0.9", enabled: true },
+    ]);
+    const svc = service(router);
+    const after = await svc.replace("srv1", 2456, "udp");
+    expect(after.forwards.map((f) => [f.port, f.state])).toEqual([
+      [2456, "ok"],
+      [2457, "missing"],
+      [2458, "missing"],
+    ]);
+    await svc.apply("srv1");
+    expect(router.calls).toEqual([
+      "setEnabled r false",
+      "create 2456/udp",
+      "commit",
+      "create 2457/udp",
+      "create 2458/udp",
+      "commit",
+    ]);
+  });
+
+  it("doesn't create duplicates behind a disabled rule that points at the target", async () => {
+    const router = fakeRouter([
+      { id: "old", name: "old manual", proto: "udp", ports: "2456", target: "10.0.0.5", enabled: false },
+    ]);
+    const svc = service(router);
+    await svc.apply("srv1");
+    const afterFirst = [...router.calls];
+    await svc.apply("srv1"); // nothing left to do, and no duplicate
+    expect(router.calls).toEqual(afterFirst);
+    expect(router.rules.filter((r) => r.ports === "2456" && r.name.startsWith("Palisade"))).toHaveLength(1);
+    expect((await svc.status("srv1")).forwards.find((f) => f.port === 2456)?.state).toBe("ok");
   });
 
   it("apply creates missing rules, re-targets mismatched ones, leaves disabled alone, commits once", async () => {
@@ -124,6 +219,39 @@ describe("PortForwardsService", () => {
     await expect(service(router).apply("srv1")).rejects.toThrow(
       /UniFi accepted the change but 2456\/udp, 2457\/udp, 2458\/udp still aren't forwarded/,
     );
+  });
+
+  it("preview reports the creates and retargets apply would make, without writing", async () => {
+    const router = fakeRouter([
+      { id: "b", name: "Palisade - x", proto: "udp", ports: "2457", target: "10.0.0.9", enabled: true },
+      { id: "c", name: "Palisade - x", proto: "udp", ports: "2458", target: "10.0.0.5", enabled: false },
+    ]);
+    const plan = await service(router).preview("srv1");
+    expect(router.calls).toEqual([]); // read-only: nothing written
+    expect(plan.changes).toEqual([
+      {
+        port: 2456,
+        proto: "udp",
+        label: "game",
+        action: "create",
+        from: null,
+        to: "10.0.0.5",
+        name: "Palisade - Valheim - Vikings - game",
+      },
+      {
+        port: 2457,
+        proto: "udp",
+        label: "query (server browser)",
+        action: "retarget",
+        from: "10.0.0.9",
+        to: "10.0.0.5",
+        name: "Palisade - Valheim - Vikings - query (server browser)",
+      },
+    ]);
+  });
+
+  it("preview is empty and read-only without a configured router", async () => {
+    expect(await service(null).preview("srv1")).toMatchObject({ configured: false, changes: [] });
   });
 
   it("apply is a no-op (no commit) when everything is already forwarded", async () => {
@@ -148,6 +276,51 @@ describe("PortForwardsService", () => {
     const bad = await service(router).testConnection();
     expect(bad.ok).toBe(false);
     expect(bad.message).toMatch(/Connected to 10.0.0.1.*cannot write rules: 403 forbidden/);
+  });
+
+  it("builds a MikroTik client from saved settings and reads it read-only", async () => {
+    const saved: Record<string, string> = {
+      port_forward_router: "mikrotik",
+      mikrotik_host: "10.0.0.1",
+      mikrotik_user: "palisade",
+      mikrotik_password: "secret",
+      mikrotik_target_ip: "10.0.0.5",
+      mikrotik_wan_interface: "ether1",
+    };
+    const settings = { get: vi.fn(async (key: string) => saved[key] ?? null) };
+    const svc = new PortForwardsService({ server: {} } as never, settings as never);
+    let seen: { host?: string; targetIp?: string } = {};
+    const describe = vi.spyOn(MikrotikClient.prototype, "describe").mockImplementation(function (
+      this: MikrotikClient,
+    ) {
+      seen = { host: this.host, targetIp: this.targetIp };
+      return Promise.resolve("2 dstnat rules (RouterOS 7.15)");
+    });
+    const wanIp = vi.spyOn(MikrotikClient.prototype, "wanIp").mockResolvedValue("203.0.113.9");
+    try {
+      const res = await svc.testConnection();
+      expect(res.ok).toBe(true);
+      expect(res.message).toMatch(/RouterOS 7\.15/);
+      expect(res.message).toMatch(/Read access only/);
+      expect(seen).toEqual({ host: "10.0.0.1", targetIp: "10.0.0.5" });
+    } finally {
+      describe.mockRestore();
+      wanIp.mockRestore();
+    }
+  });
+
+  it("treats a missing MikroTik password as unconfigured", async () => {
+    const saved: Record<string, string> = {
+      port_forward_router: "mikrotik",
+      mikrotik_host: "10.0.0.1",
+      mikrotik_user: "palisade",
+      mikrotik_target_ip: "10.0.0.5",
+    };
+    const settings = { get: vi.fn(async (key: string) => saved[key] ?? null) };
+    const svc = new PortForwardsService({ server: {} } as never, settings as never);
+    const res = await svc.testConnection();
+    expect(res.ok).toBe(false);
+    expect(res.message).toMatch(/Fill in the MikroTik RouterOS host, user and password, and target IP/);
   });
 
   it("testConnection on UniFi never writes; testWriteAccess does", async () => {

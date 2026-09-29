@@ -22,9 +22,10 @@
  */
 export interface ConnectHostInput {
   explicit?: string | null;
-  router?: "pfsense" | "unifi";
+  router?: "pfsense" | "unifi" | "mikrotik";
   pfsenseTargetIp?: string | null;
   unifiTargetIp?: string | null;
+  mikrotikTargetIp?: string | null;
   publicBaseUrl?: string | null;
 }
 
@@ -32,7 +33,9 @@ export function resolveConnectHost(i: ConnectHostInput): string | null {
   const explicit = i.explicit?.trim();
   if (explicit) return explicit;
 
-  const target = (i.router === "unifi" ? i.unifiTargetIp : i.pfsenseTargetIp)?.trim();
+  const target = (
+    i.router === "unifi" ? i.unifiTargetIp : i.router === "mikrotik" ? i.mikrotikTargetIp : i.pfsenseTargetIp
+  )?.trim();
   if (target) return target;
 
   const base = hostOfUrl(i.publicBaseUrl);

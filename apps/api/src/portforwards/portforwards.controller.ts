@@ -6,10 +6,13 @@ import { IsRouterHost, IsTargetIp } from "./router";
 
 /** The Settings form's current (possibly unsaved) router fields. */
 class RouterTestBody {
-  @IsOptional() @IsIn(["pfsense", "unifi"]) router?: "pfsense" | "unifi";
+  @IsOptional() @IsIn(["pfsense", "unifi", "mikrotik"]) router?: "pfsense" | "unifi" | "mikrotik";
   @IsOptional() @IsRouterHost((b) => (b as RouterTestBody).router ?? "unifi") host?: string;
   @IsOptional() @IsString() apiKey?: string;
+  @IsOptional() @IsString() user?: string;
+  @IsOptional() @IsString() password?: string;
   @IsOptional() @IsString() site?: string;
+  @IsOptional() @IsString() wanInterface?: string;
   @IsOptional() @IsTargetIp() targetIp?: string;
 }
 
@@ -41,6 +44,11 @@ class ToggleForwardBody {
   @IsBoolean() enabled!: boolean;
 }
 
+class ReplaceForwardBody {
+  @IsInt() port!: number;
+  @IsIn(["udp", "tcp"]) proto!: "udp" | "tcp";
+}
+
 @Controller("servers/:id/portforwards")
 export class PortForwardsController {
   constructor(private readonly portforwards: PortForwardsService) {}
@@ -51,10 +59,22 @@ export class PortForwardsController {
     return this.portforwards.status(id);
   }
 
+  /** What apply() would change, without changing anything — the card's confirm step. */
+  @Get("preview")
+  preview(@Param("id") id: string) {
+    return this.portforwards.preview(id);
+  }
+
   /** Create missing forwards and re-target mismatched ones + apply. */
   @Post()
   apply(@Param("id") id: string) {
     return this.portforwards.apply(id);
+  }
+
+  /** Take over a port another rule is using: disable it and create a Palisade rule. */
+  @Post("replace")
+  replace(@Param("id") id: string, @Body() body: ReplaceForwardBody) {
+    return this.portforwards.replace(id, body.port, body.proto);
   }
 
   /** Enable or disable one forward. */

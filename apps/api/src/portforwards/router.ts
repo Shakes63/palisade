@@ -2,19 +2,24 @@ import { isFQDN, isIP, registerDecorator } from "class-validator";
 import type { ForwardPort } from "../catalog/ports";
 
 /** Which router product the port-forward integration talks to. */
-export type RouterKind = "pfsense" | "unifi";
-export const ROUTER_KINDS: readonly RouterKind[] = ["pfsense", "unifi"];
-export const ROUTER_LABELS: Record<RouterKind, string> = { pfsense: "pfSense", unifi: "UniFi" };
+export type RouterKind = "pfsense" | "unifi" | "mikrotik";
+export const ROUTER_KINDS: readonly RouterKind[] = ["pfsense", "unifi", "mikrotik"];
+export const ROUTER_LABELS: Record<RouterKind, string> = {
+  pfsense: "pfSense",
+  unifi: "UniFi",
+  mikrotik: "MikroTik RouterOS",
+};
 
 const isHostname = (h: string) => isIP(h) || isFQDN(h, { require_tld: false });
 
-/** A router address as its client can use it: a hostname or IP, and for UniFi
- *  (parseUnifiHost) an optional http(s) scheme, port and trailing slash. Blank
- *  clears the setting. */
+/** A router address as its client can use it: a bare hostname or IP for pfSense,
+ *  and an optional http(s) scheme, port and trailing slash for UniFi and
+ *  RouterOS (whose `www-ssl` need not be on 443). Blank clears the setting. */
 export function isRouterHost(input: string, kind: RouterKind): boolean {
   const v = input.trim();
   if (!v) return true;
   if (kind === "pfsense") return isHostname(v);
+  if (isHostname(v)) return true; // bare host or IPv6, no scheme/port to parse
   let url: URL;
   try {
     url = new URL(/^[a-z]+:\/\//i.test(v) ? v : `https://${v}`);
@@ -35,7 +40,9 @@ export function IsRouterHost(kindOf: (body: object) => RouterKind): PropertyDeco
         defaultMessage: (args) =>
           kindOf(args!.object) === "pfsense"
             ? "pfSense host must be a hostname or IP address"
-            : "UniFi host must be a hostname or IP address, optionally with https:// and a port",
+            : kindOf(args!.object) === "mikrotik"
+              ? "MikroTik host must be a hostname or IP address, optionally with https:// and a port"
+              : "UniFi host must be a hostname or IP address, optionally with https:// and a port",
       },
     });
 }
@@ -80,6 +87,8 @@ export interface RouterClient {
   readonly kind: RouterKind;
   readonly host: string;
   readonly targetIp: string;
+  /** A key unique to this box + connection, for the service's short-lived caches. */
+  readonly cacheKey: string;
   /** Every WAN forward on the router. */
   list(): Promise<RouterRule[]>;
   /** The router's public address, or null when the router won't say. */

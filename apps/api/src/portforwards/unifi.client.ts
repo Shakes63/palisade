@@ -71,6 +71,10 @@ export class UnifiClient implements RouterClient {
     this.port = parsed.port;
   }
 
+  get cacheKey(): string {
+    return `${this.kind}:${this.hostname}:${this.port}:${this.site}`;
+  }
+
   private raw(
     method: "GET" | "POST" | "PUT" | "DELETE",
     path: string,

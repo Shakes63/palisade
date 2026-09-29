@@ -14,9 +14,10 @@ describe("resolveConnectHost", () => {
   });
 
   it("falls back to the target IP of the router actually in use", () => {
-    const both = { pfsenseTargetIp: "10.0.0.5", unifiTargetIp: "10.0.0.6" };
-    expect(resolveConnectHost({ router: "pfsense", ...both })).toBe("10.0.0.5");
-    expect(resolveConnectHost({ router: "unifi", ...both })).toBe("10.0.0.6");
+    const all = { pfsenseTargetIp: "10.0.0.5", unifiTargetIp: "10.0.0.6", mikrotikTargetIp: "10.0.0.7" };
+    expect(resolveConnectHost({ router: "pfsense", ...all })).toBe("10.0.0.5");
+    expect(resolveConnectHost({ router: "unifi", ...all })).toBe("10.0.0.6");
+    expect(resolveConnectHost({ router: "mikrotik", ...all })).toBe("10.0.0.7");
   });
 
   it("skips a router whose target IP was never filled in", () => {
