@@ -3,7 +3,13 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import Link from "next/link";
 import { CalendarClock, Globe, Pencil, Plus, Save, Trash2 } from "lucide-react";
 import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/api";
-import { describePlayerCondition, GAME_LABELS, RCON_SCHEDULE_ACTIONS, type Game } from "@ark/shared";
+import {
+  describePlayerCondition,
+  GAME_LABELS,
+  MAX_CONDITION_HELD_MINUTES,
+  RCON_SCHEDULE_ACTIONS,
+  type Game,
+} from "@ark/shared";
 import { buildCron, describeCron, onceCron, parseCron, fmtLocal, type Frequency } from "@/lib/cron";
 import { confirmDialog, toast } from "@/components/dialogs";
 import { ScheduleCopyMenu } from "@/components/schedule-copy-menu";
@@ -19,6 +25,7 @@ interface Schedule {
   enabled: boolean;
   minPlayersOnline: number | null;
   maxPlayersOnline: number | null;
+  conditionHeldMinutes: number;
   lastRunAt: string | null;
   runAt: string | null;
   allServers?: boolean;
@@ -87,7 +94,7 @@ const zoneAbbr = (tz: string) =>
     .formatToParts(new Date())
     .find((p) => p.type === "timeZoneName")?.value ?? tz;
 const conditionSuffix = (s: Schedule) => {
-  const text = describePlayerCondition(s.minPlayersOnline, s.maxPlayersOnline);
+  const text = describePlayerCondition(s.minPlayersOnline, s.maxPlayersOnline, s.conditionHeldMinutes);
   return text ? ` · only when ${text}` : "";
 };
 /** The player-count condition, as one picker rather than a comparison plus a
@@ -122,6 +129,8 @@ export function ScheduleList({ serverId }: { serverId?: string }) {
   const [warnMinutes, setWarnMinutes] = useState(10);
   const [condition, setCondition] = useState("any");
   const [threshold, setThreshold] = useState(0);
+  const [held, setHeld] = useState(false);
+  const [heldMinutes, setHeldMinutes] = useState(10);
   const [name, setName] = useState("");
   const [onceAt, setOnceAt] = useState("");
   const [editing, setEditing] = useState<Schedule | null>(null);
@@ -193,7 +202,8 @@ export function ScheduleList({ serverId }: { serverId?: string }) {
   const what = needsText && command.trim() ? `${actionLabel(action)} "${command.trim()}"` : actionLabel(action);
   const minPlayersOnline = condition === "atLeast" ? threshold : null;
   const maxPlayersOnline = condition === "atMost" ? threshold : null;
-  const conditionText = describePlayerCondition(minPlayersOnline, maxPlayersOnline);
+  const conditionHeldMinutes = condition !== "any" && held ? heldMinutes : 0;
+  const conditionText = describePlayerCondition(minPlayersOnline, maxPlayersOnline, conditionHeldMinutes);
   const when = isOnce
     ? onceAt
       ? `once on ${fmtLocal(onceAt)}`
@@ -218,6 +228,8 @@ export function ScheduleList({ serverId }: { serverId?: string }) {
     setWarnMinutes(10);
     setCondition("any");
     setThreshold(0);
+    setHeld(false);
+    setHeldMinutes(10);
     setName("");
     setOnceAt("");
     setAllServers(true);
@@ -234,6 +246,8 @@ export function ScheduleList({ serverId }: { serverId?: string }) {
     setWarnMinutes(s.warnMinutes);
     setCondition(s.minPlayersOnline !== null ? "atLeast" : s.maxPlayersOnline !== null ? "atMost" : "any");
     setThreshold(s.minPlayersOnline ?? s.maxPlayersOnline ?? 0);
+    setHeld(s.conditionHeldMinutes > 0);
+    setHeldMinutes(s.conditionHeldMinutes || 10);
     setName(s.name);
     setAllServers(s.allServers ?? true);
     setTargetIds(s.serverIds ?? []);
@@ -278,6 +292,7 @@ export function ScheduleList({ serverId }: { serverId?: string }) {
       warnMinutes: disruptive && canWarn ? Number(warnMinutes) : 0,
       minPlayersOnline,
       maxPlayersOnline,
+      conditionHeldMinutes,
       // Null so an edit from one-time to recurring clears the stored instant.
       runAt: runAt ?? null,
       ...(isGlobal ? { allServers, serverIds: targetIds, staggerMinutes } : {}),
@@ -551,10 +566,33 @@ export function ScheduleList({ serverId }: { serverId?: string }) {
               />
             )}
           </div>
+          {condition !== "any" && (
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-slate-300">
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={held} onChange={(e) => setHeld(e.target.checked)} />
+                …and this has been true for
+              </label>
+              <input
+                type="number"
+                min={1}
+                max={MAX_CONDITION_HELD_MINUTES}
+                aria-label="Minutes the player count must have held"
+                className="input w-20"
+                value={heldMinutes}
+                disabled={!held}
+                onChange={(e) =>
+                  setHeldMinutes(Math.min(MAX_CONDITION_HELD_MINUTES, Math.max(1, Number(e.target.value))))
+                }
+              />
+              minutes
+            </div>
+          )}
           <p className="mt-1 text-xs text-slate-500">
             {condition === "any"
               ? "The player count is ignored — it runs every time."
-              : "Checked against the live player count when the schedule fires. A recurring schedule just tries again next time; a one-time schedule is consumed. If the count can't be read, it runs anyway."}
+              : held
+                ? `Checked against the player count over the last ${heldMinutes} minutes, so the server must have been running that long — a server that has just started hasn't met it yet, and neither has one whose manager just restarted. A recurring schedule just tries again next time; a one-time schedule is consumed. Counts that can't be read are ignored, so a game that reports no players runs once it has been up long enough.`
+                : "Checked against the live player count when the schedule fires. A recurring schedule just tries again next time; a one-time schedule is consumed. If the count can't be read, it runs anyway."}
           </p>
         </div>
 

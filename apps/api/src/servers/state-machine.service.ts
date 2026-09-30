@@ -4,6 +4,11 @@ import { PrismaService } from "../prisma/prisma.service";
 import { EventsService } from "../events/events.service";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
 
+const stateData = (to: ServerState) => ({
+  state: to,
+  runningSince: to === ServerState.Running ? new Date() : null,
+});
+
 /**
  * The ONLY way a server's state changes. Rejects illegal transitions and writes
  * an EventLog entry + realtime broadcast for every legal one (PLANNING.md).
@@ -31,7 +36,7 @@ export class StateMachineService {
       throw new BadRequestException(`Illegal transition ${from} → ${to}`);
     }
 
-    await this.prisma.server.update({ where: { id: serverId }, data: { state: to } });
+    await this.prisma.server.update({ where: { id: serverId }, data: stateData(to) });
     this.realtime.broadcast({
       topic: RealtimeTopic.ServerState,
       serverId,
@@ -58,7 +63,7 @@ export class StateMachineService {
     if (!server) return;
     const from = server.state as ServerState;
     if (from === to) return;
-    await this.prisma.server.update({ where: { id: serverId }, data: { state: to } });
+    await this.prisma.server.update({ where: { id: serverId }, data: stateData(to) });
     this.realtime.broadcast({
       topic: RealtimeTopic.ServerState,
       serverId,

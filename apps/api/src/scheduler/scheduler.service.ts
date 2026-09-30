@@ -17,6 +17,7 @@ import { ManagerSettingsService } from "../manager-settings/manager-settings.ser
 import { PlayersService } from "../players/players.service";
 import { UpdatesService } from "../updates/updates.service";
 import { MOD_UPDATE_GAMES, ModUpdatesService } from "../modupdates/modupdates.service";
+import { HistoryService } from "../servers/history.service";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -42,7 +43,15 @@ export function supportsAction(game: Game, action: string): boolean {
 /** What one firing on one server needs; a global schedule supplies it per target. */
 type Firing = Pick<
   Schedule,
-  "name" | "action" | "command" | "warnMinutes" | "minPlayersOnline" | "maxPlayersOnline" | "runAt" | "serverId"
+  | "name"
+  | "action"
+  | "command"
+  | "warnMinutes"
+  | "minPlayersOnline"
+  | "maxPlayersOnline"
+  | "conditionHeldMinutes"
+  | "runAt"
+  | "serverId"
 >;
 
 const globalKey = (id: string) => `global:${id}`;
@@ -62,6 +71,7 @@ export class SchedulerService implements OnModuleInit {
     private readonly players: PlayersService,
     private readonly updates: UpdatesService,
     private readonly modUpdates: ModUpdatesService,
+    private readonly history: HistoryService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -345,21 +355,34 @@ export class SchedulerService implements OnModuleInit {
       // The player-count condition gates EVERY action (GH #97): "announce only
       // when 10+ are on" is as much a use for it as "don't restart a busy server".
       // Recurring schedules just try again next time; a one-shot is consumed.
-      const condition = describePlayerCondition(sched.minPlayersOnline, sched.maxPlayersOnline);
+      const condition = describePlayerCondition(
+        sched.minPlayersOnline,
+        sched.maxPlayersOnline,
+        sched.conditionHeldMinutes,
+      );
       if (condition) {
+        const holds = (online: number) =>
+          (sched.minPlayersOnline === null || online >= sched.minPlayersOnline) &&
+          (sched.maxPlayersOnline === null || online <= sched.maxPlayersOnline);
         const players = await this.players.count(sched.serverId).catch(() => null);
         const online = players?.online ?? null;
         // A count that can't be read never blocks the firing, same as the flag this
         // replaced: failing closed would leave a schedule permanently dead whenever
         // the query port is unreachable.
-        const blocked =
-          online !== null &&
-          ((sched.minPlayersOnline !== null && online < sched.minPlayersOnline) ||
-            (sched.maxPlayersOnline !== null && online > sched.maxPlayersOnline));
-        if (blocked) {
+        if (online !== null && !holds(online)) {
           await this.events.emit({
             type: EventType.ScheduleFired,
             message: `Schedule "${sched.name}" skipped — ${online} player${online === 1 ? "" : "s"} online, but it only runs when ${condition}`,
+            serverId: sched.serverId,
+          });
+          return;
+        }
+        // Unlike an unreadable count, missing history does block: a server that came
+        // up a minute ago hasn't been empty for ten.
+        if (sched.conditionHeldMinutes > 0 && !(await this.conditionHeld(sched, holds))) {
+          await this.events.emit({
+            type: EventType.ScheduleFired,
+            message: `Schedule "${sched.name}" skipped — it only runs when ${condition}, and that hasn't held long enough yet`,
             serverId: sched.serverId,
           });
           return;
@@ -412,6 +435,18 @@ export class SchedulerService implements OnModuleInit {
         serverId: sched.serverId,
       });
     }
+  }
+
+  private async conditionHeld(sched: Firing, holds: (online: number) => boolean): Promise<boolean> {
+    const server = await this.prisma.server
+      .findUnique({ where: { id: sched.serverId }, select: { runningSince: true } })
+      .catch(() => null);
+    return this.history.playerCountHeld(
+      sched.serverId,
+      sched.conditionHeldMinutes,
+      holds,
+      server?.runningSince ?? null,
+    );
   }
 
   /** Broadcast a shrinking countdown to players before a disruptive action. A game

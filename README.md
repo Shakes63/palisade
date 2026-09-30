@@ -96,8 +96,10 @@ player administration, and even your router's port-forwards.
   unless the server is running. Any schedule can also be held to a **player
   count** — run only when at most N are online (at most 0 = only on an empty
   server), or only when at least N are, so an announcement lands when there is
-  someone to read it. A schedule can be copied to other servers, and a **global
-  schedule** on the Schedules page runs on every server, or on the ones you pick.
+  someone to read it. The condition can also be required to have held for up to
+  an hour, so a server started a minute ago doesn't count as empty. A schedule can
+  be copied to other servers, and a **global schedule** on the Schedules page runs
+  on every server, or on the ones you pick.
 - **Version pinning** from registry-populated dropdowns: pin the **game version /
   Steam branch** where the server image supports it (Minecraft, OpenTTD, 7DTD,
   Enshrouded, Valheim, Palworld, V Rising, Satisfactory, ATS/ETS2, LiF:YO), and —

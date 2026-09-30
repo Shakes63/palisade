@@ -73,6 +73,7 @@ function makeScheduler(global: Record<string, unknown>) {
     {} as never,
     {} as never,
     {} as never,
+    {} as never,
   );
   const fireGlobal = (svc as unknown as { fireGlobal(id: string): Promise<void> }).fireGlobal.bind(svc);
   const pollOneShots = (svc as unknown as { fireDueOneShots(): Promise<void> }).fireDueOneShots.bind(svc);

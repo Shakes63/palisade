@@ -11,8 +11,24 @@ import {
   Query,
 } from "@nestjs/common";
 import { PartialType } from "@nestjs/mapped-types";
-import { IsArray, IsBoolean, IsDateString, IsIn, IsInt, IsOptional, IsString, Min } from "class-validator";
-import { GAME_LABELS, RCON_SCHEDULE_ACTIONS, SCHEDULE_ACTIONS, type Game } from "@ark/shared";
+import {
+  IsArray,
+  IsBoolean,
+  IsDateString,
+  IsIn,
+  IsInt,
+  IsOptional,
+  IsString,
+  Max,
+  Min,
+} from "class-validator";
+import {
+  GAME_LABELS,
+  MAX_CONDITION_HELD_MINUTES,
+  RCON_SCHEDULE_ACTIONS,
+  SCHEDULE_ACTIONS,
+  type Game,
+} from "@ark/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { SchedulerService, assertValidCron, supportsAction } from "./scheduler.service";
 import { AccessService } from "../auth/access.service";
@@ -34,6 +50,8 @@ export class ScheduleBody {
    *  every action, not just the disruptive ones. */
   @IsOptional() @IsInt() @Min(0) minPlayersOnline?: number | null;
   @IsOptional() @IsInt() @Min(0) maxPlayersOnline?: number | null;
+  /** Past the player history the manager keeps, the condition could never be met. */
+  @IsOptional() @IsInt() @Min(0) @Max(MAX_CONDITION_HELD_MINUTES) conditionHeldMinutes?: number;
   /** Set for a ONE-TIME schedule: ISO instant to fire once (cron then ignored).
    *  Null on PATCH turns a one-time schedule back into a recurring one. */
   @IsOptional() @IsDateString() runAt?: string | null;
@@ -123,6 +141,7 @@ export class SchedulesController {
         enabled: body.enabled ?? true,
         minPlayersOnline: body.minPlayersOnline ?? null,
         maxPlayersOnline: body.maxPlayersOnline ?? null,
+        conditionHeldMinutes: body.conditionHeldMinutes ?? 0,
         runAt: body.runAt ? parseRunAt(body.runAt) : null,
       },
     });
@@ -206,6 +225,7 @@ export class SchedulesController {
           enabled: source.enabled,
           minPlayersOnline: source.minPlayersOnline,
           maxPlayersOnline: source.maxPlayersOnline,
+          conditionHeldMinutes: source.conditionHeldMinutes,
           runAt: source.runAt,
         },
       });

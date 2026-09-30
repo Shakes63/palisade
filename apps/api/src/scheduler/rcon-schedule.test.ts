@@ -50,6 +50,7 @@ function makeScheduler(
     { count: vi.fn(async () => ({ online: 0 })) } as never,
     {} as never,
     {} as never,
+    {} as never,
   );
   // fire() is private; the cron callback is the only production caller.
   const fire = (svc as unknown as { fire(id: string): Promise<void> }).fire.bind(svc);
