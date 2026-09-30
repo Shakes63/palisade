@@ -198,6 +198,9 @@ export class SightingsService implements OnModuleInit {
     for (const id of this.logRoster.keys()) {
       if (!runningIds.has(id)) this.logRoster.delete(id);
     }
+    for (const id of this.valheimPendingId.keys()) {
+      if (!runningIds.has(id)) this.valheimPendingId.delete(id);
+    }
   }
 
   private async leave(serverId: string, name: string): Promise<void> {
@@ -283,6 +286,12 @@ export class SightingsService implements OnModuleInit {
         void this.upsert(serverId, name!, id);
         return;
       }
+      // A connection that drops before its character loads must not lend its id to the next join.
+      const closed = line.match(/Closing socket (\d{10,})/i);
+      if (closed) {
+        if (this.valheimPendingId.get(serverId) === closed[1]) this.valheimPendingId.delete(serverId);
+        return;
+      }
       // Both transports log this once the leaver's character is cleaned up; crossplay
       // has no "Closing socket" line.
       const left = line.match(/Destroying abandoned non persistent zdo \S+ owner (-?\d+)/i);
@@ -295,7 +304,10 @@ export class SightingsService implements OnModuleInit {
         }
         return;
       }
-      if (/Game server connected/i.test(line)) this.logRoster.delete(serverId); // the process restarted
+      if (/Game server connected/i.test(line)) {
+        this.logRoster.delete(serverId); // the process restarted
+        this.valheimPendingId.delete(serverId);
+      }
       return;
     }
     if (game === Game.MINECRAFT) {
