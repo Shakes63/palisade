@@ -102,6 +102,50 @@ describe("Valheim presence from the log", () => {
     expect(ticks(prisma)).toBe(1);
   });
 
+  // The rest of this block is from a modded 1.0.16 server (GH #155), ids anonymised.
+  it("tracks a negative owner id through an aborted first connection", async () => {
+    const { svc, prisma, events, line, poll } = makeSvc(Game.VALHEIM);
+    await poll();
+    line("09/28/2026 11:04:03: Got handshake from client 76561190000000001");
+    line("09/28/2026 11:05:02: Closing socket 76561190000000001");
+    line("[Info   :AzuExtendedPlayerInventory] Peer (0) disconnected, removing from validated list");
+    line("09/28/2026 11:05:25: Got handshake from client 76561190000000001");
+    line("09/28/2026 11:05:50: Got character ZDOID from Big Bob : -438505887:1");
+    await vi.waitFor(() =>
+      expect(upserted(prisma)).toEqual([{ serverId: "s1", name: "Big Bob", playerId: "76561190000000001" }]),
+    );
+    await poll();
+    expect(ticks(prisma)).toBe(1);
+
+    line("09/28/2026 12:52:58: Destroying abandoned non persistent zdo -438505887:1 owner -438505887");
+    await vi.waitFor(() => expect(svc.logRosterCount("s1")).toBe(0));
+    const leaves = (events.emit.mock.calls as unknown[][])
+      .map((c) => c[0] as { type: EventType; data: unknown })
+      .filter((e) => e.type === EventType.PlayerLeave);
+    expect(leaves.map((e) => e.data)).toEqual([{ name: "Big Bob" }]);
+  });
+
+  it("does not hand an aborted connection's SteamID to the next player", async () => {
+    const { prisma, line, poll } = makeSvc(Game.VALHEIM);
+    await poll();
+    line("09/28/2026 11:04:03: Got handshake from client 76561190000000001");
+    line("09/28/2026 11:05:02: Closing socket 76561190000000001");
+    line("Got handshake from client playfab/D3E2D552844E42EA");
+    line("Got character ZDOID from Justin : -1284701504:1");
+    await vi.waitFor(() => expect(upserted(prisma)).toEqual([{ serverId: "s1", name: "Justin", playerId: null }]));
+  });
+
+  it("keeps a pending SteamID when a different player's socket closes", async () => {
+    const { prisma, line, poll } = makeSvc(Game.VALHEIM);
+    await poll();
+    line("Got handshake from client 76561190000000002");
+    line("Closing socket 76561190000000001");
+    line("Got character ZDOID from Cara : 44:1");
+    await vi.waitFor(() =>
+      expect(upserted(prisma)).toEqual([{ serverId: "s1", name: "Cara", playerId: "76561190000000002" }]),
+    );
+  });
+
   it("takes the SteamID from the crossplay platform line", async () => {
     const { prisma, line, poll } = makeSvc(Game.VALHEIM);
     await poll();
@@ -121,8 +165,11 @@ describe("Valheim presence from the log", () => {
     await new Promise((r) => setTimeout(r, 20));
     expect(prisma.playerSighting.upsert).toHaveBeenCalledTimes(1);
     expect(svc.logRosterCount("s1")).toBe(1);
+    line("Got handshake from client 76561190000000001");
     line("09/24/2026 08:28:47: Game server connected");
     expect(svc.logRosterCount("s1")).toBe(0);
+    line("Got character ZDOID from Ann : 43:1");
+    await vi.waitFor(() => expect(upserted(prisma)).toContainEqual({ serverId: "s1", name: "Ann", playerId: null }));
   });
 });
 
