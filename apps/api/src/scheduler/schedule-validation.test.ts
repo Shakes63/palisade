@@ -133,9 +133,13 @@ describe("editing a schedule's timing (GH #83)", () => {
   });
 });
 
-function makeScheduler(rows: Array<{ id: string; name: string; cron: string; serverId: string }>) {
+function makeScheduler(
+  rows: Array<{ id: string; name: string; cron: string; serverId: string }>,
+  globals: Array<{ id: string; name: string; cron: string }> = [],
+) {
   const prisma = {
     schedule: { findMany: vi.fn(async () => rows), update: vi.fn(async () => undefined) },
+    globalSchedule: { findMany: vi.fn(async () => globals), update: vi.fn(async () => undefined) },
   };
   const events = { emit: vi.fn(async () => undefined) };
   const settings = { getTimezone: vi.fn(async () => "UTC") };
@@ -160,20 +164,31 @@ const messages = (events: { emit: ReturnType<typeof vi.fn> }) =>
 
 describe("registerAll with a poisoned row (GH #99)", () => {
   it("skips the bad row, registers the good ones, and stays resolved", async () => {
-    const { svc, prisma, events, tasks } = makeScheduler([
-      { id: "good-1", name: "Nightly restart", cron: "0 4 * * *", serverId: "srv-1" },
-      { id: "bad", name: "Broken", cron: "not a cron at all", serverId: "srv-1" },
-      { id: "good-2", name: "Hourly save", cron: "0 * * * *", serverId: "srv-2" },
-    ]);
+    const { svc, prisma, events, tasks } = makeScheduler(
+      [
+        { id: "good-1", name: "Nightly restart", cron: "0 4 * * *", serverId: "srv-1" },
+        { id: "bad", name: "Broken", cron: "not a cron at all", serverId: "srv-1" },
+        { id: "good-2", name: "Hourly save", cron: "0 * * * *", serverId: "srv-2" },
+      ],
+      [
+        { id: "g-good", name: "Fleet restart", cron: "0 5 * * *" },
+        { id: "g-bad", name: "Fleet broken", cron: "nope" },
+      ],
+    );
     // registerAll is awaited by onModuleInit; a throw here exited the container.
     await expect(svc.registerAll()).resolves.toBeUndefined();
-    expect([...tasks.keys()]).toEqual(["good-1", "good-2"]);
+    expect([...tasks.keys()]).toEqual(["good-1", "good-2", "global:g-good"]);
     // The row can never fire, so it's parked rather than left looking armed.
     expect(prisma.schedule.update).toHaveBeenCalledWith({
       where: { id: "bad" },
       data: { enabled: false },
     });
+    expect(prisma.globalSchedule.update).toHaveBeenCalledWith({
+      where: { id: "g-bad" },
+      data: { enabled: false },
+    });
     expect(messages(events)).toContain('Schedule "Broken" was disabled');
+    expect(messages(events)).toContain('Schedule "Fleet broken" was disabled');
     for (const id of [...tasks.keys()]) svc.unregister(id);
   });
 });

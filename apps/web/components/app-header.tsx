@@ -2,9 +2,10 @@
 import Link from "next/link";
 import { Logo } from "@/components/logo";
 import { usePathname } from "next/navigation";
-import { LogOut, Boxes, Settings } from "lucide-react";
+import { LogOut, Boxes, CalendarClock, Settings } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useRole } from "@/lib/use-role";
+import { useMe } from "@/lib/use-me";
 import { AccountMenu } from "@/components/account-menu";
 
 function NavLink({ href, active, children }: { href: string; active: boolean; children: React.ReactNode }) {
@@ -22,6 +23,7 @@ function NavLink({ href, active, children }: { href: string; active: boolean; ch
 export function AppHeader() {
   const { token, logout } = useAuth();
   const role = useRole();
+  const me = useMe();
   const pathname = usePathname();
   if (pathname === "/login" || pathname === "/setup") return null;
 
@@ -41,6 +43,11 @@ export function AppHeader() {
               <NavLink href="/clusters" active={pathname.startsWith("/clusters")}>
                 <Boxes className="hidden h-4 w-4 sm:block" /> Clusters
               </NavLink>
+              {me && !me.restricted && (
+                <NavLink href="/schedules" active={pathname.startsWith("/schedules")}>
+                  <CalendarClock className="hidden h-4 w-4 sm:block" /> Schedules
+                </NavLink>
+              )}
               {role === "admin" && (
                 <NavLink href="/settings" active={pathname.startsWith("/settings")}>
                   <Settings className="hidden h-4 w-4 sm:block" /> Settings

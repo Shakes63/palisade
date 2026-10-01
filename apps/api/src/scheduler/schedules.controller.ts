@@ -11,17 +11,15 @@ import {
   Query,
 } from "@nestjs/common";
 import { PartialType } from "@nestjs/mapped-types";
-import { IsBoolean, IsDateString, IsIn, IsInt, IsOptional, IsString, Min } from "class-validator";
+import { IsArray, IsBoolean, IsDateString, IsIn, IsInt, IsOptional, IsString, Min } from "class-validator";
 import { GAME_LABELS, RCON_SCHEDULE_ACTIONS, SCHEDULE_ACTIONS, type Game } from "@ark/shared";
 import { PrismaService } from "../prisma/prisma.service";
-import { SchedulerService, assertValidCron } from "./scheduler.service";
-import { RCON_GAMES } from "../rcon/rcon.service";
-import { MOD_UPDATE_GAMES } from "../modupdates/modupdates.service";
+import { SchedulerService, assertValidCron, supportsAction } from "./scheduler.service";
 import { AccessService } from "../auth/access.service";
 import { CurrentUser } from "../auth/current-user.decorator";
 import type { AuthUser } from "../auth/auth-user";
 
-class ScheduleBody {
+export class ScheduleBody {
   @IsString() serverId!: string;
   @IsString() name!: string;
   @IsString() cron!: string;
@@ -49,9 +47,13 @@ class ScheduleBody {
  */
 export class SchedulePatchBody extends PartialType(ScheduleBody) {}
 
+class CopyScheduleBody {
+  @IsArray() @IsString({ each: true }) targetIds!: string[];
+}
+
 /** `new Date("garbage")` is an Invalid Date, which Prisma only rejects at write
  *  time as a 500; parse it here so a bad instant is a plain 400. */
-function parseRunAt(iso: string): Date {
+export function parseRunAt(iso: string): Date {
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) throw new BadRequestException(`Invalid runAt: ${iso}`);
   return at;
@@ -59,7 +61,7 @@ function parseRunAt(iso: string): Date {
 
 /** An "announce"/"command" schedule with nothing to send would fire forever and do
  *  nothing, so it's rejected at the door rather than logged every firing. */
-function assertPayload(action: string | undefined, command: string | undefined): void {
+export function assertPayload(action: string | undefined, command: string | undefined): void {
   if (!action || !RCON_SCHEDULE_ACTIONS.has(action)) return;
   if (!command?.trim()) {
     throw new BadRequestException(
@@ -88,7 +90,7 @@ export class SchedulesController {
     if (!serverId) throw new BadRequestException("serverId is required");
     await this.access.assertServer(user, serverId);
     const game = await this.gameOf(serverId);
-    return SCHEDULE_ACTIONS.filter((a) => this.supports(game, a));
+    return SCHEDULE_ACTIONS.filter((a) => supportsAction(game, a));
   }
 
   @Get()
@@ -171,6 +173,48 @@ export class SchedulesController {
     return updated;
   }
 
+  /** Create an independent copy on each target (GH #157). Any game may receive
+   *  one; a target whose game can't run the action is skipped and named. */
+  @Post(":id/copy")
+  async copy(@Param("id") id: string, @Body() body: CopyScheduleBody, @CurrentUser() user: AuthUser) {
+    await this.owned(id, user);
+    await this.access.assertServers(user, body.targetIds);
+    const source = await this.prisma.schedule.findUniqueOrThrow({ where: { id } });
+    // A copy of a fired one-shot would fire at once inside the catch-up window.
+    if (source.runAt && source.runAt.getTime() <= Date.now()) {
+      throw new BadRequestException("This one-time schedule's moment has passed, so there is nothing to copy");
+    }
+    const targets = await this.prisma.server.findMany({
+      where: { id: { in: body.targetIds, not: source.serverId } },
+      select: { id: true, name: true, game: true },
+    });
+    const skipped: string[] = [];
+    let copied = 0;
+    for (const t of targets) {
+      if (!supportsAction(t.game as Game, source.action)) {
+        skipped.push(t.name);
+        continue;
+      }
+      const created = await this.prisma.schedule.create({
+        data: {
+          serverId: t.id,
+          name: source.name,
+          cron: source.cron,
+          action: source.action,
+          command: source.command,
+          warnMinutes: source.warnMinutes,
+          enabled: source.enabled,
+          minPlayersOnline: source.minPlayersOnline,
+          maxPlayersOnline: source.maxPlayersOnline,
+          runAt: source.runAt,
+        },
+      });
+      if (created.enabled && !created.runAt) await this.scheduler.registerWithTimezone(created.id, created.cron);
+      copied++;
+    }
+    return { copied, skipped };
+  }
+
   @Delete(":id")
   async remove(@Param("id") id: string, @CurrentUser() user: AuthUser) {
     await this.owned(id, user);
@@ -185,16 +229,10 @@ export class SchedulesController {
     return server.game as Game;
   }
 
-  private supports(game: Game, action: string): boolean {
-    if (RCON_SCHEDULE_ACTIONS.has(action)) return RCON_GAMES.has(game);
-    if (action === "update-mods") return MOD_UPDATE_GAMES.has(game);
-    return true;
-  }
-
   private async assertSupported(serverId: string, action: string): Promise<void> {
     if (!RCON_SCHEDULE_ACTIONS.has(action) && action !== "update-mods") return;
     const game = await this.gameOf(serverId);
-    if (this.supports(game, action)) return;
+    if (supportsAction(game, action)) return;
     throw new BadRequestException(
       action === "update-mods"
         ? `${GAME_LABELS[game]} has no mod updates to schedule`

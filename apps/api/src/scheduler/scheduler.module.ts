@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { SchedulerService } from "./scheduler.service";
 import { SchedulesController } from "./schedules.controller";
+import { GlobalSchedulesController } from "./global-schedules.controller";
 import { ServersModule } from "../servers/servers.module";
 import { RconModule } from "../rcon/rcon.module";
 import { BackupsModule } from "../backups/backups.module";
@@ -19,7 +20,7 @@ import { AuthModule } from "../auth/auth.module";
     ModUpdatesModule,
     AuthModule,
   ],
-  controllers: [SchedulesController],
+  controllers: [SchedulesController, GlobalSchedulesController],
   providers: [SchedulerService],
   exports: [SchedulerService],
 })

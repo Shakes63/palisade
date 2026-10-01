@@ -157,6 +157,7 @@ model Server {
   updatedAt   DateTime     @updatedAt
   modInstalls ModInstall[]
   schedules   Schedule[]
+  globalSchedules GlobalSchedule[]
   snapshots   Snapshot[]
   sightings   PlayerSighting[]
   userAccess  UserServerAccess[]
@@ -215,6 +216,28 @@ model Schedule {
   // manager was briefly down). Null = recurring (driven by `cron`).
   runAt       DateTime?
   createdAt   DateTime  @default(now())
+}
+
+// A schedule that fires on several servers at once (GH #157): every server when
+// `allServers` is set, including ones added later, otherwise the `servers` picked.
+// Each firing runs the same per-server pipeline as a Schedule.
+model GlobalSchedule {
+  id               String    @id @default(cuid())
+  name             String
+  cron             String
+  action           String
+  command          String?
+  warnMinutes      Int       @default(10)
+  enabled          Boolean   @default(true)
+  minPlayersOnline Int?
+  maxPlayersOnline Int?
+  allServers       Boolean   @default(false)
+  servers          Server[]
+  // Minutes between one server's start and the next, by name. 0 = all at once.
+  staggerMinutes   Int       @default(0)
+  lastRunAt        DateTime?
+  runAt            DateTime?
+  createdAt        DateTime  @default(now())
 }
 
 model Snapshot {
