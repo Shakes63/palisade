@@ -1,10 +1,13 @@
 "use client";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
-import { CalendarClock, Pencil, Plus, Save, Trash2 } from "lucide-react";
+import Link from "next/link";
+import { CalendarClock, Globe, Pencil, Plus, Save, Trash2 } from "lucide-react";
 import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/api";
-import { describePlayerCondition, RCON_SCHEDULE_ACTIONS } from "@ark/shared";
+import { describePlayerCondition, GAME_LABELS, RCON_SCHEDULE_ACTIONS, type Game } from "@ark/shared";
 import { buildCron, describeCron, onceCron, parseCron, fmtLocal, type Frequency } from "@/lib/cron";
 import { confirmDialog, toast } from "@/components/dialogs";
+import { ScheduleCopyMenu } from "@/components/schedule-copy-menu";
+import { useMe } from "@/lib/use-me";
 
 interface Schedule {
   id: string;
@@ -18,6 +21,16 @@ interface Schedule {
   maxPlayersOnline: number | null;
   lastRunAt: string | null;
   runAt: string | null;
+  allServers?: boolean;
+  serverIds?: string[];
+  staggerMinutes?: number;
+}
+
+interface TargetServer {
+  id: string;
+  name: string;
+  game: Game;
+  actions: string[];
 }
 
 const ACTIONS: { value: string; label: string; hint: string }[] = [
@@ -85,9 +98,20 @@ const CONDITIONS: { value: string; label: string }[] = [
   { value: "atLeast", label: "Run only when at least this many are online" },
 ];
 
-export function ScheduleList({ serverId }: { serverId: string }) {
+/** One server's schedules, or with no serverId the global ones that run on many
+ *  servers at once (GH #157). */
+export function ScheduleList({ serverId }: { serverId?: string }) {
   const uid = useId();
+  const me = useMe();
+  const isGlobal = !serverId;
+  const base = isGlobal ? "/global-schedules" : "/schedules";
   const [schedules, setSchedules] = useState<Schedule[]>([]);
+  // Per server: the global schedules that also run here, shown read-only.
+  const [globals, setGlobals] = useState<Schedule[]>([]);
+  const [targets, setTargets] = useState<TargetServer[]>([]);
+  const [allServers, setAllServers] = useState(true);
+  const [targetIds, setTargetIds] = useState<string[]>([]);
+  const [staggerMinutes, setStaggerMinutes] = useState(0);
   const [action, setAction] = useState("restart");
   const [frequency, setFrequency] = useState<Frequency>("daily");
   const [time, setTime] = useState("05:00");
@@ -107,10 +131,20 @@ export function ScheduleList({ serverId }: { serverId: string }) {
   const formRef = useRef<HTMLFormElement>(null);
 
   const refresh = useCallback(() => {
+    if (!serverId) {
+      apiGet<Schedule[]>("/global-schedules").then(setSchedules).catch(() => undefined);
+      return;
+    }
     apiGet<Schedule[]>(`/schedules?serverId=${serverId}`).then(setSchedules).catch(() => undefined);
+    apiGet<Schedule[]>(`/global-schedules?serverId=${serverId}`).then(setGlobals).catch(() => undefined);
   }, [serverId]);
   useEffect(() => refresh(), [refresh]);
   useEffect(() => {
+    // Globally every action is offered; servers that can't run it are skipped.
+    if (!serverId) {
+      apiGet<TargetServer[]>("/global-schedules/servers").then(setTargets).catch(() => undefined);
+      return;
+    }
     apiGet<string[]>(`/schedules/actions?serverId=${serverId}`)
       .then(setSupported)
       .catch(() => undefined);
@@ -129,6 +163,11 @@ export function ScheduleList({ serverId }: { serverId: string }) {
   const browserZone = timezone ? Intl.DateTimeFormat().resolvedOptions().timeZone : "";
   // Saved instants read in the same zone as the recurring times beside them.
   const fmtInZone = (iso: string) => fmtLocal(iso, timezone ?? undefined) + abbr;
+  const details = (s: Schedule) =>
+    `${actionLabel(s.action)}${s.command ? ` "${s.command}"` : ""} · ` +
+    (s.runAt ? `Once on ${fmtInZone(s.runAt)}` : describeInZone(s.cron)) +
+    (s.warnMinutes ? ` · warn ${s.warnMinutes}m` : "") +
+    conditionSuffix(s);
   const isSupported = (a: string) => supported === null || supported.includes(a);
   // Countdown warnings go out as in-game chat, which needs the same console as Announce.
   const canWarn = isSupported("announce");
@@ -137,6 +176,12 @@ export function ScheduleList({ serverId }: { serverId: string }) {
     return canWarn ? hint : hint.replace(/^Warn players, t/, "T").replace("warn players, ", "");
   };
   const actionOptions = ACTIONS.filter((a) => isSupported(a.value) || a.value === editing?.action);
+  /** Names of the servers a global schedule reaches whose game can't run its action. */
+  const skippedOn = (all: boolean, ids: string[], a: string) =>
+    targets.filter((t) => (all || ids.includes(t.id)) && !t.actions.includes(a)).map((t) => t.name);
+  const formSkipped = skippedOn(allServers, targetIds, action);
+  const toggleTarget = (id: string) =>
+    setTargetIds((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]));
 
   const isOnce = frequency === "once";
   const cron = useMemo(
@@ -175,6 +220,9 @@ export function ScheduleList({ serverId }: { serverId: string }) {
     setThreshold(0);
     setName("");
     setOnceAt("");
+    setAllServers(true);
+    setTargetIds([]);
+    setStaggerMinutes(0);
   };
 
   /** Load a saved schedule into the form (GH #83). A hand-written cron the form
@@ -187,6 +235,9 @@ export function ScheduleList({ serverId }: { serverId: string }) {
     setCondition(s.minPlayersOnline !== null ? "atLeast" : s.maxPlayersOnline !== null ? "atMost" : "any");
     setThreshold(s.minPlayersOnline ?? s.maxPlayersOnline ?? 0);
     setName(s.name);
+    setAllServers(s.allServers ?? true);
+    setTargetIds(s.serverIds ?? []);
+    setStaggerMinutes(s.staggerMinutes ?? 0);
     formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     if (s.runAt) {
       setFrequency("once");
@@ -218,6 +269,7 @@ export function ScheduleList({ serverId }: { serverId: string }) {
     if (needsText && !command.trim()) {
       return toast.error(action === "announce" ? "Type a message to announce." : "Type a command to run.");
     }
+    if (isGlobal && !allServers && targetIds.length === 0) return toast.error("Pick at least one server.");
     const body = {
       name: name.trim() || summary,
       cron: cronStr,
@@ -228,10 +280,11 @@ export function ScheduleList({ serverId }: { serverId: string }) {
       maxPlayersOnline,
       // Null so an edit from one-time to recurring clears the stored instant.
       runAt: runAt ?? null,
+      ...(isGlobal ? { allServers, serverIds: targetIds, staggerMinutes } : {}),
     };
     try {
-      if (editing) await apiPatch(`/schedules/${editing.id}`, body);
-      else await apiPost("/schedules", { serverId, enabled: true, ...body });
+      if (editing) await apiPatch(`${base}/${editing.id}`, body);
+      else await apiPost(base, { ...(isGlobal ? {} : { serverId }), enabled: true, ...body });
       resetForm();
       refresh();
     } catch (err) {
@@ -240,12 +293,12 @@ export function ScheduleList({ serverId }: { serverId: string }) {
   };
 
   const toggleEnabled = async (s: Schedule) => {
-    await apiPatch(`/schedules/${s.id}`, { enabled: !s.enabled }).catch(toast.error);
+    await apiPatch(`${base}/${s.id}`, { enabled: !s.enabled }).catch(toast.error);
     refresh();
   };
   const remove = async (s: Schedule) => {
     if (!(await confirmDialog({ title: `Delete the schedule "${s.name}"?`, confirmLabel: "Delete", danger: true }))) return;
-    await apiDelete(`/schedules/${s.id}`).catch(toast.error);
+    await apiDelete(`${base}/${s.id}`).catch(toast.error);
     if (editing?.id === s.id) resetForm();
     refresh();
   };
@@ -257,6 +310,58 @@ export function ScheduleList({ serverId }: { serverId: string }) {
           <p className="flex items-center gap-2 text-sm font-medium text-ark-accent">
             <Pencil className="h-4 w-4 shrink-0" /> Editing &ldquo;{editing.name}&rdquo;
           </p>
+        )}
+        {isGlobal && (
+          <div>
+            <span id={`${uid}-targets`} className="label">
+              Run on
+            </span>
+            <div role="radiogroup" aria-labelledby={`${uid}-targets`} className="flex flex-wrap gap-4 text-sm">
+              <label className="flex items-center gap-1.5 text-slate-300">
+                <input type="radio" checked={allServers} onChange={() => setAllServers(true)} /> All servers,
+                including ones added later
+              </label>
+              <label className="flex items-center gap-1.5 text-slate-300">
+                <input type="radio" checked={!allServers} onChange={() => setAllServers(false)} /> Only these
+                servers
+              </label>
+            </div>
+            {!allServers && (
+              <div className="mt-2 grid max-h-56 gap-0.5 overflow-auto sm:grid-cols-2">
+                {targets.map((t) => (
+                  <label
+                    key={t.id}
+                    className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-ark-border"
+                  >
+                    <input type="checkbox" checked={targetIds.includes(t.id)} onChange={() => toggleTarget(t.id)} />
+                    <span className="flex-1 truncate text-slate-200">{t.name}</span>
+                    <span className="shrink-0 text-[10px] text-slate-500">{GAME_LABELS[t.game]}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+            {formSkipped.length > 0 && (
+              <p className="mt-1 text-xs text-amber-400">
+                Skipped on {formSkipped.join(", ")}: the game can&apos;t run this action.
+              </p>
+            )}
+            <div className="mt-3 max-w-xs">
+              <label htmlFor={`${uid}-stagger`} className="label">Stagger (minutes between servers)</label>
+              <input
+                id={`${uid}-stagger`}
+                type="number"
+                min={0}
+                className="input w-24"
+                value={staggerMinutes}
+                onChange={(e) => setStaggerMinutes(Math.max(0, Number(e.target.value)))}
+              />
+              <p className="mt-1 text-xs text-slate-500">
+                {staggerMinutes > 0
+                  ? `Servers go one at a time in name order, each ${staggerMinutes} minute${staggerMinutes === 1 ? "" : "s"} after the last started. Turning the schedule off stops the ones still waiting.`
+                  : "0 = every server at the same moment."}
+              </p>
+            </div>
+          </div>
         )}
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
@@ -506,13 +611,20 @@ export function ScheduleList({ serverId }: { serverId: string }) {
                 <div className="min-w-0">
                   <div className="break-words font-medium">{s.name}</div>
                   <div className="text-xs text-slate-400">
-                    {actionLabel(s.action)}
-                    {s.command ? ` "${s.command}"` : ""} ·{" "}
-                    {s.runAt ? `Once on ${fmtInZone(s.runAt)}` : describeInZone(s.cron)}
-                    {s.warnMinutes ? ` · warn ${s.warnMinutes}m` : ""}
-                    {conditionSuffix(s)}
+                    {details(s)}
                     {s.lastRunAt ? ` · last ran ${fmtInZone(s.lastRunAt)}` : ""}
+                    {isGlobal &&
+                      (s.allServers
+                        ? " · on all servers"
+                        : ` · on ${s.serverIds?.length ?? 0} server${s.serverIds?.length === 1 ? "" : "s"}`)}
+                    {isGlobal && s.staggerMinutes ? `, ${s.staggerMinutes}m apart` : ""}
                   </div>
+                  {isGlobal && skippedOn(!!s.allServers, s.serverIds ?? [], s.action).length > 0 && (
+                    <div className="text-xs text-amber-400">
+                      Skipped on {skippedOn(!!s.allServers, s.serverIds ?? [], s.action).join(", ")}: the game
+                      can&apos;t run this action.
+                    </div>
+                  )}
                   {!isSupported(s.action) && (
                     <div className="text-xs text-amber-400">
                       This game can&apos;t run this action, so the schedule fails every time.
@@ -536,9 +648,37 @@ export function ScheduleList({ serverId }: { serverId: string }) {
                 <button className="btn-secondary" title="Edit" aria-label="Edit schedule" onClick={() => startEdit(s)}>
                   <Pencil className="h-4 w-4" />
                 </button>
+                {serverId && <ScheduleCopyMenu scheduleId={s.id} serverId={serverId} />}
                 <button className="btn-remove" title="Delete" aria-label="Delete schedule" onClick={() => remove(s)}>
                   <Trash2 className="h-4 w-4" />
                 </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {globals.length > 0 && (
+        <div className="space-y-2">
+          <h3 className="flex items-center gap-2 text-sm font-medium text-slate-300">
+            <Globe className="h-4 w-4 text-ark-accent2" /> Global schedules on this server
+            {!me?.restricted && (
+              <Link href="/schedules" className="text-xs font-normal text-ark-accent hover:underline">
+                Manage
+              </Link>
+            )}
+          </h3>
+          {globals.map((s) => (
+            <div key={s.id} className="card flex items-center gap-3">
+              <CalendarClock className="h-5 w-5 shrink-0 text-ark-accent2" />
+              <div className="min-w-0">
+                <div className="break-words font-medium">
+                  {s.name}
+                  {!s.enabled && <span className="ml-2 text-xs font-normal text-slate-500">(off)</span>}
+                </div>
+                <div className="text-xs text-slate-400">
+                  {details(s)}
+                </div>
               </div>
             </div>
           ))}

@@ -7,6 +7,7 @@ import {
   type Game,
   ServerState,
 } from "@ark/shared";
+import type { Schedule } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { EventsService } from "../events/events.service";
 import { ServersService } from "../servers/servers.service";
@@ -15,7 +16,7 @@ import { BackupsService } from "../backups/backups.service";
 import { ManagerSettingsService } from "../manager-settings/manager-settings.service";
 import { PlayersService } from "../players/players.service";
 import { UpdatesService } from "../updates/updates.service";
-import { ModUpdatesService } from "../modupdates/modupdates.service";
+import { MOD_UPDATE_GAMES, ModUpdatesService } from "../modupdates/modupdates.service";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -30,6 +31,21 @@ const ONE_SHOT_GRACE_MS = 60 * 60_000;
 export function assertValidCron(expr: string): void {
   if (!cron.validate(expr)) throw new BadRequestException(`Invalid cron: ${expr}`);
 }
+
+/** Whether a server of this game can run the action at all. */
+export function supportsAction(game: Game, action: string): boolean {
+  if (RCON_SCHEDULE_ACTIONS.has(action)) return RCON_GAMES.has(game);
+  if (action === "update-mods") return MOD_UPDATE_GAMES.has(game);
+  return true;
+}
+
+/** What one firing on one server needs; a global schedule supplies it per target. */
+type Firing = Pick<
+  Schedule,
+  "name" | "action" | "command" | "warnMinutes" | "minPlayersOnline" | "maxPlayersOnline" | "runAt" | "serverId"
+>;
+
+const globalKey = (id: string) => `global:${id}`;
 
 @Injectable()
 export class SchedulerService implements OnModuleInit {
@@ -50,6 +66,7 @@ export class SchedulerService implements OnModuleInit {
 
   async onModuleInit(): Promise<void> {
     await this.registerAll();
+    await this.disableInterruptedOneShots();
     // One-time schedules can't be expressed as cron; a poll fires them (and catches
     // up any whose moment passed while the manager was briefly down).
     setInterval(() => void this.fireDueOneShots(), ONE_SHOT_POLL_MS).unref?.();
@@ -63,10 +80,12 @@ export class SchedulerService implements OnModuleInit {
     for (const id of [...this.tasks.keys()]) this.unregister(id);
     const tz = await this.settings.getTimezone();
     const enabled = await this.prisma.schedule.findMany({ where: { enabled: true, runAt: null } });
+    const globals = await this.prisma.globalSchedule.findMany({ where: { enabled: true, runAt: null } });
     let registered = 0;
-    for (const s of enabled) {
+    for (const s of [...enabled, ...globals.map((g) => ({ ...g, serverId: null }))]) {
       try {
-        this.register(s.id, s.cron, tz);
+        if (s.serverId === null) this.registerGlobal(s.id, s.cron, tz);
+        else this.register(s.id, s.cron, tz);
         registered++;
       } catch {
         // This runs inside onModuleInit, so a throw here used to exit the container
@@ -83,11 +102,9 @@ export class SchedulerService implements OnModuleInit {
    *  skipped: it can never fire, and leaving it "enabled" in the panel would show
    *  a schedule that looks armed and silently never runs. The event is how the
    *  operator finds out, since the edit that broke it may have been long ago. */
-  private async quarantine(s: { id: string; name: string; cron: string; serverId: string }): Promise<void> {
+  private async quarantine(s: { id: string; name: string; cron: string; serverId: string | null }): Promise<void> {
     this.logger.warn(`Schedule "${s.name}" (${s.id}) disabled — invalid cron: ${s.cron}`);
-    await this.prisma.schedule
-      .update({ where: { id: s.id }, data: { enabled: false } })
-      .catch(() => undefined);
+    await this.disable(s);
     await this.events
       .emit({
         type: EventType.Warning,
@@ -95,6 +112,25 @@ export class SchedulerService implements OnModuleInit {
         serverId: s.serverId,
       })
       .catch(() => undefined);
+  }
+
+  /** A one-shot stamped as fired but still enabled was cut off by a manager restart
+   *  (completion disables it), e.g. mid-stagger. It can never fire again, so park it
+   *  and say so rather than leave it looking armed. */
+  private async disableInterruptedOneShots(): Promise<void> {
+    const where = { enabled: true, runAt: { not: null }, lastRunAt: { not: null } };
+    const rows = [
+      ...(await this.prisma.schedule.findMany({ where })),
+      ...(await this.prisma.globalSchedule.findMany({ where })).map((g) => ({ ...g, serverId: null })),
+    ];
+    for (const s of rows) {
+      await this.disable(s);
+      await this.events.emit({
+        type: EventType.Warning,
+        message: `One-time schedule "${s.name}" was interrupted by a manager restart, so it was switched off. Anything it hadn't reached yet did not run.`,
+        serverId: s.serverId,
+      });
+    }
   }
 
   /** Fire any one-time schedules whose moment has arrived (within the grace window),
@@ -105,15 +141,15 @@ export class SchedulerService implements OnModuleInit {
     this.oneShotBusy = true;
     try {
       const now = new Date();
-      const due = await this.prisma.schedule.findMany({
-        where: { enabled: true, lastRunAt: null, runAt: { not: null, lte: now } },
-      });
+      const where = { enabled: true, lastRunAt: null, runAt: { not: null, lte: now } };
+      const due = [
+        ...(await this.prisma.schedule.findMany({ where })),
+        ...(await this.prisma.globalSchedule.findMany({ where })).map((g) => ({ ...g, serverId: null })),
+      ];
       for (const s of due) {
         const runAt = s.runAt as Date;
         if (now.getTime() - runAt.getTime() > ONE_SHOT_GRACE_MS) {
-          await this.prisma.schedule
-            .update({ where: { id: s.id }, data: { enabled: false } })
-            .catch(() => undefined);
+          await this.disable(s);
           await this.events.emit({
             type: EventType.Warning,
             message: `One-time schedule "${s.name}" was missed — the manager wasn't running at ${runAt.toLocaleString()}.`,
@@ -122,11 +158,10 @@ export class SchedulerService implements OnModuleInit {
           continue;
         }
         // fire() stamps lastRunAt up front (so the next poll skips it), runs the
-        // action, then we disable it so a one-shot is truly one-time.
-        void this.fire(s.id).finally(() =>
-          this.prisma.schedule
-            .update({ where: { id: s.id }, data: { enabled: false } })
-            .catch(() => undefined),
+        // action, then we disable it so a one-shot is truly one-time. A row re-timed
+        // while it ran has a new runAt and must stay armed.
+        void (s.serverId === null ? this.fireGlobal(s.id) : this.fire(s.id)).finally(() =>
+          this.disable(s, runAt),
         );
       }
     } finally {
@@ -140,10 +175,7 @@ export class SchedulerService implements OnModuleInit {
   }
 
   register(scheduleId: string, expr: string, timezone: string): void {
-    assertValidCron(expr);
-    this.unregister(scheduleId);
-    const task = cron.schedule(expr, () => void this.fire(scheduleId), { timezone });
-    this.tasks.set(scheduleId, task);
+    this.arm(scheduleId, expr, timezone, () => this.fire(scheduleId));
   }
 
   unregister(scheduleId: string): void {
@@ -152,6 +184,77 @@ export class SchedulerService implements OnModuleInit {
       t.stop();
       this.tasks.delete(scheduleId);
     }
+  }
+
+  async registerGlobalWithTimezone(id: string, expr: string): Promise<void> {
+    this.registerGlobal(id, expr, await this.settings.getTimezone());
+  }
+
+  registerGlobal(id: string, expr: string, timezone: string): void {
+    this.arm(globalKey(id), expr, timezone, () => this.fireGlobal(id));
+  }
+
+  unregisterGlobal(id: string): void {
+    this.unregister(globalKey(id));
+  }
+
+  private arm(key: string, expr: string, timezone: string, run: () => Promise<void>): void {
+    assertValidCron(expr);
+    this.unregister(key);
+    this.tasks.set(key, cron.schedule(expr, () => void run(), { timezone }));
+  }
+
+  private async disable(s: { id: string; serverId: string | null }, onlyIfRunAt?: Date): Promise<void> {
+    const data = { enabled: false };
+    if (onlyIfRunAt) {
+      const where = { id: s.id, runAt: onlyIfRunAt };
+      await (s.serverId === null
+        ? this.prisma.globalSchedule.updateMany({ where, data })
+        : this.prisma.schedule.updateMany({ where, data })
+      ).catch(() => undefined);
+      return;
+    }
+    await (s.serverId === null
+      ? this.prisma.globalSchedule.update({ where: { id: s.id }, data })
+      : this.prisma.schedule.update({ where: { id: s.id }, data })
+    ).catch(() => undefined);
+  }
+
+  /** The servers a global schedule runs on right now, minus those whose game
+   *  can't run its action, so an "all servers" announce skips the consoleless. */
+  async globalTargets(g: { allServers: boolean; action: string; servers?: { id: string }[] }) {
+    const servers = await this.prisma.server.findMany({
+      where: g.allServers ? undefined : { id: { in: (g.servers ?? []).map((s) => s.id) } },
+      select: { id: true, game: true },
+      orderBy: { name: "asc" },
+    });
+    return servers.filter((s) => supportsAction(s.game as Game, g.action)).map((s) => s.id);
+  }
+
+  private async fireGlobal(id: string): Promise<void> {
+    const g = await this.prisma.globalSchedule.findUnique({ where: { id }, include: { servers: { select: { id: true } } } });
+    if (!g || !g.enabled) return;
+    await this.prisma.globalSchedule.update({ where: { id }, data: { lastRunAt: new Date() } });
+    const targets = await this.globalTargets(g);
+    await Promise.all(
+      targets.map(async (serverId, i) => {
+        if (i > 0 && g.staggerMinutes > 0) {
+          await sleep(i * g.staggerMinutes * 60_000);
+          // Turning it off or re-timing it mid-stagger stops the servers still waiting.
+          const still = await this.prisma.globalSchedule.findUnique({
+            where: { id },
+            select: { enabled: true, runAt: true },
+          });
+          if (!still?.enabled || still.runAt?.getTime() !== g.runAt?.getTime()) return;
+        }
+        await this.events.emit({
+          type: EventType.ScheduleFired,
+          message: `Global schedule "${g.name}" fired (${g.action})`,
+          serverId,
+        });
+        await this.run({ ...g, serverId });
+      }),
+    );
   }
 
   /** Execute a schedule's action with warnings + pre-action snapshot. */
@@ -167,7 +270,10 @@ export class SchedulerService implements OnModuleInit {
       message: `Schedule "${sched.name}" fired (${sched.action})`,
       serverId: sched.serverId,
     });
+    await this.run(sched);
+  }
 
+  private async run(sched: Firing): Promise<void> {
     // "update-if-available" is an update that first checks Steam for a newer
     // build — no players warned, no downtime, no backup churn when already
     // current. Unknown (non-Steam game / API down) falls through to updating,
