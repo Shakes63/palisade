@@ -24,6 +24,6 @@ import { AuthModule } from "../auth/auth.module";
   ],
   controllers: [ServersController],
   providers: [ServersService, ServerConfigWriter, StateMachineService, HistoryService],
-  exports: [ServersService, StateMachineService],
+  exports: [ServersService, StateMachineService, HistoryService],
 })
 export class ServersModule {}

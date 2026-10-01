@@ -10,14 +10,18 @@ import { SchedulerService } from "./scheduler.service";
  * port would leave the schedule dead.
  */
 
+const RUNNING_SINCE = new Date("2026-09-30T11:00:00Z");
+
 function makeScheduler(
   sched: {
     action: string;
     minPlayersOnline?: number | null;
     maxPlayersOnline?: number | null;
+    conditionHeldMinutes?: number;
     command?: string | null;
   },
   online: number | null,
+  held = true,
 ) {
   const prisma = {
     schedule: {
@@ -31,18 +35,20 @@ function makeScheduler(
         command: null,
         minPlayersOnline: null,
         maxPlayersOnline: null,
+        conditionHeldMinutes: 0,
         runAt: null,
         ...sched,
       })),
       update: vi.fn(async () => undefined),
     },
-    server: { findUnique: vi.fn(async () => ({ state: ServerState.Running })) },
+    server: { findUnique: vi.fn(async () => ({ state: ServerState.Running, runningSince: RUNNING_SINCE })) },
   };
   const events = { emit: vi.fn(async () => undefined) };
   const rcon = { broadcast: vi.fn(async () => "ok"), exec: vi.fn(async () => "ok") };
   const backups = { create: vi.fn(async () => undefined) };
   const servers = { restart: vi.fn(), stop: vi.fn(), start: vi.fn(), updateGame: vi.fn() };
   const players = { count: vi.fn(async () => (online === null ? null : { online })) };
+  const history = { playerCountHeld: vi.fn(() => held) };
   const svc = new SchedulerService(
     prisma as never,
     events as never,
@@ -53,10 +59,11 @@ function makeScheduler(
     players as never,
     {} as never,
     {} as never,
+    history as never,
   );
   // fire() is private; the cron callback is the only production caller.
   const fire = (svc as unknown as { fire(id: string): Promise<void> }).fire.bind(svc);
-  return { fire, events, rcon, servers, players };
+  return { fire, events, rcon, servers, players, history };
 }
 
 const messages = (events: { emit: ReturnType<typeof vi.fn> }) =>
@@ -134,5 +141,45 @@ describe("schedule player-count conditions (GH #97)", () => {
     expect(servers.restart).toHaveBeenCalledWith("srv-1");
     // No bounds to check, so the count is never even queried.
     expect(players.count).not.toHaveBeenCalled();
+  });
+
+  it("skips while the condition hasn't held for the minutes asked, even if it holds now", async () => {
+    const { fire, servers, events, history } = makeScheduler(
+      { action: "stop", maxPlayersOnline: 0, conditionHeldMinutes: 10 },
+      0,
+      false,
+    );
+    await fire("sch-1");
+    expect(history.playerCountHeld).toHaveBeenCalledWith("srv-1", 10, expect.any(Function), RUNNING_SINCE);
+    expect(servers.stop).not.toHaveBeenCalled();
+    expect(messages(events)).toContain(
+      "skipped — it only runs when nobody is online for at least 10 minutes, and that hasn't held long enough yet",
+    );
+  });
+
+  it("skips on missing history even when the count right now can't be read", async () => {
+    const { fire, servers } = makeScheduler(
+      { action: "stop", maxPlayersOnline: 0, conditionHeldMinutes: 10 },
+      null,
+      false,
+    );
+    await fire("sch-1");
+    expect(servers.stop).not.toHaveBeenCalled();
+  });
+
+  it("runs once the condition has held for the minutes asked", async () => {
+    const { fire, servers } = makeScheduler(
+      { action: "stop", maxPlayersOnline: 0, conditionHeldMinutes: 10 },
+      0,
+      true,
+    );
+    await fire("sch-1");
+    expect(servers.stop).toHaveBeenCalledWith("srv-1");
+  });
+
+  it("never consults the history without a held duration", async () => {
+    const { fire, history } = makeScheduler({ action: "restart", maxPlayersOnline: 0 }, 0, false);
+    await fire("sch-1");
+    expect(history.playerCountHeld).not.toHaveBeenCalled();
   });
 });

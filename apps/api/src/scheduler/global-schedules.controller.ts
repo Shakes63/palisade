@@ -95,6 +95,7 @@ export class GlobalSchedulesController {
         enabled: body.enabled ?? true,
         minPlayersOnline: body.minPlayersOnline ?? null,
         maxPlayersOnline: body.maxPlayersOnline ?? null,
+        conditionHeldMinutes: body.conditionHeldMinutes ?? 0,
         runAt: body.runAt ? parseRunAt(body.runAt) : null,
         allServers,
         staggerMinutes: body.staggerMinutes ?? 0,

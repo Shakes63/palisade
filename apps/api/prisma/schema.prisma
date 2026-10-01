@@ -115,6 +115,9 @@ model Server {
   // Runtime tracking
   containerId      String?
   installedBuildId String?
+  // When the server last entered Running; null while it isn't. A held schedule
+  // condition must start after it, so it never spans a stop and a restart.
+  runningSince     DateTime?
   // Advanced: pin the game image to a specific tag instead of the shipped default.
   // Null = use the default tag. Applied on the next start (pull + recreate).
   imageTag         String?
@@ -210,6 +213,9 @@ model Schedule {
   // the old `skipIfPlayersOnline` flag, which was this with maxPlayersOnline = 0.
   minPlayersOnline Int?
   maxPlayersOnline Int?
+  // How long the player-count condition must have held before a firing counts it
+  // as met, read back from the live player history. 0 = only the count right now.
+  conditionHeldMinutes Int @default(0)
   lastRunAt   DateTime?
   // Set for ONE-TIME schedules: the absolute instant to fire once. When non-null,
   // `cron` is ignored for scheduling — a poll fires it (and catches up if the
@@ -231,6 +237,7 @@ model GlobalSchedule {
   enabled          Boolean   @default(true)
   minPlayersOnline Int?
   maxPlayersOnline Int?
+  conditionHeldMinutes Int  @default(0)
   allServers       Boolean   @default(false)
   servers          Server[]
   // Minutes between one server's start and the next, by name. 0 = all at once.

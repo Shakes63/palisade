@@ -287,13 +287,29 @@ export interface ScheduleDto {
    *  The two are checked independently, so they can also express a range. */
   minPlayersOnline?: number | null;
   maxPlayersOnline?: number | null;
+  /** Minutes the condition must have held before the firing, so a server started a
+   *  minute ago doesn't read as "empty". 0 = judged on the count at firing alone. */
+  conditionHeldMinutes?: number;
   enabled: boolean;
 }
+
+/** The longest `conditionHeldMinutes` the manager keeps enough player history for. */
+export const MAX_CONDITION_HELD_MINUTES = 60;
 
 /** The player-count condition as a phrase that completes "only when ...", or null
  *  when the schedule carries no condition. Shared so the skip event, the schedule
  *  row and the form all word it the same way (GH #97). */
 export function describePlayerCondition(
+  minPlayersOnline?: number | null,
+  maxPlayersOnline?: number | null,
+  heldMinutes = 0,
+): string | null {
+  const bounds = describePlayerBounds(minPlayersOnline, maxPlayersOnline);
+  if (!bounds || heldMinutes <= 0) return bounds;
+  return `${bounds} for at least ${heldMinutes} minute${heldMinutes === 1 ? "" : "s"}`;
+}
+
+function describePlayerBounds(
   minPlayersOnline?: number | null,
   maxPlayersOnline?: number | null,
 ): string | null {

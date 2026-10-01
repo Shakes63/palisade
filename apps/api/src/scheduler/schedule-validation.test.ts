@@ -62,6 +62,7 @@ describe("schedule edit validation (GH #99)", () => {
         enabled: false,
         minPlayersOnline: 2,
         maxPlayersOnline: 10,
+        conditionHeldMinutes: 15,
         runAt: "2026-01-01T00:00:00.000Z",
         bogus: "dropped",
       }),
@@ -75,10 +76,17 @@ describe("schedule edit validation (GH #99)", () => {
       enabled: false,
       minPlayersOnline: 2,
       maxPlayersOnline: 10,
+      conditionHeldMinutes: 15,
       runAt: "2026-01-01T00:00:00.000Z",
     });
     // An absent field stays absent: update() spreads the body into Prisma's data.
     await expect(patchBody({ enabled: true })).resolves.toEqual({ enabled: true });
+  });
+
+  it("caps the held minutes at the player history the manager keeps", async () => {
+    await expect(patchBody({ conditionHeldMinutes: 60 })).resolves.toEqual({ conditionHeldMinutes: 60 });
+    await expect(patchBody({ conditionHeldMinutes: 61 })).rejects.toBeInstanceOf(BadRequestException);
+    await expect(patchBody({ conditionHeldMinutes: -1 })).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it("rejects an invalid cron on PATCH without writing or unregistering anything", async () => {
@@ -150,6 +158,7 @@ function makeScheduler(
     {} as never,
     {} as never,
     settings as never,
+    {} as never,
     {} as never,
     {} as never,
     {} as never,
