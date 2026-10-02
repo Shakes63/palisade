@@ -21,6 +21,11 @@ import { HistoryService } from "../servers/history.service";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+const ALREADY_THERE: Record<string, ServerState[]> = {
+  stop: [ServerState.Stopped, ServerState.Crashed],
+  start: [ServerState.Running],
+};
+
 const ONE_SHOT_POLL_MS = 60_000;
 // A one-time schedule still fires if the manager was briefly down at its moment,
 // but only within this window — beyond it, it's stale and marked missed.
@@ -350,6 +355,8 @@ export class SchedulerService implements OnModuleInit {
       }
     }
 
+    if (await this.alreadyThere(sched.serverId, action)) return this.skipAlreadyThere(sched, action);
+
     const disruptive = ["restart", "update", "update-mods", "stop"].includes(action);
     try {
       // The player-count condition gates EVERY action (GH #97): "announce only
@@ -429,12 +436,34 @@ export class SchedulerService implements OnModuleInit {
         }
       }
     } catch (err) {
+      // Someone else stopped (or started) it during the countdown or backup.
+      if (await this.alreadyThere(sched.serverId, action)) return this.skipAlreadyThere(sched, action);
       await this.events.emit({
         type: EventType.Error,
         message: `Schedule "${sched.name}" failed: ${(err as Error).message}`,
         serverId: sched.serverId,
       });
     }
+  }
+
+  /** A stop on a server that's already down, or a start on one already up, has
+   *  nothing to do, and an "all servers" schedule must not post an Error for each
+   *  (GH #162). Settled states only: a Stopping server may be mid-restart. */
+  private async alreadyThere(serverId: string, action: string): Promise<boolean> {
+    const settled = ALREADY_THERE[action];
+    if (!settled) return false;
+    const server = await this.prisma.server
+      .findUnique({ where: { id: serverId }, select: { state: true } })
+      .catch(() => null);
+    return !!server && settled.includes(server.state as ServerState);
+  }
+
+  private async skipAlreadyThere(sched: Firing, action: string): Promise<void> {
+    await this.events.emit({
+      type: EventType.ScheduleFired,
+      message: `Schedule "${sched.name}" skipped — the server is already ${action === "stop" ? "stopped" : "running"}`,
+      serverId: sched.serverId,
+    });
   }
 
   private async conditionHeld(sched: Firing, holds: (online: number) => boolean): Promise<boolean> {
