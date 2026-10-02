@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { BadRequestException } from "@nestjs/common";
-import { ServerState } from "@ark/shared";
+import { EventType, ServerState } from "@ark/shared";
 import { SchedulerService } from "./scheduler.service";
 import { SchedulesController } from "./schedules.controller";
 import { AccessService } from "../auth/access.service";
@@ -145,6 +145,66 @@ describe("restart warning countdown", () => {
     await fire("sch-1");
     expect(rcon.broadcast).not.toHaveBeenCalled();
     expect(servers.restart).toHaveBeenCalledWith("srv-1");
+  });
+});
+
+describe("stop and start on a server already in that state (GH #162)", () => {
+  it.each([ServerState.Stopped, ServerState.Crashed])(
+    "skips a stop while %s, with no backup and no error",
+    async (state) => {
+      const { fire, servers, backups, events } = makeScheduler({ action: "stop", command: null, warnMinutes: 0 }, state);
+      await fire("sch-1");
+      expect(servers.stop).not.toHaveBeenCalled();
+      expect(backups.create).not.toHaveBeenCalled();
+      expect(messages(events)).toContain("skipped — the server is already stopped");
+      expect(events.emit).not.toHaveBeenCalledWith(expect.objectContaining({ type: EventType.Error }));
+    },
+  );
+
+  it("skips a start while Running", async () => {
+    const { fire, servers, events } = makeScheduler({ action: "start", command: null });
+    await fire("sch-1");
+    expect(servers.start).not.toHaveBeenCalled();
+    expect(messages(events)).toContain("skipped — the server is already running");
+  });
+
+  it("still stops a Stopping server, which may be mid-restart and about to come back", async () => {
+    const { fire, servers } = makeScheduler(
+      { action: "stop", command: null, warnMinutes: 0 },
+      ServerState.Stopping,
+    );
+    await fire("sch-1");
+    expect(servers.stop).toHaveBeenCalledWith("srv-1");
+  });
+
+  it("skips rather than fails when someone stops the server during the countdown", async () => {
+    const { fire, servers, events, prisma } = makeScheduler({ action: "stop", command: null, warnMinutes: 0 });
+    servers.stop.mockImplementationOnce(async () => {
+      prisma.server.findUnique.mockResolvedValue({ state: ServerState.Stopped, game: "ASA" });
+      throw new Error("Cannot stop from state Stopped");
+    });
+    await fire("sch-1");
+    expect(messages(events)).toContain("skipped — the server is already stopped");
+    expect(events.emit).not.toHaveBeenCalledWith(expect.objectContaining({ type: EventType.Error }));
+  });
+
+  it("still stops a running server and starts a stopped one", async () => {
+    const stop = makeScheduler({ action: "stop", command: null, warnMinutes: 0 });
+    await stop.fire("sch-1");
+    expect(stop.servers.stop).toHaveBeenCalledWith("srv-1");
+    const start = makeScheduler({ action: "start", command: null }, ServerState.Stopped);
+    await start.fire("sch-1");
+    expect(start.servers.start).toHaveBeenCalledWith("srv-1");
+  });
+
+  it("still reports a stop that can't happen for another reason", async () => {
+    const { fire, servers, events } = makeScheduler(
+      { action: "stop", command: null, warnMinutes: 0 },
+      ServerState.Installing,
+    );
+    servers.stop.mockRejectedValueOnce(new Error("Cannot stop from state Installing"));
+    await fire("sch-1");
+    expect(messages(events)).toContain('Schedule "test" failed: Cannot stop from state Installing');
   });
 });
 
