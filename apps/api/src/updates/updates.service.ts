@@ -5,6 +5,7 @@ import * as cron from "node-cron";
 import {
   Game,
   EventType,
+  ServerState,
   STEAM_APP_ID,
   resolveVersionTag,
   type GameBuildStatus,
@@ -92,6 +93,7 @@ export function pickPublicBuildId(json: unknown, appId: number): number | null {
 @Injectable()
 export class UpdatesService implements OnModuleInit {
   private readonly logger = new Logger(UpdatesService.name);
+  private readonly checks = new Map<string, Promise<void>>();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -103,50 +105,81 @@ export class UpdatesService implements OnModuleInit {
   onModuleInit(): void {
     cron.schedule(POLL_CRON, () => void this.checkAll());
     setTimeout(() => void this.checkAll(), INITIAL_DELAY_MS).unref?.();
+    // An update lands during boot, so re-check on reaching Running (GH #164). A reconcile
+    // adopts an already-running container, which the startup poll covers.
+    this.events.onEvent((e) => {
+      const started = e.data?.to === ServerState.Running && !e.data?.reconcile;
+      if (e.type === EventType.StateTransition && e.serverId && started) {
+        void this.refresh(e.serverId).catch(() => undefined);
+      }
+    });
   }
 
   async checkAll(): Promise<void> {
     try {
       const servers = await this.prisma.server.findMany();
-      const games = [...new Set(servers.map((s) => s.game as Game))];
-      const latest = new Map<Game, number>();
-      await Promise.all(
-        games.map(async (g) => {
-          const b = await this.latestBuildId(g);
-          if (b !== null) latest.set(g, b);
-        }),
-      );
-
       for (const server of servers) {
         // Server baked into the image → the image digest is the game version.
         if (IMAGE_BAKED_GAMES.has(server.game as Game)) {
-          await this.checkBakedImage(server).catch(() => undefined);
+          await this.check(server.id, false).catch(() => undefined);
           continue;
         }
-        const newest = latest.get(server.game as Game);
-        if (newest === undefined) continue; // couldn't fetch the latest → skip
-        const installed = await this.installedBuildId(server.id, server.game as Game);
-        if (installed === null) continue; // not installed yet → nothing to compare
-
-        const outdated = newest > installed;
-        const data: Record<string, unknown> = {};
-        if (String(installed) !== server.installedBuildId) data.installedBuildId = String(installed);
-        if (outdated !== server.updateAvailable) data.updateAvailable = outdated;
-        if (Object.keys(data).length) {
-          await this.prisma.server.update({ where: { id: server.id }, data }).catch(() => undefined);
-        }
-        // Notify once, on the false→true transition only (no every-poll spam).
-        if (outdated && !server.updateAvailable) {
-          await this.events.emit({
-            type: EventType.UpdateAvailable,
-            message: `Update available for "${server.name}" (installed build ${installed}, latest ${newest}). Use Update game on the server page to apply it.`,
-            serverId: server.id,
-            data: { installed: String(installed), latest: String(newest) },
-          });
-        }
+        await this.check(server.id, false);
       }
     } catch (err) {
       this.logger.warn(`update check failed: ${(err as Error).message}`);
+    }
+  }
+
+  /** The same check as the poll, for one server that just started. */
+  refresh(serverId: string): Promise<void> {
+    return this.check(serverId, true);
+  }
+
+  /** One check per server at a time, each reading the row and the builds afresh, so when
+   *  the poll and a start overlap the later readings are the ones that land. */
+  private check(serverId: string, justStarted: boolean): Promise<void> {
+    const run = (this.checks.get(serverId) ?? Promise.resolve()).then(async () => {
+      const server = await this.prisma.server.findUnique({ where: { id: serverId } });
+      if (!server) return;
+      const game = server.game as Game;
+      if (IMAGE_BAKED_GAMES.has(game)) return this.checkBakedImage(server, justStarted);
+      if (!STEAM_APP_ID[game]) return;
+      const newest = await this.latestBuildId(game);
+      if (newest !== null) await this.checkSteamBuild(server, newest); // null: API unreachable
+    });
+    const settled = run.catch(() => undefined);
+    this.checks.set(serverId, settled);
+    void settled.then(() => this.checks.get(serverId) === settled && this.checks.delete(serverId));
+    return run;
+  }
+
+  private async checkSteamBuild(
+    server: { id: string; name: string; game: string; installedBuildId: string | null; updateAvailable: boolean },
+    newest: number,
+  ): Promise<void> {
+    const installed = await this.installedBuildId(server.id, server.game as Game);
+    if (installed === null) return; // not installed yet → nothing to compare
+
+    const outdated = newest > installed;
+    const flipped = await this.save(server, String(installed), outdated);
+    // Notify once, on the false→true transition only (no every-poll spam).
+    if (flipped && outdated) {
+      await this.events.emit({
+        type: EventType.UpdateAvailable,
+        message: `Update available for "${server.name}" (installed build ${installed}, latest ${newest}). Use Update game on the server page to apply it.`,
+        serverId: server.id,
+        data: { installed: String(installed), latest: String(newest) },
+      });
+    }
+    // The event is also what refreshes an open page; the flag write broadcasts nothing.
+    if (flipped && !outdated) {
+      await this.events.emit({
+        type: EventType.InstallFinished,
+        message: `"${server.name}" is up to date (build ${installed})`,
+        serverId: server.id,
+        data: { installed: String(installed) },
+      });
     }
   }
 
@@ -161,31 +194,37 @@ export class UpdatesService implements OnModuleInit {
    * or a locally-built image leaves the flag exactly as it was rather than
    * inventing an update.
    */
-  private async checkBakedImage(server: {
-    id: string;
-    name: string;
-    game: string;
-    imageTag: string | null;
-    installedBuildId: string | null;
-    updateAvailable: boolean;
-  }): Promise<void> {
+  private async checkBakedImage(
+    server: {
+      id: string;
+      name: string;
+      game: string;
+      imageTag: string | null;
+      containerId: string | null;
+      installedBuildId: string | null;
+      updateAvailable: boolean;
+    },
+    justStarted: boolean,
+  ): Promise<void> {
     const ref = imageRefFor(server.game as Game, server.imageTag);
     const { repo, tag } = splitImageRef(ref);
+    // After its own start, judge the image the container runs: a failed pull boots the
+    // cached one, while a sibling's pull may have moved the tag.
+    const image =
+      justStarted && server.containerId
+        ? await this.docker.inspect(server.containerId).then((c) => c.Image, () => null)
+        : ref;
+    if (!image) return;
     const [local, remote] = await Promise.all([
-      this.docker.imageDigest(ref),
+      this.docker.imageDigest(image, repo),
       remoteImageDigest(repo, tag),
     ]);
     if (!local || !remote) return; // can't tell — leave the flag untouched
 
     const outdated = digestsDiffer(local, remote);
-    const data: Record<string, unknown> = {};
-    if (local !== server.installedBuildId) data.installedBuildId = local;
-    if (outdated !== server.updateAvailable) data.updateAvailable = outdated;
-    if (Object.keys(data).length) {
-      await this.prisma.server.update({ where: { id: server.id }, data }).catch(() => undefined);
-    }
+    const flipped = await this.save(server, local, outdated);
     // Once per false→true transition, like the SteamCMD path.
-    if (outdated && !server.updateAvailable) {
+    if (flipped && outdated) {
       // Name the actual build when the registry publishes a versioned alias for it —
       // "a newer image" tells an admin nothing about WHICH game version (GH #26).
       const version = await this.newVersionName(server.game as Game, tag);
@@ -199,6 +238,31 @@ export class UpdatesService implements OnModuleInit {
         data: { installed: local, latest: remote, ...(version ? { version } : {}) },
       });
     }
+    // Not from the poll: it reads the shared local tag, which a sibling server's pull
+    // moves while this container still runs the old image.
+    if (flipped && !outdated && justStarted) {
+      await this.events.emit({
+        type: EventType.InstallFinished,
+        message: `"${server.name}" is up to date (latest ${repo}:${tag} image)`,
+        serverId: server.id,
+      });
+    }
+  }
+
+  /** Persist a check's result; true only when this call flipped `updateAvailable`. */
+  private async save(
+    server: { id: string; installedBuildId: string | null; updateAvailable: boolean },
+    installed: string,
+    outdated: boolean,
+  ): Promise<boolean> {
+    const data: Record<string, unknown> = {};
+    if (installed !== server.installedBuildId) data.installedBuildId = installed;
+    if (outdated !== server.updateAvailable) data.updateAvailable = outdated;
+    if (!Object.keys(data).length) return false;
+    const saved = await this.prisma.server
+      .update({ where: { id: server.id }, data })
+      .then(() => true, () => false);
+    return saved && "updateAvailable" in data;
   }
 
   /** The versioned tag a floating tag now points at ("42.20.3-release"), or null when
