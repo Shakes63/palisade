@@ -151,6 +151,49 @@ describe("update() validation", () => {
   });
 });
 
+describe("Conan schedules", () => {
+  const conan = { ...base, game: Game.CONAN, adminPassword: "secret" };
+  const update = (svc: ServersService, values: Record<string, unknown>) =>
+    svc.update("s1", { config: { values } } as never);
+
+  it("rejects a PvP schedule with times but no days", async () => {
+    const { svc, prisma } = makeSvc({ existingGame: Game.CONAN });
+    await expect(update(svc, { PVP_TIME_START: "18:00", PVP_TIME_END: "22:00" })).rejects.toThrow(
+      "Set PvP days as well, or clear PvP start and PvP end.",
+    );
+    expect(prisma.server.update).not.toHaveBeenCalled();
+  });
+
+  it("rejects a raid schedule missing its end time", async () => {
+    const { svc } = makeSvc({ existingGame: Game.CONAN });
+    await expect(
+      update(svc, { PVP_BUILDING_DAMAGE_DAYS: "Saturday", PVP_BUILDING_DAMAGE_START: "18:00", PVP_BUILDING_DAMAGE_END: "" }),
+    ).rejects.toThrow("Set Raid end as well");
+  });
+
+  it("rejects a partly filled schedule on create", async () => {
+    const { svc } = makeSvc();
+    await expect(svc.create({ ...conan, config: { values: { PVP_TIME_DAYS: "Sunday" } } } as never)).rejects.toThrow(
+      "Set PvP start and PvP end as well",
+    );
+  });
+
+  it("accepts a complete schedule and a blank one", async () => {
+    const { svc } = makeSvc({ existingGame: Game.CONAN });
+    await expect(
+      update(svc, {
+        PVP_TIME_DAYS: "Saturday,Sunday",
+        PVP_TIME_START: "18:00",
+        PVP_TIME_END: "18:00",
+        PVP_BUILDING_DAMAGE_DAYS: "",
+        PVP_BUILDING_DAMAGE_START: "",
+        PVP_BUILDING_DAMAGE_END: "",
+      }),
+    ).resolves.toBeTruthy();
+    await expect(svc.create(conan as never)).resolves.toBeTruthy();
+  });
+});
+
 describe("DTO name", () => {
   const errors = (cls: new () => object, body: object) =>
     validateSync(plainToInstance(cls, body)).map((e) => e.property);

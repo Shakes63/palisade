@@ -327,7 +327,7 @@ const settings: SettingDef[] = [
   // Day list (e.g. "Saturday,Sunday" or "weekend"/"weekday") + HH:MM start/end, in
   // the server's timezone. The image converts these to the per-day ini windows.
   cset("PVP_TIME_DAYS", "PvP days", "Schedules", "weekdays", "", {
-    help: "Days PvP is allowed. Pick none to leave PvP always on.",
+    help: 'Days PvP is allowed. Set together with PvP start and end, or leave all three blank to let "PvP enabled" apply all day.',
   }),
   cset("PVP_TIME_START", "PvP start", "Schedules", "time", "", {
     help: "Time PvP turns on each day (server timezone).",
@@ -336,7 +336,7 @@ const settings: SettingDef[] = [
     help: "Time PvP turns off each day (server timezone).",
   }),
   cset("PVP_BUILDING_DAMAGE_DAYS", "Raid (building damage) days", "Schedules", "weekdays", "", {
-    help: "Days buildings can be damaged. Pick none to follow the PvP schedule.",
+    help: 'Days buildings can be damaged. Set together with Raid start and end, or leave all three blank to allow raiding whenever "PvP enabled" and "Players can damage structures" are both on.',
   }),
   cset("PVP_BUILDING_DAMAGE_START", "Raid start", "Schedules", "time", "", {
     help: "Time raiding (building damage) turns on (server timezone).",
@@ -347,3 +347,16 @@ const settings: SettingDef[] = [
 ];
 
 export const CONAN_CATALOG: SettingsCatalog = { game: Game.CONAN, version: "4", settings };
+
+/** Why the PvP or raid schedule can't be saved, or null. The image applies a
+ *  schedule only when its days, start and end are all set. */
+export function conanScheduleError(values: Record<string, unknown>): string | null {
+  for (const prefix of ["PVP_TIME", "PVP_BUILDING_DAMAGE"]) {
+    const defs = ["DAYS", "START", "END"].map((s) => settings.find((d) => d.key === `${prefix}_${s}`)!);
+    const blank = (d: SettingDef) => String(values[d.key] ?? "").trim() === "";
+    const missing = defs.filter(blank).map((d) => d.label);
+    const set = defs.filter((d) => !blank(d)).map((d) => d.label);
+    if (missing.length && set.length) return `Set ${missing.join(" and ")} as well, or clear ${set.join(" and ")}.`;
+  }
+  return null;
+}
