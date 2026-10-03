@@ -61,9 +61,9 @@ describe("one-shot game update env", () => {
     expect(off).toContain("AUTO_UPDATE=false");
     const on = envOf(await build(Game.CONAN, "conan.catalog", true));
     expect(on.filter((e) => e.startsWith("AUTO_UPDATE="))).toEqual(["AUTO_UPDATE=true"]);
-    // AUTO_UPDATE=true also arms the image's periodic update monitor, which could
-    // restart the server behind the manager's back — the huge interval disarms it.
-    expect(on).toContain("AUTO_UPDATE_CHECK_INTERVAL_HOURS=8760");
+    // AUTO_UPDATE=true also arms the image's update monitor; 24 h is its slowest
+    // interval, and anything above makes the image exit (GH #164).
+    expect(on).toContain("AUTO_UPDATE_CHECK_INTERVAL_HOURS=24");
   });
 
   it("no-op for a game that already updates on boot (ASE)", async () => {
