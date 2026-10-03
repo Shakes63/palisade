@@ -12,6 +12,6 @@ Conan's install is famously large — ~40 GB (45 GB disk preflight); expect a lo
 ## Gotchas
 - Direct Connect uses the query port (27015), not 7777 — the most common join mistake.
 - The image declares `VOLUME /data/server`, `/data/steam`, `/data/backups`; Palisade binds each subdir explicitly, because without that Docker shadows them with anonymous volumes and the game install + world saves are silently lost on every container recreate (and invisible to backups).
-- Game updates are a one-shot: the manager runs with `AUTO_UPDATE=false` (it owns the lifecycle), so game files only update when you click Install/Update and then restart — that start forces `AUTO_UPDATE=true` exactly once (with the in-session update monitor disarmed).
-- The image's own watchdog, auto-update, and daily-restart loops are disabled — the manager's watchdog owns restarts.
+- Game updates are a one-shot: the manager runs with `AUTO_UPDATE=false` (it owns the lifecycle), so game files only update when you click Install/Update and then restart — that start forces `AUTO_UPDATE=true` exactly once. That also starts the image's in-session update monitor at its slowest interval (24 hours), so a server left running a day or more after an update can apply the next Conan build itself, after a 30-minute in-game warning. The panel keeps showing it as Running while it restarts. The next normal start turns the monitor off again.
+- The image's own watchdog, auto-update, and daily-restart loops are disabled (apart from the update boot above) — the manager's watchdog owns restarts.
 - Mods are Steam Workshop (consumer app id 440900), passed as `MOD_IDS` and downloaded by the image on start.

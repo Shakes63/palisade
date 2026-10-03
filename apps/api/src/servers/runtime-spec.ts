@@ -119,12 +119,13 @@ export interface RuntimeSpecInput {
  * GH #8/#12/#14) offered no update path of its own. Applied for a single start when
  * `updateRequested` is set, overriding any catalog/default value of the same key.
  * Conan's AUTO_UPDATE also enables an in-session periodic monitor that could restart
- * the server out from under the manager — the huge check interval quiets it.
+ * the server out from under the manager, so it runs at its slowest. The image exits
+ * on an interval over 24 h, which crashed every update boot (GH #164).
  */
 export const ONE_SHOT_UPDATE_ENV: Partial<Record<Game, Record<string, string>>> = {
   [Game.PALWORLD]: { UPDATE_ON_BOOT: "true" },
   [Game.PALWORLD_WINE]: { ALWAYS_UPDATE_ON_START: "true" },
-  [Game.CONAN]: { AUTO_UPDATE: "true", AUTO_UPDATE_CHECK_INTERVAL_HOURS: "8760" },
+  [Game.CONAN]: { AUTO_UPDATE: "true", AUTO_UPDATE_CHECK_INTERVAL_HOURS: "24" },
 };
 
 /**
