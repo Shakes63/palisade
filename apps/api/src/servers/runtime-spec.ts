@@ -132,15 +132,15 @@ export const ONE_SHOT_UPDATE_ENV: Partial<Record<Game, Record<string, string>>> 
  * Whether the user pinned a Steam build via extraEnv and left the image's update
  * switch alone. TARGET_MANIFEST_ID tells SteamCMD WHICH build to fetch; it has no
  * effect unless SteamCMD runs, so the pin needs the update env turned on. Honours
- * an explicit UPDATE_ON_BOOT / ALWAYS_UPDATE_ON_START in extraEnv by standing down.
- * (Carried over from the original PR #11, moved to this choke point so it isn't
- * duplicated across the two Palworld specs.)
+ * an explicit value for any of the game's update keys in extraEnv by standing down.
+ * Only the native Palworld image reads TARGET_MANIFEST_ID; on the others the update
+ * env just fetches the latest build (GH #168). (Carried over from PR #11.)
  */
-export function needsSteamCmdForPin(extraEnv: EnvVar[] | undefined): boolean {
-  if (!extraEnv?.length) return false;
+export function needsSteamCmdForPin(game: Game, extraEnv: EnvVar[] | undefined): boolean {
+  if (game !== Game.PALWORLD || !extraEnv?.length) return false;
   const keys = new Set(extraEnv.map((e) => e.key));
   if (!keys.has("TARGET_MANIFEST_ID")) return false;
-  return !keys.has("UPDATE_ON_BOOT") && !keys.has("ALWAYS_UPDATE_ON_START");
+  return !Object.keys(ONE_SHOT_UPDATE_ENV[game] ?? {}).some((k) => keys.has(k));
 }
 
 /** Replace/append `KEY=value` entries in a Docker env array. Docker keeps the LAST
@@ -171,7 +171,7 @@ export function buildContainerSpec(input: RuntimeSpecInput): Docker.ContainerCre
   const updateEnv = ONE_SHOT_UPDATE_ENV[input.game];
   if (input.updateRequested && updateEnv) {
     spec.Env = forceEnv(spec.Env ?? [], updateEnv);
-  } else if (updateEnv && needsSteamCmdForPin(input.extraEnv)) {
+  } else if (updateEnv && needsSteamCmdForPin(input.game, input.extraEnv)) {
     // Pinning a build with TARGET_MANIFEST_ID only does anything if SteamCMD
     // actually runs on boot — otherwise the image reads the variable and ignores
     // it, and the pin silently does nothing. Skipped when the user set the update

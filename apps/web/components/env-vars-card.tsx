@@ -132,7 +132,7 @@ export function EnvVarsCard({ server, onSaved }: { server: ServerSummary; onSave
           <p className="text-[11px] leading-snug text-slate-500">
             These environment variables are appended to the container at start — they can override
             any built-in variable set by the manager
-            {server.game === Game.PALWORLD || server.game === Game.PALWORLD_WINE ? (
+            {server.game === Game.PALWORLD ? (
               <>
                 {" "}(e.g. <span className="font-mono text-slate-400">TARGET_MANIFEST_ID</span> to pin a
                 Palworld version)

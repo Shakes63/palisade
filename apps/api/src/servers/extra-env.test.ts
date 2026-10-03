@@ -6,6 +6,8 @@ import { Game, type ServerConfigValues } from "@ark/shared";
 import { ExtraEnvBody } from "./servers.dto";
 import { buildContainerSpec, needsSteamCmdForPin } from "./runtime-spec";
 import { PALWORLD_CATALOG } from "../catalog/palworld.catalog";
+import { PALWORLD_WINE_CATALOG } from "../catalog/palworld-wine.catalog";
+import { CONAN_CATALOG } from "../catalog/conan.catalog";
 
 beforeAll(() => {
   process.env.DATA_DIR ??= "/data";
@@ -62,28 +64,28 @@ describe("needsSteamCmdForPin", () => {
   // TARGET_MANIFEST_ID names WHICH build to fetch; it does nothing unless SteamCMD
   // runs on boot, so pinning silently failed without this (original PR #11).
   it("asks for SteamCMD when a manifest is pinned", () => {
-    expect(needsSteamCmdForPin([{ key: "TARGET_MANIFEST_ID", value: "123" }])).toBe(true);
+    expect(needsSteamCmdForPin(Game.PALWORLD, [{ key: "TARGET_MANIFEST_ID", value: "123" }])).toBe(true);
   });
 
   it("stands down when the user set the update switch themselves", () => {
     expect(
-      needsSteamCmdForPin([
+      needsSteamCmdForPin(Game.PALWORLD, [
         { key: "TARGET_MANIFEST_ID", value: "123" },
         { key: "UPDATE_ON_BOOT", value: "false" },
       ]),
     ).toBe(false);
-    expect(
-      needsSteamCmdForPin([
-        { key: "TARGET_MANIFEST_ID", value: "123" },
-        { key: "ALWAYS_UPDATE_ON_START", value: "false" },
-      ]),
-    ).toBe(false);
+  });
+
+  it("ignores a pin on images that never read TARGET_MANIFEST_ID (GH #168)", () => {
+    const pin = [{ key: "TARGET_MANIFEST_ID", value: "123" }];
+    expect(needsSteamCmdForPin(Game.PALWORLD_WINE, pin)).toBe(false);
+    expect(needsSteamCmdForPin(Game.CONAN, pin)).toBe(false);
   });
 
   it("is quiet without a pin", () => {
-    expect(needsSteamCmdForPin([{ key: "OTHER", value: "x" }])).toBe(false);
-    expect(needsSteamCmdForPin([])).toBe(false);
-    expect(needsSteamCmdForPin(undefined)).toBe(false);
+    expect(needsSteamCmdForPin(Game.PALWORLD, [{ key: "OTHER", value: "x" }])).toBe(false);
+    expect(needsSteamCmdForPin(Game.PALWORLD, [])).toBe(false);
+    expect(needsSteamCmdForPin(Game.PALWORLD, undefined)).toBe(false);
   });
 
   it("turns UPDATE_ON_BOOT on exactly once for a pinned Palworld build", () => {
@@ -106,6 +108,31 @@ describe("needsSteamCmdForPin", () => {
     );
     expect(env.lastIndexOf("UPDATE_ON_BOOT=false")).toBeGreaterThan(-1);
     expect(env).not.toContain("UPDATE_ON_BOOT=true");
+  });
+
+  it("leaves Conan's updater off for a pin its image ignores (GH #168)", () => {
+    const pinned = (extraEnv: { key: string; value: string }[]) =>
+      envOf(buildContainerSpec({ ...base, game: Game.CONAN, catalog: CONAN_CATALOG, extraEnv }));
+    const env = pinned([{ key: "TARGET_MANIFEST_ID", value: "42" }]);
+    expect(env.filter((e) => e.startsWith("AUTO_UPDATE="))).toEqual(["AUTO_UPDATE=false"]);
+    expect(env).not.toContain("AUTO_UPDATE_CHECK_INTERVAL_HOURS=24");
+    const explicit = pinned([
+      { key: "TARGET_MANIFEST_ID", value: "42" },
+      { key: "AUTO_UPDATE", value: "false" },
+    ]);
+    expect(explicit).not.toContain("AUTO_UPDATE=true");
+  });
+
+  it("leaves Palworld Wine's updater off for a pin its image ignores (GH #168)", () => {
+    const env = envOf(
+      buildContainerSpec({
+        ...base,
+        game: Game.PALWORLD_WINE,
+        catalog: PALWORLD_WINE_CATALOG,
+        extraEnv: [{ key: "TARGET_MANIFEST_ID", value: "42" }],
+      }),
+    );
+    expect(env.filter((e) => e.startsWith("ALWAYS_UPDATE_ON_START="))).toEqual(["ALWAYS_UPDATE_ON_START=false"]);
   });
 });
 
