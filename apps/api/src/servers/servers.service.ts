@@ -63,6 +63,7 @@ import { buildContainerSpec, DRAGONWILDS_OWNER_ID_RE, ONE_SHOT_UPDATE_ENV } from
 import { detectPalWineProxyDlls } from "../palmods/palmods.service";
 import { GameEndpointService } from "../docker/game-endpoint.service";
 import { moveGamePort, palworldWinePortIssue, portsFor, serverPortSet } from "../catalog/ports";
+import { conanScheduleError } from "../catalog/conan.catalog";
 import { LocalPaths } from "../common/paths";
 import { gameUpdateMode } from "../updates/game-update-mode";
 import { containerName } from "../common/naming";
@@ -666,6 +667,7 @@ export class ServersService implements OnApplicationBootstrap, OnApplicationShut
       ...(dto.config ?? {}),
       values: { ...defaults.values, ...(dto.config?.values ?? {}) },
     };
+    assertConanSchedules(dto.game, config.values);
 
     const server = await this.prisma.$transaction(async (tx) => {
       const created = await tx.server.create({
@@ -861,6 +863,7 @@ export class ServersService implements OnApplicationBootstrap, OnApplicationShut
     if (dto.config) {
       const values = { ...stored.values, ...(dto.config.values ?? {}) };
       if (joinPw !== undefined) delete values["ServerPassword"];
+      assertConanSchedules(game, values);
       const merged: ServerConfigValues = { ...stored, ...dto.config, values };
       data.configJson = JSON.stringify(merged);
       launchChanged = true; // settings feed the generated INI / command line
@@ -2272,6 +2275,11 @@ function assertMaxPlayers(game: Game, maxPlayers: number): void {
   if (maxPlayers > cap) {
     throw new BadRequestException(`${GAME_LABELS[game]} allows at most ${cap} players.`);
   }
+}
+
+function assertConanSchedules(game: Game, values: Record<string, unknown>): void {
+  const err = game === Game.CONAN ? conanScheduleError(values) : null;
+  if (err) throw new BadRequestException(err);
 }
 
 function assertDragonwildsOwnerId(ownerId: string | undefined): void {
