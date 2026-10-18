@@ -239,6 +239,13 @@ describe("buildContainerSpec (Minecraft / itzg)", () => {
     expect(env.some((e) => e.startsWith("SEED="))).toBe(false); // empty SEED is dropped
   });
 
+  it("leaves server.properties to the user only when they opt out of updating it", async () => {
+    expect(envOf(await buildMinecraft({ values: {} }))).toContain("OVERRIDE_SERVER_PROPERTIES=true");
+    expect(envOf(await buildMinecraft({ values: { OVERRIDE_SERVER_PROPERTIES: false } }))).toContain(
+      "OVERRIDE_SERVER_PROPERTIES=false",
+    );
+  });
+
   it("switches to AUTO_CURSEFORGE for a modpack, suppressing the catalog TYPE/VERSION", async () => {
     const env = envOf(
       await buildMinecraft(

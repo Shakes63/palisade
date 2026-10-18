@@ -43,6 +43,9 @@ const settings: SettingDef[] = [
   mset("ENABLE_COMMAND_BLOCK", "Enable command blocks", "Server", "bool", false, {
     help: "Allow command blocks to run in the world.",
   }),
+  mset("OVERRIDE_SERVER_PROPERTIES", "Update server.properties on start", "Server", "bool", true, {
+    help: "Turn off to edit server.properties by hand (Files tab) without each start resetting it. While off, the server name, world type, max players, ports, RCON password and the settings stored in server.properties (difficulty, PvP, …) no longer reach the file. Keep server-port, rcon.port and rcon.password matching the panel or players cannot join and the console stops working.",
+  }),
 
   // ── World ────────────────────────────────────────────────────────────────────
   mset("SEED", "World seed", "World", "string", "", {
