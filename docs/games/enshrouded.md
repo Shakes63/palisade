@@ -17,4 +17,5 @@ Install only pulls the image; the game files download via SteamCMD on the first 
 - The Players tab tracks who is online from the server's join and leave log lines, so anyone connected before a manager restart shows Offline until they rejoin.
 - No mod support at all (the Mods tab is hidden).
 - Same Proton family as Icarus: the host needs `vm.max_map_count=262144`.
+- Enshrouded 1.0 needs image 1.8.0 or later. Older Proton images crash-loop with `No SteamUtils011`, so clear any custom Image tag pinned to an older release.
 - If the image's update record says a build is installed that isn't, Palisade clears it on the next start and the image re-checks the game files, so that boot takes longer than usual.
