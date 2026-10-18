@@ -27,6 +27,7 @@ import {
   JOIN_PASSWORD_META,
   MAX_PLAYERS_BY_GAME,
   DEFAULT_MAX_PLAYERS_BY_GAME,
+  STEAM_APP_ID,
   clusterJoinError,
   type PasswordFieldMeta,
   type UpdateGameResult,
@@ -66,6 +67,7 @@ import { moveGamePort, palworldWinePortIssue, portsFor, serverPortSet } from "..
 import { conanScheduleError } from "../catalog/conan.catalog";
 import { LocalPaths } from "../common/paths";
 import { gameUpdateMode } from "../updates/game-update-mode";
+import { parseAcfBuildId } from "../updates/updates.service";
 import { containerName } from "../common/naming";
 import { hostStats } from "../common/host-stats";
 import { IMAGES, SERVER_UID, SERVER_GID } from "../common/images";
@@ -1454,6 +1456,14 @@ export class ServersService implements OnApplicationBootstrap, OnApplicationShut
         }
       }
 
+      if (game === Game.ENSHROUDED && (await clearStaleEnshroudedMarker(join(LocalPaths.instanceRoot(id), "gamefiles")))) {
+        await this.events.emit({
+          type: EventType.InstallStarted,
+          message: `"${server.name}": the installed build doesn't match the image's update record — re-checking the game files on this start`,
+          serverId: id,
+        });
+      }
+
       const spec = await this.assembleSpec(server);
 
       // Fresh run → wipe the captured log/console so it starts clean.
@@ -2288,6 +2298,19 @@ function assertDragonwildsOwnerId(ownerId: string | undefined): void {
       "Dragonwilds needs your 32-character Player ID (bottom of the in-game Settings menu) as the owner.",
     );
   }
+}
+
+/** Pre-1.8.0 mornedhels images could record a build SteamCMD never installed, then skip
+ *  every later update (GH #173). This is the image's own enshrouded-force-update. */
+export async function clearStaleEnshroudedMarker(gamefiles: string): Promise<boolean> {
+  const marker = await readFile(join(gamefiles, "current_version"), "utf8").catch(() => null);
+  if (marker === null) return false;
+  const steamapps = join(gamefiles, "server", "steamapps");
+  const acf = await readFile(join(steamapps, `appmanifest_${STEAM_APP_ID[Game.ENSHROUDED]}.acf`), "utf8").catch(() => "");
+  if (String(parseAcfBuildId(acf)) === marker.trim()) return false;
+  await rm(join(gamefiles, "current_version"), { force: true });
+  await rm(steamapps, { recursive: true, force: true });
+  return true;
 }
 
 /** The last invite code the server wrote into its EOS session settings. */
