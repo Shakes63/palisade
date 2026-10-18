@@ -5,7 +5,7 @@ import { MinRole } from "../auth/min-role.decorator";
 
 class AdoptBody {
   @IsString() containerId!: string;
-  @IsString() @MinLength(1) @MaxLength(60) name!: string;
+  @IsString() @MinLength(1) name!: string;
   @IsOptional() @IsString() @MaxLength(100) adminPassword?: string;
   @IsOptional() @IsString() @MaxLength(100) serverPassword?: string;
 }

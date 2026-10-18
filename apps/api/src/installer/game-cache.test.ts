@@ -27,6 +27,7 @@ async function fakeInstall(root: string, worldTag: string) {
   await mkdir(join(root, "instance_flags"), { recursive: true });
   await writeFile(join(root, "instance_flags", "first_startup_complete"), "");
   await writeFile(join(root, MANIFEST), "manifest");
+  await writeFile(join(root, "palisade-server.json"), "{}");
 }
 
 beforeAll(async () => {
@@ -55,6 +56,7 @@ describe("ASA game-file cache", () => {
     // Per-server world + POK runtime state are pruned from the golden copy.
     expect(await exists(join(cache, "ShooterGame", "Saved"))).toBe(false);
     expect(await exists(join(cache, "instance_flags"))).toBe(false);
+    expect(await exists(join(cache, "palisade-server.json"))).toBe(false);
   });
 
   it("restores a new instance from the cache without its own world", async () => {

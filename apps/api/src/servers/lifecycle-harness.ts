@@ -2,6 +2,7 @@ import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Game, ServerState } from "@ark/shared";
+import { resetEnvCache } from "../config/env";
 
 /**
  * Shared lifecycle E2E harness: drives the REAL ServersService (real state
@@ -19,6 +20,7 @@ export async function setupE2eEnv(): Promise<void> {
   process.env.SECRETS_KEY = "a".repeat(64);
   process.env.JWT_SECRET = "test-jwt-secret-1234";
   process.env.DATA_DIR = await mkdtemp(join(tmpdir(), "palisade-e2e-"));
+  resetEnvCache();
 }
 
 export interface ServerRow {

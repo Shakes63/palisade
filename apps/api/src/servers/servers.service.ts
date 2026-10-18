@@ -61,6 +61,7 @@ import { LogCaptureService, LOG_CAPTURE_MAX } from "../logs/log-capture.service"
 import { BackupsService } from "../backups/backups.service";
 import { PlayersService } from "../players/players.service";
 import { buildContainerSpec, DRAGONWILDS_OWNER_ID_RE, ONE_SHOT_UPDATE_ENV } from "./runtime-spec";
+import { SNAPSHOT_FILE, writeServerSnapshot } from "./server-snapshot";
 import { detectPalWineProxyDlls } from "../palmods/palmods.service";
 import { GameEndpointService } from "../docker/game-endpoint.service";
 import { moveGamePort, palworldWinePortIssue, portsFor, serverPortSet } from "../catalog/ports";
@@ -493,7 +494,7 @@ export class ServersService implements OnApplicationBootstrap, OnApplicationShut
   }
 
   // ── Locking ────────────────────────────────────────────────────────────────
-  private async withLock<T>(serverId: string, fn: () => Promise<T>): Promise<T> {
+  async withLock<T>(serverId: string, fn: () => Promise<T>): Promise<T> {
     while (this.locks.has(serverId)) await this.locks.get(serverId);
     const p = fn().finally(() => this.locks.delete(serverId));
     this.locks.set(serverId, p);
@@ -648,7 +649,8 @@ export class ServersService implements OnApplicationBootstrap, OnApplicationShut
     if (err) throw new BadRequestException(err);
   }
 
-  async create(dto: CreateServerDto): Promise<ServerSummary> {
+  /** `opts.id` lets adoption reattach an orphaned container under the id its label carries. */
+  async create(dto: CreateServerDto, opts: { id?: string } = {}): Promise<ServerSummary> {
     if (!Object.values(Game).includes(dto.game)) throw new BadRequestException("Invalid game");
     const name = dto.name?.trim();
     if (!name) throw new BadRequestException("Server name is required.");
@@ -674,6 +676,7 @@ export class ServersService implements OnApplicationBootstrap, OnApplicationShut
     const server = await this.prisma.$transaction(async (tx) => {
       const created = await tx.server.create({
         data: {
+          ...(opts.id ? { id: opts.id } : {}),
           name,
           game: dto.game,
           map: dto.map,
@@ -1255,7 +1258,7 @@ export class ServersService implements OnApplicationBootstrap, OnApplicationShut
    *  the next start will download the whole game. Missing dir counts as cold. */
   private async isColdInstall(id: string): Promise<boolean> {
     try {
-      return (await readdir(LocalPaths.instanceRoot(id))).length === 0;
+      return (await readdir(LocalPaths.instanceRoot(id))).every((f) => f === SNAPSHOT_FILE);
     } catch {
       return true;
     }
@@ -1292,6 +1295,47 @@ export class ServersService implements OnApplicationBootstrap, OnApplicationShut
     })) as ServerRow;
     if (!server) throw new NotFoundException("Server not found");
     return this.assembleSpec(server);
+  }
+
+  private async writeSnapshot(server: ServerRow): Promise<void> {
+    const installs = await this.prisma.modInstall.findMany({
+      where: { serverId: server.id },
+      include: { mod: true },
+    });
+    await writeServerSnapshot(server.id, {
+      version: 1,
+      id: server.id,
+      game: server.game,
+      name: server.name,
+      map: server.map,
+      maxPlayers: server.maxPlayers,
+      gamePort: server.gamePort,
+      rawSocketPort: server.rawSocketPort,
+      queryPort: server.queryPort,
+      rconPort: server.rconPort,
+      adminPasswordEnc: server.adminPasswordEnc,
+      serverPasswordEnc: server.serverPasswordEnc,
+      spectatorPasswordEnc: server.spectatorPasswordEnc,
+      extraEnvEnc: server.extraEnvEnc,
+      configJson: server.configJson,
+      modIds: server.modIds,
+      artworkJson: server.artworkJson,
+      imageTag: server.imageTag,
+      ramLimitMb: server.ramLimitMb,
+      cpuLimit: server.cpuLimit,
+      backupKeep: server.backupKeep,
+      hostNetwork: server.hostNetwork,
+      mods: installs.map((i) => ({
+        source: i.mod.source,
+        remoteId: i.mod.remoteId,
+        name: i.mod.name,
+        thumbnailUrl: i.mod.thumbnailUrl,
+        extra: i.mod.extra,
+        loadOrder: i.loadOrder,
+        pinnedVersion: i.pinnedVersion,
+        enabled: i.enabled,
+      })),
+    });
   }
 
   /** Assemble the full Docker create spec for a server row — decrypted
@@ -1501,6 +1545,9 @@ export class ServersService implements OnApplicationBootstrap, OnApplicationShut
           ...(server.updateRequested ? { updateRequested: false } : {}),
         },
       });
+      await this.writeSnapshot(server).catch((e) =>
+        this.logger.warn(`server snapshot for ${id} not written: ${(e as Error).message}`),
+      );
       await this.docker.start(containerId);
 
       await this.attachMonitors(id, containerId);

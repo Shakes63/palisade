@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, beforeEach } from "vitest";
 import { join } from "node:path";
 import { Game, ServerState } from "@ark/shared";
 import { FakeDocker, makeRow, makeService, setupE2eEnv, startServer } from "./lifecycle-harness";
+import { readServerSnapshot } from "./server-snapshot";
 
 /**
  * Lifecycle E2E: drives the real ServersService (real state machine, real
@@ -35,6 +36,23 @@ describe("server lifecycle (fake Docker)", () => {
     expect(row.containerId).toBe("container-1");
     expect(row.configDirty).toBe(false);
     expect(row.state).toBe(ServerState.Running);
+  });
+
+  it("start: snapshots the server's record beside its data for a later reattach", async () => {
+    const row = makeRow({ name: "Snapshot Me", configJson: JSON.stringify({ values: { XP: 2 } }) });
+    const { service } = await makeService(row, docker);
+    await startServer(service, row.id);
+
+    const snapshot = await readServerSnapshot(row.id);
+    expect(snapshot).toMatchObject({
+      version: 1,
+      id: row.id,
+      game: Game.ASA,
+      name: "Snapshot Me",
+      configJson: row.configJson,
+      gamePort: 7777,
+      mods: [],
+    });
   });
 
   it("stays Starting when the boot log never prints the ready marker", async () => {

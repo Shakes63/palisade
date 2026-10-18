@@ -9,6 +9,7 @@ import { EventsService } from "../events/events.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { IMAGES } from "../common/images";
 import { LocalPaths } from "../common/paths";
+import { SNAPSHOT_FILE } from "../servers/server-snapshot";
 
 const execFileP = promisify(execFile);
 
@@ -146,7 +147,7 @@ export class InstallerService {
       await mkdir(staging, { recursive: true });
       await this.cloneTree(LocalPaths.instanceRoot(serverId), staging);
       // Drop per-server world/config + POK coordination state → clean base install.
-      for (const sub of ["ShooterGame/Saved", "instance_flags", "update_coordination", "steamapps/temp"]) {
+      for (const sub of ["ShooterGame/Saved", "instance_flags", "update_coordination", "steamapps/temp", SNAPSHOT_FILE]) {
         await rm(join(staging, sub), { recursive: true, force: true }).catch(() => undefined);
       }
       await rm(cache, { recursive: true, force: true }).catch(() => undefined);
