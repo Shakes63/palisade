@@ -53,6 +53,7 @@ export class UpdateSettingsBody {
   @IsOptional() @IsString() oidcViewerGroup?: string;
   @IsOptional() @IsString() oidcGroupsClaim?: string;
   @IsOptional() @IsBoolean() oidcAutoCreate?: boolean;
+  @IsOptional() @IsBoolean() oidcMatchUsername?: boolean;
   @IsOptional() @IsBoolean() oidcHidePassword?: boolean;
   @IsOptional() @IsBoolean() oidcAutoRedirect?: boolean;
   @IsOptional() @IsRouterHost(() => "mikrotik") mikrotikHost?: string;
@@ -150,6 +151,8 @@ export class ManagerSettingsController {
       await this.settings.set(SettingKeys.OidcGroupsClaim, body.oidcGroupsClaim.trim());
     if (body.oidcAutoCreate !== undefined)
       await this.settings.set(SettingKeys.OidcAutoCreate, String(body.oidcAutoCreate));
+    if (body.oidcMatchUsername !== undefined)
+      await this.settings.set(SettingKeys.OidcMatchUsername, String(body.oidcMatchUsername));
     if (body.oidcHidePassword !== undefined)
       await this.settings.set(SettingKeys.OidcHidePassword, String(body.oidcHidePassword));
     if (body.oidcAutoRedirect !== undefined)
