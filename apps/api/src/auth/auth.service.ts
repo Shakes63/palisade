@@ -68,8 +68,14 @@ export class AuthService {
   }
 
   /** Sign in the user an SSO identity maps to. `role` is what the provider's groups grant, if it manages roles. */
-  async oidcSignIn(id: OidcIdentity, username: string, role: Role | null, create: boolean): Promise<{ token: string }> {
-    let user = await this.findByOidc(id);
+  async oidcSignIn(
+    id: OidcIdentity,
+    username: string,
+    role: Role | null,
+    create: boolean,
+    matchUsername = false,
+  ): Promise<{ token: string }> {
+    let user = (await this.findByOidc(id)) ?? (matchUsername ? await this.adoptByUsername(id, username) : null);
     if (!user) {
       if (!create) {
         throw new ForbiddenException(
@@ -128,6 +134,24 @@ export class AuthService {
 
   private findByOidc(id: OidcIdentity) {
     return this.prisma.user.findFirst({ where: { oidcIssuer: id.issuer, oidcSubject: id.subject } });
+  }
+
+  /** Link a new identity to the unlinked account of its name; safe only where the provider fixes usernames. */
+  private async adoptByUsername(id: OidcIdentity, username: string) {
+    // Names may differ only by case, so an exact match wins and an ambiguous one adopts nothing.
+    const folded = username.toLowerCase();
+    const named = (await this.prisma.user.findMany({ select: { id: true, username: true } })).filter(
+      (u) => u.username.toLowerCase() === folded,
+    );
+    const match = named.find((u) => u.username === username) ?? (named.length === 1 ? named[0] : undefined);
+    if (match) {
+      await this.prisma.user.updateMany({
+        where: { id: match.id, oidcIssuer: null, oidcSubject: null },
+        data: { oidcIssuer: id.issuer, oidcSubject: id.subject },
+      });
+    }
+    // Also finds the account when a concurrent callback for the same identity linked it first.
+    return this.findByOidc(id);
   }
 
   private async createOidcUser(id: OidcIdentity, name: string, role: Role | null) {

@@ -20,6 +20,7 @@ interface OidcConfig {
   groups: Record<Role, string | null>;
   groupsClaim: string;
   autoCreate: boolean;
+  matchUsername: boolean;
 }
 
 interface Discovery {
@@ -172,7 +173,7 @@ export class OidcService {
     const username = [claims.preferred_username, claims.email, claims.sub].find(
       (v): v is string => typeof v === "string" && v.trim() !== "",
     )!;
-    const { token } = await this.auth.oidcSignIn(identity, username.trim(), role, cfg.autoCreate);
+    const { token } = await this.auth.oidcSignIn(identity, username.trim(), role, cfg.autoCreate, cfg.matchUsername);
     const ticket = base64url(randomBytes(32));
     this.tickets.set(ticket, { token, expires: Date.now() + TICKET_TTL_MS });
     return { ticket };
@@ -208,6 +209,7 @@ export class OidcService {
       },
       groupsClaim: (await get(SettingKeys.OidcGroupsClaim)) ?? "groups",
       autoCreate: (await get(SettingKeys.OidcAutoCreate)) === "true",
+      matchUsername: (await get(SettingKeys.OidcMatchUsername)) === "true",
     };
   }
 
