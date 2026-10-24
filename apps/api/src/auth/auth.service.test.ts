@@ -73,6 +73,8 @@ function makeOidcService(seed: Seed[]) {
     users.find((u) => Object.entries(where).every(([k, v]) => u[k as keyof U] === v)) ?? null;
   const unique = new Prisma.PrismaClientKnownRequestError("Unique constraint failed", { code: "P2002", clientVersion: "test" });
   const prisma = {
+    $queryRaw: async (_sql: TemplateStringsArray, name: string) =>
+      users.filter((u) => u.username.toLowerCase() === name.toLowerCase()).map((u) => ({ id: u.id })),
     user: {
       findUnique: async ({ where }: { where: Partial<U> }) => find(where),
       findFirst: async ({ where }: { where: Partial<U> }) => find(where),
@@ -141,6 +143,12 @@ describe("oidcSignIn", () => {
     await svc.oidcSignIn(sso("sub-1"), "magnus", "admin", true);
     expect(users[0]!.oidcSubject).toBeNull();
     expect(users[1]).toMatchObject({ oidcSubject: "sub-1" });
+    expect(users[1]!.username).toMatch(/^magnus_[0-9a-f]{6}$/);
+  });
+
+  it("treats a username differing only by case as taken", async () => {
+    const { svc, users } = makeOidcService([{ id: "a", username: "Magnus", role: "admin", oidcSubject: null }]);
+    await svc.oidcSignIn(sso("sub-1"), "magnus", "admin", true);
     expect(users[1]!.username).toMatch(/^magnus_[0-9a-f]{6}$/);
   });
 
@@ -233,5 +241,28 @@ describe("oidcSignIn", () => {
     ]);
     await expect(svc.unlinkOidc("a")).rejects.toThrow(/created through SSO/);
     expect(users[0]!.oidcSubject).toBe("sub-a");
+  });
+});
+
+describe("login", () => {
+  const login = (svc: { login: (d: { username: string; password: string }) => Promise<{ token: string }> }, username: string) =>
+    svc.login({ username, password: "hunter22" });
+
+  it("finds the account whatever case is typed", async () => {
+    const { svc, users } = makeOidcService([{ id: "a", username: "Magnus", role: "admin", oidcSubject: null }]);
+    const { token } = await login(svc, "mAGNUS");
+    expect((new JwtService({ secret: "test-secret" }).decode(token) as { sub: string }).sub).toBe(users[0]!.id);
+  });
+
+  it("keeps legacy case-variant accounts apart: exact wins, an ambiguous guess fails", async () => {
+    const { svc } = makeOidcService([
+      { id: "a", username: "Magnus", role: "admin", oidcSubject: null },
+      { id: "b", username: "magnus", role: "admin", oidcSubject: null },
+    ]);
+    const sub = async (name: string) =>
+      (new JwtService({ secret: "test-secret" }).decode((await login(svc, name)).token) as { sub: string }).sub;
+    expect(await sub("Magnus")).toBe("a");
+    expect(await sub("magnus")).toBe("b");
+    await expect(login(svc, "MAGNUS")).rejects.toThrow(/Invalid credentials/);
   });
 });

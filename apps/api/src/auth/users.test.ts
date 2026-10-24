@@ -36,6 +36,8 @@ function makeService(seed: Row[] = [], grants: { servers?: [string, string][]; c
     users.find((u) => (where.id !== undefined ? u.id === where.id : u.username === where.username));
 
   const prisma = {
+    $queryRaw: async (_sql: TemplateStringsArray, name: string) =>
+      users.filter((u) => u.username.toLowerCase() === name.toLowerCase()).map((u) => ({ id: u.id })),
     user: {
       findMany: async () => users.map(joined),
       findUnique: async ({ where }: { where: { id?: string; username?: string } }) => {
@@ -119,6 +121,11 @@ describe("AuthService.createUser", () => {
     expect(dto.createdAt).toBe("2026-02-02T00:00:00.000Z");
     const row = users.find((u) => u.username === "bob")!;
     expect(row.passwordHash).toMatch(/^\$2[aby]\$12\$/);
+  });
+
+  it("rejects a username that differs from an existing one only by case", async () => {
+    const { svc } = makeService([{ ...admin(), username: "Magnus" }]);
+    await expect(svc.createUser("magnus", "password123")).rejects.toThrow("Username already taken");
   });
 
   it("ignores restricted and grants when creating an admin", async () => {
