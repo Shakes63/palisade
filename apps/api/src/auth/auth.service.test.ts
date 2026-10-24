@@ -87,6 +87,12 @@ function makeOidcService(seed: Seed[]) {
         users.push(u);
         return u;
       },
+      findMany: async () => users,
+      updateMany: async ({ where, data }: { where: Partial<U>; data: Partial<U> }) => {
+        const u = find(where);
+        if (u) Object.assign(u, data);
+        return { count: u ? 1 : 0 };
+      },
       update: async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
         const u = find(where)!;
         const { tokenVersion, ...rest } = data as { tokenVersion?: { increment: number } };
@@ -142,6 +148,40 @@ describe("oidcSignIn", () => {
     expect(users[0]!.oidcSubject).toBeNull();
     expect(users[1]).toMatchObject({ oidcSubject: "sub-1" });
     expect(users[1]!.username).toMatch(/^magnus_[0-9a-f]{6}$/);
+  });
+
+  it("adopts the unlinked account of the same name when the admin opts in", async () => {
+    const { svc, users, roleIn } = makeOidcService([
+      { id: "a", username: "root", role: "admin", oidcSubject: null },
+      { id: "b", username: "bob", role: "viewer", oidcSubject: null },
+    ]);
+    users[1]!.restricted = true;
+    const { token } = await svc.oidcSignIn(sso("sub-b"), "bob", "operator", false, true);
+    expect(users).toHaveLength(2);
+    expect(users[1]).toMatchObject({ oidcIssuer: ISS, oidcSubject: "sub-b", restricted: true, role: "operator" });
+    expect(await roleIn(token)).toBe("operator");
+  });
+
+  it("never adopts an account another identity already signs in as", async () => {
+    const { svc, users } = makeOidcService([{ id: "a", username: "bob", role: "admin", oidcSubject: "sub-a" }]);
+    await svc.oidcSignIn(sso("sub-b"), "bob", null, true, true);
+    expect(users[0]!.oidcSubject).toBe("sub-a");
+    expect(users[1]!.username).toMatch(/^bob_[0-9a-f]{6}$/);
+    await expect(svc.oidcSignIn(sso("sub-c"), "bob", null, false, true)).rejects.toThrow(/No Palisade account/);
+  });
+
+  it("matches the username case-insensitively, preferring an exact match and skipping ambiguous ones", async () => {
+    const { svc, users } = makeOidcService([
+      { id: "a", username: "Magnus", role: "admin", oidcSubject: null },
+      { id: "b", username: "magnus", role: "admin", oidcSubject: null },
+      { id: "c", username: "Bob", role: "viewer", oidcSubject: null },
+      { id: "d", username: "ALICE", role: "viewer", oidcSubject: null },
+      { id: "e", username: "alice", role: "viewer", oidcSubject: "sub-other" },
+    ]);
+    await svc.oidcSignIn(sso("sub-m"), "magnus", null, false, true);
+    await svc.oidcSignIn(sso("sub-b"), "bob", null, false, true);
+    await expect(svc.oidcSignIn(sso("sub-a"), "Alice", null, false, true)).rejects.toThrow(/No Palisade account/);
+    expect(users.map((u) => u.oidcSubject)).toEqual([null, "sub-m", "sub-b", null, "sub-other"]);
   });
 
   it("signs in the account a concurrent callback created instead of failing", async () => {

@@ -127,7 +127,7 @@ describe("OidcService", () => {
     const idp = stubProvider((nonce) => rs256({ sub: "abc", preferred_username: "magnus", nonce }));
     const { state } = await idp.begin(svc);
     const result = await svc.complete(state, state, "the-code");
-    expect(auth.oidcSignIn).toHaveBeenCalledWith(ID, "magnus", null, false);
+    expect(auth.oidcSignIn).toHaveBeenCalledWith(ID, "magnus", null, false, false);
     expect(new Headers(idp.tokenRequests[0]!.headers).get("authorization")).toMatch(/^Basic /);
     const ticket = (result as { ticket: string }).ticket;
     expect(svc.redeem(ticket)).toEqual({ token: "palisade-token" });
@@ -141,7 +141,7 @@ describe("OidcService", () => {
     );
     const { state } = await idp.begin(svc);
     await svc.complete(state, state, "code");
-    expect(auth.oidcSignIn).toHaveBeenCalledWith(ID, "abc", null, false);
+    expect(auth.oidcSignIn).toHaveBeenCalledWith(ID, "abc", null, false, false);
   });
 
   it("rejects a callback from a browser that did not start the flow", async () => {
@@ -176,7 +176,7 @@ describe("OidcService", () => {
     const idp = stubProvider((nonce) => rs256({ sub: "abc", preferred_username: "magnus", groups: memberOf, nonce }));
     let { state } = await idp.begin(svc);
     await svc.complete(state, state, "code");
-    expect(auth.oidcSignIn).toHaveBeenLastCalledWith(ID, "magnus", "admin", false);
+    expect(auth.oidcSignIn).toHaveBeenLastCalledWith(ID, "magnus", "admin", false, false);
 
     memberOf = ["someone-else"];
     ({ state } = await idp.begin(svc));
@@ -206,7 +206,7 @@ describe("OidcService", () => {
     const idp = stubProvider((nonce) => rs256({ sub: "abc", realm_access: { roles: ["ops"] }, groups: ["x"], nonce }));
     const { state } = await idp.begin(svc);
     await svc.complete(state, state, "code");
-    expect(auth.oidcSignIn).toHaveBeenCalledWith(ID, "abc", "operator", false);
+    expect(auth.oidcSignIn).toHaveBeenCalledWith(ID, "abc", "operator", false, false);
   });
 
   it("lets SSO create accounts only when the admin allows it", async () => {
@@ -214,7 +214,15 @@ describe("OidcService", () => {
     const idp = stubProvider((nonce) => rs256({ sub: "abc", nonce }));
     const { state } = await idp.begin(svc);
     await svc.complete(state, state, "code");
-    expect(auth.oidcSignIn).toHaveBeenCalledWith(ID, "abc", null, true);
+    expect(auth.oidcSignIn).toHaveBeenCalledWith(ID, "abc", null, true, false);
+  });
+
+  it("matches SSO users to accounts by username only when the admin allows it", async () => {
+    const { svc, auth } = makeService({ [SettingKeys.OidcMatchUsername]: "true" });
+    const idp = stubProvider((nonce) => rs256({ sub: "abc", preferred_username: "magnus", nonce }));
+    const { state } = await idp.begin(svc);
+    await svc.complete(state, state, "code");
+    expect(auth.oidcSignIn).toHaveBeenCalledWith(ID, "magnus", null, false, true);
   });
 
   it("reuses the provider's discovery document and keys until a new key id appears", async () => {
