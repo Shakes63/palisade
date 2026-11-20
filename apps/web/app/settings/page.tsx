@@ -60,6 +60,7 @@ export default function SettingsPage() {
   const [oidcGroupsClaim, setOidcGroupsClaim] = useState("");
   const [oidcRedirectUri, setOidcRedirectUri] = useState("");
   const [oidcAutoCreate, setOidcAutoCreate] = useState(false);
+  const [oidcMatchUsername, setOidcMatchUsername] = useState(false);
   const [oidcHidePassword, setOidcHidePassword] = useState(false);
   const [oidcAutoRedirect, setOidcAutoRedirect] = useState(false);
   // Per-card save state: which card is mid-save / which just saved.
@@ -112,6 +113,7 @@ export default function SettingsPage() {
           setOidcViewerGroup(str("oidc_viewer_group"));
           setOidcGroupsClaim(str("oidc_groups_claim"));
           setOidcAutoCreate(v.oidc_auto_create === "true");
+          setOidcMatchUsername(v.oidc_match_username === "true");
           setOidcHidePassword(v.oidc_hide_password === "true");
           setOidcAutoRedirect(v.oidc_auto_redirect === "true");
         }
@@ -237,6 +239,7 @@ export default function SettingsPage() {
         oidcViewerGroup,
         oidcGroupsClaim,
         oidcAutoCreate,
+        oidcMatchUsername,
         oidcHidePassword,
         oidcAutoRedirect,
         ...(oidcClientSecret ? { oidcClientSecret } : {}),
@@ -876,6 +879,12 @@ export default function SettingsPage() {
                   "Anyone the provider lets in gets a Palisade account, so limit who may use the app at the provider. Without groups, new accounts are viewers who see no servers until you grant some. Off: only accounts linked from the account menu sign in with SSO.",
                   oidcAutoCreate,
                   setOidcAutoCreate,
+                ],
+                [
+                  "Match SSO users to accounts by username",
+                  "An SSO account signing in for the first time takes over the Palisade account with the same username, admins included, unless that account is already linked to SSO. Lets you create users and set their access before they first sign in. Only turn this on if users cannot change their username at the provider, or anyone could sign in as any account.",
+                  oidcMatchUsername,
+                  setOidcMatchUsername,
                 ],
                 [
                   "Hide password sign-in",
