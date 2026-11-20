@@ -558,9 +558,10 @@ export function SettingsForm({
     try {
       const config: ServerConfigValues = {
         values,
-        rawGameUserSettingsIni: raw.gus || undefined,
-        rawGameIni: raw.game || undefined,
-        rawCommandLineArgs: raw.args || undefined,
+        // "" (not undefined) so clearing a box reaches the server's merge as a value.
+        rawGameUserSettingsIni: raw.gus,
+        rawGameIni: raw.game,
+        rawCommandLineArgs: raw.args,
       };
       setServer(await apiPatch<ServerSummary>(`/servers/${serverId}`, { config }));
       onSaved?.();
