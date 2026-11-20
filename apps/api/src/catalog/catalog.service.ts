@@ -64,8 +64,13 @@ export class CatalogService {
   /** Render the two INI files for a server's config. */
   renderInis(game: Game, config: ServerConfigValues): { gameUserSettings: string; game: string } {
     const catalog = this.getCatalog(game);
+    const gameUserSettings = serializeGameUserSettings(catalog, config);
     return {
-      gameUserSettings: serializeGameUserSettings(catalog, config),
+      // ASE regenerates a GameUserSettings.ini that lacks its settings version from defaults (GH #182).
+      gameUserSettings:
+        game === Game.ASE
+          ? `[/Script/ShooterGame.ShooterGameUserSettings]\nVersion=5\n\n${gameUserSettings}`
+          : gameUserSettings,
       game: serializeGameIni(catalog, config),
     };
   }
