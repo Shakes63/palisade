@@ -14,5 +14,5 @@ LinuxGSM installs the game via SteamCMD on the first start — roughly 17 GB, ab
 - Unknown property names in the config are fatal ("Unknown config option" → shutdown). The catalog is the live-verified 61-property set; note the correct key is `QuestProgressionDailyLimit`, and many accepted GamePrefs (GameDifficulty, BloodMoon*, ZombieMove...) are absent from the shipped serverconfig.xml template.
 - Mods are drop-in folders under `serverfiles/Mods` (the Mods tab accepts .zip uploads). The game ships its own TFP_* mods in that dir — leave them alone.
 - Data is split: `serverfiles/` holds the ~20 GB install + config, `saves/` holds the world and player data. Backups target only the small saves dir.
-- The image's startup unconditionally installs an (empty) crontab; on some hosts the spool write fails fatally, so Palisade mounts a tmpfs over `/var/spool/cron` — don't remove it.
+- The image's startup unconditionally installs an (empty) crontab, and the write fails fatally under the container's no-new-privileges hardening, so Palisade mounts a world-writable tmpfs over `/var/spool/cron/crontabs` — don't remove it.
 - The telnet port (8081) is deliberately excluded from the forwarding spec — keep it LAN-only.
