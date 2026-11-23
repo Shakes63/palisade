@@ -351,9 +351,9 @@ describe("Palworld community + auto-pause (GH #7)", () => {
   });
 });
 
-describe("7DTD cron-spool tmpfs (GH #19)", () => {
-  it("mounts a world-writable tmpfs over /var/spool/cron so the image's crontab install can't crash the boot", async () => {
+describe("7DTD cron-spool tmpfs (GH #19, #185)", () => {
+  it("mounts a world-writable tmpfs over the crontabs dir so the image's crontab install can't crash the boot", async () => {
     const spec = await buildSdtd({ values: {} });
-    expect(spec.HostConfig?.Tmpfs).toMatchObject({ "/var/spool/cron": "rw,mode=1777" });
+    expect(spec.HostConfig?.Tmpfs).toEqual({ "/var/spool/cron/crontabs": "rw,mode=1777" });
   });
 });
