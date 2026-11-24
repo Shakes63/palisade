@@ -60,7 +60,7 @@ export class AuthService {
   }
 
   async login(dto: LoginDto): Promise<{ token: string }> {
-    const user = await this.findByUsername(dto.username);
+    const user = await this.prisma.user.findUnique({ where: { username: dto.username.trim() } });
     if (!user) throw new UnauthorizedException("Invalid credentials");
     const ok = await bcrypt.compare(dto.password, user.passwordHash);
     if (!ok) throw new UnauthorizedException("Invalid credentials");
@@ -126,25 +126,6 @@ export class AuthService {
     await this.prisma.user.update({ where: { id: userId }, data: { oidcIssuer: null, oidcSubject: null } });
   }
 
-  // NOCASE folds ASCII only, and the unique index stays case-sensitive so installs that already hold
-  // names differing only by case keep working: only new names are checked against the folded form.
-  private findUsernameIds(username: string) {
-    return this.prisma.$queryRaw<{ id: string }[]>`SELECT id FROM "User" WHERE username = ${username} COLLATE NOCASE`;
-  }
-
-  private async usernameTaken(username: string): Promise<boolean> {
-    return (await this.findUsernameIds(username)).length > 0;
-  }
-
-  /** An exact match wins, so legacy case-variant accounts stay reachable; otherwise any case finds a single account. */
-  private async findByUsername(username: string) {
-    const exact = await this.prisma.user.findUnique({ where: { username } });
-    if (exact) return exact;
-    const [only, ...rest] = await this.findUsernameIds(username);
-    if (!only || rest.length > 0) return null;
-    return this.prisma.user.findUnique({ where: { id: only.id } });
-  }
-
   private findByOidc(id: OidcIdentity) {
     return this.prisma.user.findFirst({ where: { oidcIssuer: id.issuer, oidcSubject: id.subject } });
   }
@@ -154,7 +135,7 @@ export class AuthService {
     const passwordHash = await bcrypt.hash(randomBytes(32).toString("hex"), 12);
     for (let attempt = 1; ; attempt++) {
       // Never adopt an existing account by name: a provider user could pick any username.
-      const taken = await this.usernameTaken(name);
+      const taken = await this.prisma.user.findUnique({ where: { username: name } });
       const username = taken ? `${name}_${randomBytes(3).toString("hex")}` : name;
       try {
         return await this.prisma.user.create({
@@ -279,7 +260,8 @@ export class AuthService {
     if (!username || password.length < 8) {
       throw new BadRequestException("Username required and password must be 8+ chars");
     }
-    if (await this.usernameTaken(username)) throw new BadRequestException("Username already taken");
+    const exists = await this.prisma.user.findUnique({ where: { username } });
+    if (exists) throw new BadRequestException("Username already taken");
     const passwordHash = await bcrypt.hash(password, 12);
     // Least privilege by default: an omitted role used to mean admin.
     const role: Role = access.role ?? "operator";

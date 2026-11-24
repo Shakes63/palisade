@@ -457,6 +457,11 @@ manages the rest. There are three roles:
 - **operator**: day-to-day ops. Start/stop, console, backups, mods, schedules.
 - **admin**: everything, including settings, users, and deletes.
 
+Usernames ignore case, so `Magnus` signs in as `magnus` too and the two can't
+both exist. Only the letters A to Z fold: `É` and `é` still count as different.
+Upgrading to this rule renames any account whose name differed from an older
+one's only by case, adding the account's id, such as `magnus_cmwuvosok000110mw4tz6whas`.
+
 A viewer or operator can also be limited to specific servers. Tick
 "Restrict to selected servers" on the user, then pick servers and/or
 clusters. A cluster grant covers every server in that cluster, including ones
@@ -571,7 +576,7 @@ pnpm install
 node -e "console.log('SECRETS_KEY=' + require('crypto').randomBytes(32).toString('hex'))"
 node -e "console.log('JWT_SECRET='  + require('crypto').randomBytes(32).toString('hex'))"
 
-pnpm --filter @ark/api db:push   # create the dev SQLite db
+pnpm --filter @ark/api db:deploy # create the dev SQLite db
 pnpm dev                         # API on :8787 + web on :3000
 pnpm --filter @ark/api test      # unit tests
 ```

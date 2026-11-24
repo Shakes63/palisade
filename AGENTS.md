@@ -152,7 +152,7 @@ from `@ark/shared` rather than redeclared in `apps/web`.
 | Fast test suite             | `pnpm test` (or `pnpm --filter @ark/api test -- <file>`)    |
 | Docker integration tests    | `PALISADE_DOCKER_TESTS=1 pnpm --filter @ark/api test:docker` |
 | Regenerate the Prisma client | `pnpm db:generate`                                         |
-| Create the dev database     | `pnpm --filter @ark/api db:push`                            |
+| Create the dev database     | `pnpm --filter @ark/api db:deploy`                          |
 | Create a migration          | `pnpm db:migrate`                                           |
 | Apply migrations            | `pnpm --filter @ark/api db:deploy`                          |
 | Build the image locally     | `docker build -t palisade:dev .`                            |

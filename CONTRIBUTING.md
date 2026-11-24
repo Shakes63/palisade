@@ -42,7 +42,7 @@ You need Node 20+, [pnpm](https://pnpm.io) 9, and a working Docker daemon.
 pnpm install                     # install the workspace
 cp .env.example apps/api/.env    # never commit a real .env
 pnpm db:generate                 # generate the Prisma client
-pnpm --filter @ark/api db:push   # create the dev SQLite database
+pnpm --filter @ark/api db:deploy # create the dev SQLite database
 pnpm dev                         # API on :8787, web UI on :3000
 ```
 

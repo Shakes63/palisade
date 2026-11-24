@@ -13,6 +13,8 @@ datasource db {
 
 model User {
   id           String   @id @default(cuid())
+  /// Case-insensitive: the column is COLLATE NOCASE (migration 20261124000000), which Prisma can't express,
+  /// so a migration that rebuilds User must keep it. username-collation.test.ts fails if one doesn't.
   username     String   @unique
   passwordHash String
   /// False for accounts SSO created, whose random password nobody knows.
