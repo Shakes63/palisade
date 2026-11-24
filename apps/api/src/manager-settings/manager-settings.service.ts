@@ -53,6 +53,7 @@ export const SettingKeys = {
   OidcViewerGroup: "oidc_viewer_group",
   OidcGroupsClaim: "oidc_groups_claim", // unset = "groups"
   OidcAutoCreate: "oidc_auto_create", // off: only linked accounts sign in through SSO
+  OidcMatchUsername: "oidc_match_username", // trusts the provider's username, so only for providers that fix it
   OidcHidePassword: "oidc_hide_password", // UI only: the password form still appears as the fallback
   OidcAutoRedirect: "oidc_auto_redirect",
   // RouterOS REST API (v7.1+): HTTP Basic auth, so a user and password rather

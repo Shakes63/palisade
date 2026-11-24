@@ -60,6 +60,7 @@ export default function SettingsPage() {
   const [oidcGroupsClaim, setOidcGroupsClaim] = useState("");
   const [oidcRedirectUri, setOidcRedirectUri] = useState("");
   const [oidcAutoCreate, setOidcAutoCreate] = useState(false);
+  const [oidcMatchUsername, setOidcMatchUsername] = useState(false);
   const [oidcHidePassword, setOidcHidePassword] = useState(false);
   const [oidcAutoRedirect, setOidcAutoRedirect] = useState(false);
   // Per-card save state: which card is mid-save / which just saved.
@@ -112,6 +113,7 @@ export default function SettingsPage() {
           setOidcViewerGroup(str("oidc_viewer_group"));
           setOidcGroupsClaim(str("oidc_groups_claim"));
           setOidcAutoCreate(v.oidc_auto_create === "true");
+          setOidcMatchUsername(v.oidc_match_username === "true");
           setOidcHidePassword(v.oidc_hide_password === "true");
           setOidcAutoRedirect(v.oidc_auto_redirect === "true");
         }
@@ -237,6 +239,7 @@ export default function SettingsPage() {
         oidcViewerGroup,
         oidcGroupsClaim,
         oidcAutoCreate,
+        oidcMatchUsername,
         oidcHidePassword,
         oidcAutoRedirect,
         ...(oidcClientSecret ? { oidcClientSecret } : {}),
@@ -873,9 +876,15 @@ export default function SettingsPage() {
               [
                 [
                   "Create accounts on first SSO sign-in",
-                  "Anyone the provider lets in gets a Palisade account, so limit who may use the app at the provider. Without groups, new accounts are viewers who see no servers until you grant some. Off: only accounts linked from the account menu sign in with SSO.",
+                  "Anyone the provider lets in gets a Palisade account, so limit who may use the app at the provider. Without groups, new accounts are viewers who see no servers until you grant some. Off: only accounts linked from the account menu, or matched by username below, sign in with SSO.",
                   oidcAutoCreate,
                   setOidcAutoCreate,
+                ],
+                [
+                  "Match SSO users to accounts by username",
+                  "An SSO account signing in for the first time takes over the Palisade account with the same username, admins included, unless that account is already linked to SSO. Lets you create users and set their access before they first sign in. Only turn this on if users cannot change their username at the provider, or anyone could sign in as any account not yet linked to SSO.",
+                  oidcMatchUsername,
+                  setOidcMatchUsername,
                 ],
                 [
                   "Hide password sign-in",
@@ -905,9 +914,9 @@ export default function SettingsPage() {
               </label>
             ))}
             <p className="border-t border-ark-border/60 pt-4 text-xs text-slate-500">
-              SSO never takes over an existing account by name. To sign in to an account you already have with SSO,
-              such as this one, save these settings and use &quot;Link SSO account&quot; in the account menu at the
-              top right. Every user can do that for their own account.
+              Unless matching by username is on, SSO never takes over an existing account by name. To sign in to an
+              account you already have with SSO, such as this one, save these settings and use &quot;Link SSO
+              account&quot; in the account menu at the top right. Every user can do that for their own account.
             </p>
             <CardSave card="sso" onClick={saveSso} />
           </div>

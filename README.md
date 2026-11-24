@@ -508,8 +508,8 @@ named from the `preferred_username` claim, with a random suffix such as
 who sees no servers until an admin grants some.
 
 A link is to one identity at one issuer, so pointing SSO at another provider
-leaves old links unused rather than matching them there. SSO never takes
-over an existing account just because the name matches: to
+leaves old links unused rather than matching them there. By default SSO never
+takes over an existing account just because the name matches: to
 use SSO for an account you already have, such as the first-run admin, sign in
 with its password and choose "Link SSO account" in the account menu at the
 top right. With groups set, a link that would lower the account's role is
@@ -517,6 +517,22 @@ refused. The same menu unlinks your account, which takes your password; an
 admin can unlink anyone else from Settings → Users. An account that SSO
 created has no password, so it cannot be unlinked; delete it instead. Clear the
 issuer to turn SSO off, and clear the client ID to also forget the secret.
+
+If users cannot change their username at your provider, turn on **Match SSO
+users to accounts by username**. An SSO account's first sign-in then links it
+to the Palisade account with the same name, ignoring case, admins included.
+Create users ahead of time and set their role and server access, and their
+first SSO sign-in picks it all up. With groups set, the provider's role applies
+from then on as for any linked account, and a match that would lower the
+account's role is refused, as a manual link is. The name comes from
+`preferred_username`, or from the email when the provider marks it verified.
+An account already linked to SSO is never matched, including one linked to a
+provider you have since replaced: unlink it in Settings → Users first.
+
+Only turn this on if the provider fixes those names: users can't rename
+themselves, two users can't hold names that differ only by case, and an email
+is never handed to someone else. Otherwise anyone could sign in as any
+unlinked account.
 
 Two switches on the card make SSO the default way in:
 
