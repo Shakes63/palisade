@@ -48,4 +48,10 @@ describe("usernames on a migrated database", () => {
     const sso = await prisma.user.findFirstOrThrow({ where: { oidcSubject: "sub-1" } });
     expect(sso.username).toMatch(/^MAGNUS_[0-9a-f]{6}$/);
   });
+
+  it("matches an SSO sign-in to the account of its name whatever the case, when the admin opts in", async () => {
+    await svc.createUser("Bob", "password123", { role: "viewer" });
+    await svc.oidcSignIn({ issuer: "https://idp", subject: "sub-2" }, "bob", null, false, true);
+    expect(await prisma.user.findUniqueOrThrow({ where: { username: "BOB" } })).toMatchObject({ oidcSubject: "sub-2" });
+  });
 });

@@ -87,7 +87,6 @@ function makeOidcService(seed: Seed[]) {
         users.push(u);
         return u;
       },
-      findMany: async () => users,
       updateMany: async ({ where, data }: { where: Partial<U>; data: Partial<U> }) => {
         const u = find(where);
         if (u) Object.assign(u, data);
@@ -170,18 +169,11 @@ describe("oidcSignIn", () => {
     await expect(svc.oidcSignIn(sso("sub-c"), "bob", null, false, true)).rejects.toThrow(/No Palisade account/);
   });
 
-  it("matches the username case-insensitively, preferring an exact match and skipping ambiguous ones", async () => {
-    const { svc, users } = makeOidcService([
-      { id: "a", username: "Magnus", role: "admin", oidcSubject: null },
-      { id: "b", username: "magnus", role: "admin", oidcSubject: null },
-      { id: "c", username: "Bob", role: "viewer", oidcSubject: null },
-      { id: "d", username: "ALICE", role: "viewer", oidcSubject: null },
-      { id: "e", username: "alice", role: "viewer", oidcSubject: "sub-other" },
-    ]);
-    await svc.oidcSignIn(sso("sub-m"), "magnus", null, false, true);
-    await svc.oidcSignIn(sso("sub-b"), "bob", null, false, true);
-    await expect(svc.oidcSignIn(sso("sub-a"), "Alice", null, false, true)).rejects.toThrow(/No Palisade account/);
-    expect(users.map((u) => u.oidcSubject)).toEqual([null, "sub-m", "sub-b", null, "sub-other"]);
+  it("refuses to adopt an account its groups rank below, even the last admin", async () => {
+    const { svc, users } = makeOidcService([{ id: "a", username: "root", role: "admin", oidcSubject: null }]);
+    await expect(svc.oidcSignIn(sso("sub-r"), "root", "viewer", true, true)).rejects.toThrow(/grant the viewer role/);
+    expect(users).toHaveLength(1);
+    expect(users[0]!.oidcSubject).toBeNull();
   });
 
   it("signs in the account a concurrent callback created instead of failing", async () => {

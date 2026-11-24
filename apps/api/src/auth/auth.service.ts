@@ -75,7 +75,7 @@ export class AuthService {
     create: boolean,
     matchUsername = false,
   ): Promise<{ token: string }> {
-    let user = (await this.findByOidc(id)) ?? (matchUsername ? await this.adoptByUsername(id, username) : null);
+    let user = (await this.findByOidc(id)) ?? (matchUsername ? await this.adoptByUsername(id, username, role) : null);
     if (!user) {
       if (!create) {
         throw new ForbiddenException(
@@ -106,13 +106,7 @@ export class AuthService {
       throw new ConflictException("That SSO account already signs in as a different Palisade user");
     }
     const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
-    const current = user.role as Role;
-    if (role && ROLE_RANK[role] < ROLE_RANK[current]) {
-      throw new ForbiddenException(
-        `Your SSO groups grant the ${role} role, so this ${current} account would become ${role} at its ` +
-          `next SSO sign-in. Add your SSO account to the ${current} group at the provider first.`,
-      );
-    }
+    AuthService.refuseDemotion(user.role as Role, role);
     await this.prisma.user.update({ where: { id: userId }, data: { oidcIssuer: id.issuer, oidcSubject: id.subject } });
   }
 
@@ -137,21 +131,27 @@ export class AuthService {
   }
 
   /** Link a new identity to the unlinked account of its name; safe only where the provider fixes usernames. */
-  private async adoptByUsername(id: OidcIdentity, username: string) {
-    // Names may differ only by case, so an exact match wins and an ambiguous one adopts nothing.
-    const folded = username.toLowerCase();
-    const named = (await this.prisma.user.findMany({ select: { id: true, username: true } })).filter(
-      (u) => u.username.toLowerCase() === folded,
-    );
-    const match = named.find((u) => u.username === username) ?? (named.length === 1 ? named[0] : undefined);
-    if (match) {
+  private async adoptByUsername(id: OidcIdentity, username: string, role: Role | null) {
+    const named = await this.prisma.user.findUnique({ where: { username } });
+    if (named && named.oidcSubject === null) {
+      // The last admin keeps its role at sign-in, so a lower group would otherwise adopt it as admin.
+      AuthService.refuseDemotion(named.role as Role, role);
       await this.prisma.user.updateMany({
-        where: { id: match.id, oidcIssuer: null, oidcSubject: null },
+        where: { id: named.id, oidcIssuer: null, oidcSubject: null },
         data: { oidcIssuer: id.issuer, oidcSubject: id.subject },
       });
     }
     // Also finds the account when a concurrent callback for the same identity linked it first.
     return this.findByOidc(id);
+  }
+
+  private static refuseDemotion(current: Role, role: Role | null): void {
+    if (role && ROLE_RANK[role] < ROLE_RANK[current]) {
+      throw new ForbiddenException(
+        `Your SSO groups grant the ${role} role, so this ${current} account would become ${role} at its ` +
+          `next SSO sign-in. Add your SSO account to the ${current} group at the provider first.`,
+      );
+    }
   }
 
   private async createOidcUser(id: OidcIdentity, name: string, role: Role | null) {

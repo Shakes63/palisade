@@ -225,6 +225,19 @@ describe("OidcService", () => {
     expect(auth.oidcSignIn).toHaveBeenCalledWith(ID, "magnus", null, false, true);
   });
 
+  it("matches by email only when the provider has verified it", async () => {
+    const { svc, auth } = makeService({ [SettingKeys.OidcMatchUsername]: "true" });
+    let verified = false;
+    const idp = stubProvider((nonce) => rs256({ sub: "abc", email: "bob@example.com", email_verified: verified, nonce }));
+    let { state } = await idp.begin(svc);
+    await svc.complete(state, state, "code");
+    expect(auth.oidcSignIn).toHaveBeenLastCalledWith(ID, "bob@example.com", null, false, false);
+    verified = true;
+    ({ state } = await idp.begin(svc));
+    await svc.complete(state, state, "code");
+    expect(auth.oidcSignIn).toHaveBeenLastCalledWith(ID, "bob@example.com", null, false, true);
+  });
+
   it("reuses the provider's discovery document and keys until a new key id appears", async () => {
     const { svc } = makeService();
     const idp = stubProvider((nonce) => rs256({ sub: "abc", nonce }, { keyid: idp.jwks.kid }));

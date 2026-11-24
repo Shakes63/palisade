@@ -520,13 +520,19 @@ issuer to turn SSO off, and clear the client ID to also forget the secret.
 
 If users cannot change their username at your provider, turn on **Match SSO
 users to accounts by username**. An SSO account's first sign-in then links it
-to the Palisade account with the same name, admins included, unless that
-account is already linked to SSO. Case is ignored, but an exact match wins,
-and names that differ only by case with no exact match link nothing. Create
-users ahead of time and set their role and server access, and their first SSO
-sign-in picks it all up. With groups set, the provider's role still applies at
-every SSO sign-in. Leave it off if users can rename themselves at the
-provider: anyone could then sign in as any unlinked account.
+to the Palisade account with the same name, ignoring case, admins included.
+Create users ahead of time and set their role and server access, and their
+first SSO sign-in picks it all up. With groups set, the provider's role applies
+from then on as for any linked account, and a match that would lower the
+account's role is refused, as a manual link is. The name comes from
+`preferred_username`, or from the email when the provider marks it verified.
+An account already linked to SSO is never matched, including one linked to a
+provider you have since replaced: unlink it in Settings → Users first.
+
+Only turn this on if the provider fixes those names: users can't rename
+themselves, two users can't hold names that differ only by case, and an email
+is never handed to someone else. Otherwise anyone could sign in as any
+unlinked account.
 
 Two switches on the card make SSO the default way in:
 

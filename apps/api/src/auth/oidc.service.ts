@@ -173,7 +173,11 @@ export class OidcService {
     const username = [claims.preferred_username, claims.email, claims.sub].find(
       (v): v is string => typeof v === "string" && v.trim() !== "",
     )!;
-    const { token } = await this.auth.oidcSignIn(identity, username.trim(), role, cfg.autoCreate, cfg.matchUsername);
+    // Anyone can claim an unverified email, so only a username or a verified email may match an account.
+    const trusted =
+      username === claims.preferred_username || (username === claims.email && claims.email_verified === true);
+    const match = cfg.matchUsername && trusted;
+    const { token } = await this.auth.oidcSignIn(identity, username.trim(), role, cfg.autoCreate, match);
     const ticket = base64url(randomBytes(32));
     this.tickets.set(ticket, { token, expires: Date.now() + TICKET_TTL_MS });
     return { ticket };
